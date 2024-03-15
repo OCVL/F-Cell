@@ -158,13 +158,14 @@ if __name__ == "__main__":
 
                 dataset.coord_data = refine_coord_to_stack(dataset.video_data, ref_im, reference_coord_data)
 
-                norm_video_data = norm_video(dataset.video_data, norm_method="mean", rescaled=True)
+                norm_video_data = norm_video(dataset.video_data, norm_method="score", rescaled=True,
+                                             rescale_mean=70, rescale_std=35)
 
                 temp_profiles = extract_profiles(norm_video_data, dataset.coord_data, seg_radius=segmentation_radius,
-                                                 seg_mask="disk", summary="median")
+                                                 seg_mask="disk", summary="mean")
 
                 temp_profiles, num_removed = exclude_profiles(temp_profiles, dataset.framestamps,
-                                                 critical_region=np.arange(stimulus_train[0] - int(0.1 * framerate),
+                                                 critical_region=np.arange(stimulus_train[0] - int(0.2 * framerate),
                                                                            stimulus_train[1] + int(0.2 * framerate)),
                                                  critical_fraction=0.4)
 
@@ -177,7 +178,6 @@ if __name__ == "__main__":
                                                                                        threshold=0.3)
 
                 ctrl_wavelets, scales, coi = wavelet_iORG(stdize_profiles, reconst_framestamps, dataset.framerate)
-
 
                 cell_var = np.full((len(ctrl_wavelets), scales.shape[0]), np.nan)
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
 
         # For 95% significance.
-        sig_threshold = avg_all+np.sqrt(avg_var)*3.85 #3.85 for 95, for 97.5, 6.63 for 99th from Chi squared distribution
+        sig_threshold = avg_all+np.sqrt(avg_var)*1.96 #3.85 for 95, for 97.5, 6.63 for 99th from Chi squared distribution
         sig_threshold_im = np.repeat(np.asmatrix(sig_threshold).transpose(), len(reconst_framestamps), axis=1)
         sig_threshold_im[coi < 1] = np.amax(sig_threshold)
         plt.figure(12)
@@ -256,8 +256,8 @@ if __name__ == "__main__":
                     stimulus_train = dataset.stimtrain_frame_stamps
                     ref_im = dataset.reference_im
 
-                    reference_coord_data = dataset.coord_data - 1
-                    # reference_coord_data = refine_coord(ref_im, dataset.coord_data)  # REINSTATE MEEEEEEEEEEEEEEEEEEEEEEE
+                    #reference_coord_data = dataset.coord_data - 1
+                    reference_coord_data = refine_coord(ref_im, dataset.coord_data)  # REINSTATE MEEEEEEEEEEEEEEEEEEEEEEE
 
                     all_scales = np.full((reference_coord_data.shape[0], 4), np.nan)
 
@@ -287,17 +287,18 @@ if __name__ == "__main__":
                 # full_profiles = extract_profiles(dataset.video_data, dataset.coord_data, seg_radius=segmentation_radius+1,
                 #                                  summary="none", sigma=1)
 
-                norm_video_data = norm_video(dataset.video_data, norm_method="mean", rescaled=True)
+                norm_video_data = norm_video(dataset.video_data, norm_method="score", rescaled=True,
+                                             rescale_mean=70, rescale_std=35)
 
                 temp_profiles = extract_profiles(norm_video_data, dataset.coord_data, seg_radius=segmentation_radius,
-                                                 seg_mask="disk", summary="median")
+                                                 seg_mask="disk", summary="mean")
 
                 temp_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
                                                      stimulus_stamp=stimulus_train[0], method="mean_sub")
 
                 temp_profiles, good_profiles = exclude_profiles(temp_profiles, dataset.framestamps,
                                                                 critical_region=np.arange(
-                                                                    stimulus_train[0] - int(0.1 * framerate),
+                                                                    stimulus_train[0] - int(0.2 * framerate),
                                                                     stimulus_train[1] + int(0.2 * framerate)),
                                                                 critical_fraction=0.5)
 
@@ -359,9 +360,10 @@ if __name__ == "__main__":
             # plt.plot(reference_coord_data[c][0], reference_coord_data[c][1], "r*")
 
             # What about a temporal histogram?
+            # What about https://github.com/jyhmiinlin/pynufft based windowed short time fourier transforms?
             if np.any(np.isfinite(all_cell_iORG[:, :, c])):
                 allcell_CWT, scales, coi = wavelet_iORG(all_cell_iORG[:, :, c], full_framestamp_range, framerate,
-                                                        sig_threshold_im, display=False)
+                                                        sig_threshold_im, display=True)
 
                 print(c)
                 # plt.figure(42)
