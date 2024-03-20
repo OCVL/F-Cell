@@ -182,8 +182,8 @@ if __name__ == "__main__":
                 norm_video_data = norm_video(dataset.video_data, norm_method="score", rescaled=True,
                                              rescale_mean=70, rescale_std=35)
 
-                full_profiles.append(extract_profiles(dataset.video_data, dataset.coord_data, seg_radius=segmentation_radius, summary="none"))
-                temp_profiles = extract_profiles(dataset.video_data, dataset.coord_data, seg_radius=segmentation_radius,
+                full_profiles.append(extract_profiles(norm_video_data, dataset.coord_data, seg_radius=segmentation_radius, summary="none"))
+                temp_profiles = extract_profiles(norm_video_data, dataset.coord_data, seg_radius=segmentation_radius,
                                                  seg_mask="disk", summary="mean")
 
                 # print(str((stimulus_train[0] - int(0.15 * framerate)) / framerate) + " to " + str(
@@ -246,18 +246,20 @@ if __name__ == "__main__":
             cell_power_iORG[c, :], numincl = signal_power_iORG(all_cell_iORG[:, :, c],
                                                                dataset.stimtrain_frame_stamps, summary_method="rms",
                                                                window_size=1, display=False)
+            avg_numdata = np.nanmean(numincl)
             prestim_ind = np.logical_and(all_frmstamps < dataset.stimtrain_frame_stamps[0],
-                                         all_frmstamps >= (dataset.stimtrain_frame_stamps[0] - int(1 * dataset.framerate)))
+                                         all_frmstamps >= (dataset.stimtrain_frame_stamps[0] - int(0.75 * dataset.framerate)))
             poststim_ind = np.logical_and(all_frmstamps >= dataset.stimtrain_frame_stamps[1],
-                                          all_frmstamps < (dataset.stimtrain_frame_stamps[1] + int(1 * dataset.framerate)))
+                                          all_frmstamps < (dataset.stimtrain_frame_stamps[1] + int(0.75 * dataset.framerate)))
             poststim = cell_power_iORG[c, poststim_ind]
 
-            if poststim.size == 0:
+            if poststim.size == 0 or avg_numdata < (all_cell_iORG.shape[0]/2):
                 poststim_amp = np.NaN
                 prestim_amp = np.NaN
 
             else:
                 thispower = cell_power_iORG[c, :]
+
                 indiv_iORG_amp[c], indiv_iORG_implicit[c] = iORG_signal_metrics(thispower[None, :], dataset.framestamps,
                                                                         filter_type="none", display=False,
                                                                         prestim_idx=prestim_ind,
@@ -267,6 +269,10 @@ if __name__ == "__main__":
         log_indiv_iORG_amp = np.log(indiv_iORG_amp)
 
 
+        # plt.figure(999)
+        # plt.plot(cell_power_iORG.transpose())
+        # plt.show(block=False)
+        # plt.waitforbuttonpress()
 
 
         # TODO: Calling the coordclip fxn to return the simple_amp that corresponds to a 100 cone ROI
@@ -306,7 +312,7 @@ if __name__ == "__main__":
         plt.close(plt.gcf())
 
         plt.figure(48) # log hist
-        histbins_log = np.arange(start=0, stop=5.5, step=0.05)  # Humans: -0.2, 1.5, 0.025 Animal: start=-3, stop=-0.6, step=0.01 stop=round(np.nanmax(log_amp))
+        histbins_log = np.arange(start=0, stop=5.5, step=0.01)  # Humans: -0.2, 1.5, 0.025 Animal: start=-3, stop=-0.6, step=0.01 stop=round(np.nanmax(log_amp))
         plt.hist(log_indiv_iORG_amp, bins=histbins_log, density=True, histtype="step", cumulative=True)
         # plt.plot(cell_power_iORG[c, :], "k-", alpha=0.05)
         plt.show(block=False)

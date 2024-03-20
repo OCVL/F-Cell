@@ -140,6 +140,7 @@ if __name__ == "__main__":
         framestamps = []
         max_frmstamp = 0
         plt.figure(0)
+        plt.clf()
 
         first = True
         mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(allFiles[loc])))
