@@ -289,7 +289,7 @@ if __name__ == "__main__":
 
         plt.figure(41)  # log hist +1
         histbins_logp1 = np.arange(start=0, stop=0.3, step=0.01)  # Humans: -0.2, 1.5, 0.025
-        amp_plus1_log = np.log10(simple_amp[l, :] + 1)
+        amp_plus1_log = np.log10(simple_amp + 1)
         print("min ", np.nanmin(amp_plus1_log))
         print("max ", np.nanmax(amp_plus1_log))
         plt.hist(amp_plus1_log, bins=histbins_logp1)
@@ -320,7 +320,6 @@ if __name__ == "__main__":
 
         fin_log_amp = np.isfinite(log_amp[:, 0].copy())
         ColorTest = hist_mapper.to_rgba(log_amp[fin_log_amp, 0])
-        #ColorTest = hist_mapper.to_rgba(log_amp[:, 0])
 
 
         plt.figure(22)
