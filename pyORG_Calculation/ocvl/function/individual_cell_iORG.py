@@ -63,6 +63,17 @@ if __name__ == "__main__":
     if not ref_mode:
         ref_mode = "760nm"
 
+    # Allow for user to specify the segmentation radius - Stolen from BDB
+    segmentation_radius = None
+    segmentation_radius = simpledialog.askstring(title="Segmentation Radius",
+                                                 prompt="Input the segmentation radius to be used:",
+                                                 initialvalue=segmentation_radius,
+                                                 parent=root)
+    if segmentation_radius == "":
+        segmentation_radius = None
+    else:
+        segmentation_radius = int(segmentation_radius)
+
     x = root.winfo_screenwidth() / 2 - 128
     y = root.winfo_screenheight() / 2 - 128
     root.geometry(
@@ -119,7 +130,7 @@ if __name__ == "__main__":
         pb["maximum"] = len(allFiles[loc])
         mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(allFiles[loc])).reversed())
         max_frmstamp = 0
-        segmentation_radius = None
+
 
         # Loops through all the files within this location
         for file in allFiles[loc]:
