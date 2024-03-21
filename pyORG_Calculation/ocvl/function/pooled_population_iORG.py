@@ -364,6 +364,15 @@ if __name__ == "__main__":
                                       columns=["Amplitude", "Implicit time", "Recovery %"])
         pop_amp_dFrame.to_csv(res_dir.joinpath(this_dirname + "_pop_iORG_stats_" + now_timestamp + ".csv"))
 
+        # Output the pop iORG for each frame and trial -- wanted feature
+        tmp_lst = []
+        for i in range(0, len(pop_iORG)):
+            tmp = "Trial " + str(i)
+            tmp_lst.append(tmp)
+
+        pop_by_frame_dFrame = pd.DataFrame(np.array(pop_iORG).transpose(), columns=tmp_lst)
+        pop_by_frame_dFrame.to_csv(res_dir.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".csv"))
+
         plt.figure(1)
 
         plt.plot(all_frmstamps / dataset.framerate, pooled_iORG)

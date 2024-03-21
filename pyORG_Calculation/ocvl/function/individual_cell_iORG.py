@@ -289,7 +289,7 @@ if __name__ == "__main__":
 
         plt.figure(40) # log hist
         histbins_log = np.arange(start=-3, stop=-0.6, step=0.01)  # Humans: -0.2, 1.5, 0.025
-        log_amp = np.log10(simple_amp) # Old: log_amp = np.log10(simple_amp[l,:])
+        log_amp = np.log(simple_amp) # Old: log_amp = np.log10(simple_amp[l,:])
         plt.hist(log_amp, bins=histbins_log)
         # plt.plot(cell_power_iORG[c, :], "k-", alpha=0.05)
         plt.show(block=False)
