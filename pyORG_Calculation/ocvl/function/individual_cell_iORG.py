@@ -278,7 +278,7 @@ if __name__ == "__main__":
 
         plt.figure(40) # log hist
         histbins_log = np.arange(start=-3, stop=-0.6, step=0.01)  # Humans: -0.2, 1.5, 0.025
-        log_amp = np.log10(simple_amp[l,:])
+        log_amp = np.log10(simple_amp) # Old: log_amp = np.log10(simple_amp[l,:])
         plt.hist(log_amp, bins=histbins_log)
         # plt.plot(cell_power_iORG[c, :], "k-", alpha=0.05)
         plt.show(block=False)
@@ -304,19 +304,19 @@ if __name__ == "__main__":
 
         # simple_amp_norm = (simple_amp-histbins[0])/(histbins[-1] - histbins[0])
 
-        plt.figure(2)
-        vor = Voronoi(reference_coord_data)
-        voronoi_plot_2d(vor, show_vertices=False, show_points=False)
-        for c, cell in enumerate(vor.regions[1:]):
-            if not -1 in cell:
-                poly = [vor.vertices[i] for i in cell]
-                plt.fill(*zip(*poly), color=hist_mapper.to_rgba(simple_amp[l, c]))
-        ax = plt.gca()
-        ax.set_aspect("equal", adjustable="box")
-        plt.show(block=False)
-        plt.savefig(res_dir.joinpath(this_dirname + "_allcell_iORG_voronoi_" + now_timestamp + ".png"))
-        # plt.savefig(res_dir.joinpath(this_dirname + "_allcell_iORG_voronoi.svg"))
-        plt.close(plt.gcf())
+        # plt.figure(2)
+        # vor = Voronoi(reference_coord_data)
+        # voronoi_plot_2d(vor, show_vertices=False, show_points=False)
+        # for c, cell in enumerate(vor.regions[1:]):
+        #     if not -1 in cell:
+        #         poly = [vor.vertices[i] for i in cell]
+        #         plt.fill(*zip(*poly), color=hist_mapper.to_rgba(simple_amp[l, c]))
+        # ax = plt.gca()
+        # ax.set_aspect("equal", adjustable="box")
+        # plt.show(block=False)
+        # plt.savefig(res_dir.joinpath(this_dirname + "_allcell_iORG_voronoi_" + now_timestamp + ".png"))
+        # # plt.savefig(res_dir.joinpath(this_dirname + "_allcell_iORG_voronoi.svg"))
+        # plt.close(plt.gcf())
 
         fin_log_amp = np.isfinite(log_amp[:, 0].copy())
         ColorTest = hist_mapper.to_rgba(log_amp[fin_log_amp, 0])
