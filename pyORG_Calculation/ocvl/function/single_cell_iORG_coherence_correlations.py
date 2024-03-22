@@ -55,7 +55,6 @@ print('Min Pearson correlation: %.5f' % testCorrW.min())
 sort_testCorrW = testCorrW.sort_values(axis=0)
 length_testCorrW = testCorrW.size
 calc_med = round(length_testCorrW/2)
-sort_testCorrW.iloc[calc_med]
 med_loc = testCorrW.index.get_loc(sort_testCorrW[sort_testCorrW == sort_testCorrW.iloc[calc_med]].index[0])
 
 min_loc = int(testCorrW.idxmin())
@@ -70,6 +69,11 @@ plt.figure(2)
 plt.plot(cell_pwr_iORG_1.iloc[max_loc])
 plt.plot(cell_pwr_iORG_2.iloc[max_loc])
 plt.title('Max Correlation')
+
+plt.figure(3)
+plt.plot(cell_pwr_iORG_1.iloc[med_loc])
+plt.plot(cell_pwr_iORG_2.iloc[med_loc])
+plt.title('Median Correlation')
 
 plt.show()
 
