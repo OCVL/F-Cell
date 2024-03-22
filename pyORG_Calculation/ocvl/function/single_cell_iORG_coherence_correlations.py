@@ -46,20 +46,31 @@ cell_pwr_iORG_2 = pd.read_csv(fName_2)
 # calculating correlation coefficient
 testCorrW = cell_pwr_iORG_1.corrwith(cell_pwr_iORG_2, axis=0, drop=False, method='pearson')
 
-# Plot graph
-fig = plt.figure()
-ax1 = fig.add_subplot(211)
+# plotting the signals from the highest and lowest correlation coeffs
+print('Max Pearson correlation: %.5f' % testCorrW.max())
+print('Median Pearson correlation: %.5f' % testCorrW.median())
+print('Min Pearson correlation: %.5f' % testCorrW.min())
 
-# cross correlation using
-# xcorr() function
-ax1.xcorr(cell_pwr_iORG_1.iloc[1], cell_pwr_iORG_2.iloc[1],
-          maxlags=5, normed=True,
-          lw=2)
-# adding grid to the graph
-ax1.grid(True)
-#ax1.axhline(0, color='blue', lw=2)
+# calculating median manually because something is weird with finding that index
+sort_testCorrW = testCorrW.sort_values(axis=0)
+length_testCorrW = testCorrW.size
+calc_med = round(length_testCorrW/2)
+sort_testCorrW.iloc[calc_med]
+med_loc = testCorrW.index.get_loc(sort_testCorrW[sort_testCorrW == sort_testCorrW.iloc[calc_med]].index[0])
 
-# show final plotted graph
+min_loc = int(testCorrW.idxmin())
+max_loc = int(testCorrW.idxmax())
+
+plt.figure(1)
+plt.plot(cell_pwr_iORG_1.iloc[min_loc])
+plt.plot(cell_pwr_iORG_2.iloc[min_loc])
+plt.title('Min Correlation')
+
+plt.figure(2)
+plt.plot(cell_pwr_iORG_1.iloc[max_loc])
+plt.plot(cell_pwr_iORG_2.iloc[max_loc])
+plt.title('Max Correlation')
+
 plt.show()
 
 print(' ')
