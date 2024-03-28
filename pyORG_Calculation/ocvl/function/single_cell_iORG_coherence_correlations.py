@@ -46,17 +46,21 @@ if not stimName:
     quit()
 
 # Reading in datasets as dataframe
-cell_pwr_iORG_1 = pd.read_csv(fName_1)
-cell_pwr_iORG_2 = pd.read_csv(fName_2)
-stimTrain = pd.read_csv(stimName)
+cell_pwr_iORG_1 = pd.read_csv(fName_1, header=None)
+cell_pwr_iORG_2 = pd.read_csv(fName_2, header=None)
+stimTrain = pd.read_csv(stimName, header=None)
+
+# Creating a truncated dataframe that only includes frames during and after stimulus
+
+cell_pwr_iORG_1_stim = cell_pwr_iORG_1.iloc[:, 50:58]
 
 # calculating correlation coefficient
 testCorrW = cell_pwr_iORG_1.corrwith(cell_pwr_iORG_2, axis=1, drop=False, method='pearson')
 
 # plotting the signals from the highest and lowest correlation coeffs
-print('Max Pearson correlation: %.5f' % testCorrW.max())
-print('Median Pearson correlation: %.5f' % testCorrW.median())
 print('Min Pearson correlation: %.5f' % testCorrW.min())
+print('Median Pearson correlation: %.5f' % testCorrW.median())
+print('Max Pearson correlation: %.5f' % testCorrW.max())
 
 # calculating median manually because something is weird with finding that index
 sort_testCorrW = testCorrW.sort_values(axis=0)
