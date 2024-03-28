@@ -26,22 +26,29 @@ from datetime import datetime, date, time, timezone
 
 # User selects dataset from file
 root = Tk()
-fName_1 = filedialog.askopenfilename(title="Select the Stimulus_cell_power_iORG csv for the first condition .", parent=root)
+fName_1 = filedialog.askopenfilename(title="Select the Stimulus_cell_power_iORG csv for the first condition.", parent=root)
 print('selected path: ' + fName_1)
 
 if not fName_1:
     quit()
 
 
-fName_2 = filedialog.askopenfilename(title="Select the Stimulus_cell_power_iORG csv for the second condition .", parent=root)
+fName_2 = filedialog.askopenfilename(title="Select the Stimulus_cell_power_iORG csv for the second condition.", parent=root)
 print('selected path: ' + fName_2)
 
 if not fName_2:
     quit()
 
+stimName = filedialog.askopenfilename(title="Select the stimulus train file.", parent=root)
+print('selected path: ' + stimName)
+
+if not stimName:
+    quit()
+
 # Reading in datasets as dataframe
 cell_pwr_iORG_1 = pd.read_csv(fName_1)
 cell_pwr_iORG_2 = pd.read_csv(fName_2)
+stimTrain
 
 # calculating correlation coefficient
 testCorrW = cell_pwr_iORG_1.corrwith(cell_pwr_iORG_2, axis=0, drop=False, method='pearson')
@@ -63,17 +70,26 @@ max_loc = int(testCorrW.idxmax())
 plt.figure(1)
 plt.plot(cell_pwr_iORG_1.iloc[min_loc])
 plt.plot(cell_pwr_iORG_2.iloc[min_loc])
-plt.title('Min Correlation')
+plt.legend(labels = ["760nm", "Conf"])
+plt.title('Full Length Min Correlation')
 
 plt.figure(2)
 plt.plot(cell_pwr_iORG_1.iloc[max_loc])
 plt.plot(cell_pwr_iORG_2.iloc[max_loc])
-plt.title('Max Correlation')
+plt.legend(labels = ["760nm", "Conf"])
+plt.title('Full Length Max Correlation')
 
 plt.figure(3)
 plt.plot(cell_pwr_iORG_1.iloc[med_loc])
 plt.plot(cell_pwr_iORG_2.iloc[med_loc])
-plt.title('Median Correlation')
+plt.legend(labels = ["760nm", "Conf"])
+plt.title('Full Length Median Correlation')
+
+plt.figure(4)
+plt.hist(testCorrW)
+plt.xlabel('Pearsons correlation')
+plt.ylabel('Count')
+plt.title('Full Length Correlation Histogram')
 
 plt.show()
 
