@@ -48,10 +48,10 @@ if not stimName:
 # Reading in datasets as dataframe
 cell_pwr_iORG_1 = pd.read_csv(fName_1)
 cell_pwr_iORG_2 = pd.read_csv(fName_2)
-stimTrain
+stimTrain = pd.read_csv(stimName)
 
 # calculating correlation coefficient
-testCorrW = cell_pwr_iORG_1.corrwith(cell_pwr_iORG_2, axis=0, drop=False, method='pearson')
+testCorrW = cell_pwr_iORG_1.corrwith(cell_pwr_iORG_2, axis=1, drop=False, method='pearson')
 
 # plotting the signals from the highest and lowest correlation coeffs
 print('Max Pearson correlation: %.5f' % testCorrW.max())
