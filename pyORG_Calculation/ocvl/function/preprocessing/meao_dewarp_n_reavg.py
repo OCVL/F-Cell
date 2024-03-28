@@ -10,7 +10,7 @@ import pandas as pd
 from PIL import Image, ImageDraw, ImageFilter
 
 from ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align, weighted_z_projection
-from ocvl.function.utility.resources import load_video, save_tiff_stack
+from ocvl.function.utility.resources import load_video, save_tiff_stack, save_video
 
 if __name__ == "__main__":
 
@@ -150,7 +150,6 @@ if __name__ == "__main__":
             split_video_data[split_video_data < 0] = 0
             split_video_data[split_video_data >= 1] = 1
 
-           # avg_im, sum_map = weighted_z_projection(split_video_data, mask_data)
 
             crop_left = np.ceil(np.amax(map_mesh_x[:, 0])).astype("int")+1
             crop_right = np.floor(np.amin(map_mesh_x[:, -1])).astype("int")-1
@@ -203,18 +202,18 @@ if __name__ == "__main__":
             avg_im, sum_map = weighted_z_projection(video_data, mask_data)
 
             #cv2.imwrite(avg_path, (avg_im*255).astype("uint8"))
-            im_conf = Image.fromarray((avg_im * 255).astype("uint8"), "L")
-            im_conf.putalpha(Image.fromarray((overlap_map * 255).astype("uint8"), "L"))
-            im_conf.save(avg_path)
+            allim = np.dstack((avg_im,avg_im,avg_im,overlap_map))
+            im_conf = Image.fromarray((allim * 255).astype("uint8"))
+            im_conf.save(avg_path, compress_level=0)
 
             splitvid_as_path = pathlib.Path(split_path)
             avg_split_path = os.path.join(vid_as_path.parent, "Dewarped", splitvid_as_path.name[0:-11] + "dewarpavg.png")
             avg_split_im, sum_map = weighted_z_projection(split_video_data, mask_data)
 
             #cv2.imwrite(avg_split_path, (avg_split_im*255).astype("uint8"))
-            im_split = Image.fromarray((avg_split_im * 255).astype("uint8"), "L")
-            im_split.putalpha(Image.fromarray((overlap_map * 255).astype("uint8"), "L"))
-            im_split.save(avg_split_path)
+            allim = np.dstack((avg_split_im, avg_split_im, avg_split_im, overlap_map))
+            im_split = Image.fromarray((allim * 255).astype("uint8"))
+            im_split.save(avg_split_path, compress_level=0)
 
             r += 1
 
