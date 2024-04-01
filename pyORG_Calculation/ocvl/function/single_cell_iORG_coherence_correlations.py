@@ -45,6 +45,7 @@ print('selected path: ' + stimName)
 if not stimName:
     quit()
 
+# TODO: have user select their output directory instead of doing this hardcoded crap...
 # Splitting the fName_1 string in order to create a results directory for saving figure and csv outputs
 fName_1_split = fName_1.split('/')
 fName_1_sliced = fName_1_split[0:10:1] #This probs shouldn't be hardcoded but alas I'm lazy
@@ -109,6 +110,21 @@ plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timesta
             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
 plt.close(plt.gcf())
 
+
+fig, ax1 = plt.subplots()
+ax1.plot(cell_pwr_iORG_1.iloc[min_loc], label='760nm', color='tab:blue')
+ax2 = ax1.twinx()
+ax2.plot(cell_pwr_iORG_2.iloc[min_loc], label='Conf', color='tab:orange')
+plt.title('Full Length Min Correlation')
+fig.legend(loc='upper right')
+fig.tight_layout()  # otherwise the right y-label is slightly clipped
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
+
 plt.figure(2)
 plt.plot(cell_pwr_iORG_1.iloc[max_loc])
 plt.plot(cell_pwr_iORG_2.iloc[max_loc])
@@ -121,6 +137,20 @@ plt.savefig(out_dir.joinpath(trial_type + "_full_length_max_corr_" + now_timesta
             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
 plt.close(plt.gcf())
 
+fig, ax1 = plt.subplots()
+ax1.plot(cell_pwr_iORG_1.iloc[max_loc], label='760nm', color='tab:blue')
+ax2 = ax1.twinx()
+ax2.plot(cell_pwr_iORG_2.iloc[max_loc], label='Conf', color='tab:orange')
+plt.title('Full Length Max Correlation')
+fig.legend(loc='upper right')
+fig.tight_layout()  # otherwise the right y-label is slightly clipped
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_max_corr_adjustedAxes_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_max_corr_adjustedAxes_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
+
 plt.figure(3)
 plt.plot(cell_pwr_iORG_1.iloc[med_loc])
 plt.plot(cell_pwr_iORG_2.iloc[med_loc])
@@ -130,6 +160,20 @@ plt.show(block=False)
 plt.savefig(out_dir.joinpath(trial_type + "_full_length_median_corr_" + now_timestamp + ".svg"),
             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
 plt.savefig(out_dir.joinpath(trial_type + "_full_length_median_corr_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
+
+fig, ax1 = plt.subplots()
+ax1.plot(cell_pwr_iORG_1.iloc[med_loc], label='760nm', color='tab:blue')
+ax2 = ax1.twinx()
+ax2.plot(cell_pwr_iORG_2.iloc[med_loc], label='Conf', color='tab:orange')
+plt.title('Full Length Median Correlation')
+fig.legend(loc='upper right')
+fig.tight_layout()  # otherwise the right y-label is slightly clipped
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_med_corr_adjustedAxes_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_med_corr_adjustedAxes_" + now_timestamp + ".png"),
             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
 plt.close(plt.gcf())
 
