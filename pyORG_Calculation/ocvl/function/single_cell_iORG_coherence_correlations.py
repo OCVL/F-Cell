@@ -51,11 +51,18 @@ cell_pwr_iORG_2 = pd.read_csv(fName_2)
 stimTrain = pd.read_csv(stimName, header=None)
 
 # Creating a truncated dataframe that only includes frames during and after stimulus
+prestim_ind = stimTrain.iloc[0,0] - 21 # Chose 21 to match the number of pre and post stim frames from indvidual cell iORG script
+poststim_ind = stimTrain.iloc[0,0] + 21
 
-cell_pwr_iORG_1_stim = cell_pwr_iORG_1.iloc[:, 50:58]
+cell_pwr_iORG_1_prestim = cell_pwr_iORG_1.iloc[:, prestim_ind:stimTrain.iloc[0,0]]
+cell_pwr_iORG_2_prestim = cell_pwr_iORG_2.iloc[:, prestim_ind:stimTrain.iloc[0,0]]
+cell_pwr_iORG_1_poststim = cell_pwr_iORG_1.iloc[:, stimTrain.iloc[0,0]:poststim_ind]
+cell_pwr_iORG_2_poststim = cell_pwr_iORG_2.iloc[:, stimTrain.iloc[0,0]:poststim_ind]
 
 # calculating correlation coefficient
 testCorrW = cell_pwr_iORG_1.corrwith(cell_pwr_iORG_2, axis=1, drop=False, method='pearson')
+testCorrW_prestim = cell_pwr_iORG_1_prestim.corrwith(cell_pwr_iORG_2_prestim, axis=1, drop=False, method='pearson')
+testCorrW_poststim = cell_pwr_iORG_1_poststim.corrwith(cell_pwr_iORG_2_poststim, axis=1, drop=False, method='pearson')
 
 # plotting the signals from the highest and lowest correlation coeffs
 print('Min Pearson correlation: %.5f' % testCorrW.min())
@@ -94,6 +101,18 @@ plt.hist(testCorrW)
 plt.xlabel('Pearsons correlation')
 plt.ylabel('Count')
 plt.title('Full Length Correlation Histogram')
+
+plt.figure(5)
+plt.hist(testCorrW_prestim)
+plt.xlabel('Pearsons correlation')
+plt.ylabel('Count')
+plt.title('Prestim Correlation Histogram')
+
+plt.figure(6)
+plt.hist(testCorrW_poststim)
+plt.xlabel('Pearsons correlation')
+plt.ylabel('Count')
+plt.title('Poststim Correlation Histogram')
 
 plt.show()
 
