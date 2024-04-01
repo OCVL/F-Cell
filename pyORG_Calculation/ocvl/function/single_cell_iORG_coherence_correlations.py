@@ -46,8 +46,8 @@ if not stimName:
     quit()
 
 # Reading in datasets as dataframe
-cell_pwr_iORG_1 = pd.read_csv(fName_1, header=None)
-cell_pwr_iORG_2 = pd.read_csv(fName_2, header=None)
+cell_pwr_iORG_1 = pd.read_csv(fName_1)
+cell_pwr_iORG_2 = pd.read_csv(fName_2)
 stimTrain = pd.read_csv(stimName, header=None)
 
 # Creating a truncated dataframe that only includes frames during and after stimulus
