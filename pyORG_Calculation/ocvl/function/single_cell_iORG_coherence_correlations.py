@@ -45,6 +45,16 @@ print('selected path: ' + stimName)
 if not stimName:
     quit()
 
+# Splitting the fName_1 string in order to create a results directory for saving figure and csv outputs
+fName_1_split = fName_1.split('/')
+fName_1_sliced = fName_1_split[0:10:1] #This probs shouldn't be hardcoded but alas I'm lazy
+fName_1_joined = '/'.join(fName_1_sliced)
+out_dir = Path(fName_1_joined)
+trial_type = fName_1_split[11]
+
+dt = datetime.now()
+now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
+
 # Reading in datasets as dataframe
 cell_pwr_iORG_1 = pd.read_csv(fName_1)
 cell_pwr_iORG_2 = pd.read_csv(fName_2)
@@ -68,6 +78,15 @@ testCorrW_poststim = cell_pwr_iORG_1_poststim.corrwith(cell_pwr_iORG_2_poststim,
 print('Min Pearson correlation: %.5f' % testCorrW.min())
 print('Median Pearson correlation: %.5f' % testCorrW.median())
 print('Max Pearson correlation: %.5f' % testCorrW.max())
+print(' ')
+print('Mean Full Length Pearson correlation: %.5f' % testCorrW.mean())
+print('Mean Pre Stim Pearson correlation: %.5f' % testCorrW_prestim.mean())
+print('Mean Post Stim Pearson correlation: %.5f' % testCorrW_poststim.mean())
+
+# saving stuff to a dataframe so it can be output to csv
+corr_results_summary = pd.DataFrame({"Pearsons correlation": ['min full','median full', 'max full', 'mean full', 'mean prestim', 'mean poststim'],
+                                     "Value": [testCorrW.min(), testCorrW.median(), testCorrW.max(), testCorrW.mean(), testCorrW_prestim.mean(), testCorrW_poststim.mean()]})
+
 
 # calculating median manually because something is weird with finding that index
 sort_testCorrW = testCorrW.sort_values(axis=0)
@@ -83,39 +102,74 @@ plt.plot(cell_pwr_iORG_1.iloc[min_loc])
 plt.plot(cell_pwr_iORG_2.iloc[min_loc])
 plt.legend(labels = ["760nm", "Conf"])
 plt.title('Full Length Min Correlation')
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
 
 plt.figure(2)
 plt.plot(cell_pwr_iORG_1.iloc[max_loc])
 plt.plot(cell_pwr_iORG_2.iloc[max_loc])
 plt.legend(labels = ["760nm", "Conf"])
 plt.title('Full Length Max Correlation')
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_max_corr_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_max_corr_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
 
 plt.figure(3)
 plt.plot(cell_pwr_iORG_1.iloc[med_loc])
 plt.plot(cell_pwr_iORG_2.iloc[med_loc])
 plt.legend(labels = ["760nm", "Conf"])
 plt.title('Full Length Median Correlation')
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_median_corr_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_median_corr_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
 
 plt.figure(4)
 plt.hist(testCorrW)
 plt.xlabel('Pearsons correlation')
 plt.ylabel('Count')
 plt.title('Full Length Correlation Histogram')
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_stim_hist_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_stim_hist_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
 
 plt.figure(5)
-plt.hist(testCorrW_prestim)
+plt.hist([testCorrW_prestim,testCorrW_poststim], label=['Pre-stimulus','Post-stimulus'], histtype = 'step')
 plt.xlabel('Pearsons correlation')
 plt.ylabel('Count')
-plt.title('Prestim Correlation Histogram')
+plt.title('Correlation Histogram')
+plt.legend(loc='upper right')
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_pre_v_post_stim_hist_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_pre_v_post_stim_hist_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
 
-plt.figure(6)
-plt.hist(testCorrW_poststim)
-plt.xlabel('Pearsons correlation')
-plt.ylabel('Count')
-plt.title('Poststim Correlation Histogram')
+# Outputting csv results
+summary_csv_dir = out_dir.joinpath(trial_type + "_Correlations_Summary_" + now_timestamp + ".csv")
+corr_results_summary.to_csv(summary_csv_dir, index=False)
 
-plt.show()
+testCorrW_csv_dir = out_dir.joinpath(trial_type + "_FullLength_Correlation_Raw_" + now_timestamp + ".csv")
+testCorrW.to_csv(testCorrW_csv_dir, index=False, header=False)
+
+testCorrW_prestim_csv_dir = out_dir.joinpath(trial_type + "_PreStim_Correlation_Raw_" + now_timestamp + ".csv")
+testCorrW_prestim.to_csv(testCorrW_prestim_csv_dir, index=False, header=False)
+
+testCorrW_poststim_csv_dir = out_dir.joinpath(trial_type + "_PostStim_Correlation_Raw_" + now_timestamp + ".csv")
+testCorrW_poststim.to_csv(testCorrW_poststim_csv_dir, index=False, header=False)
 
 print(' ')
-cell_pwr_iORG_2 = pd.read_csv(fName_2)
-print('fiheoiusfhoighoge')
+print('Done!')
