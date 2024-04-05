@@ -24,10 +24,18 @@ class MEAODataset:
         # Paths to the data used here.
         self.video_path = video_path
         self.ref_video_path = video_path.replace(analysis_modality, ref_modality)
+
+        if self.video_path == self.ref_video_path:
+            self.has_ref_video = False
+        else:
+            self.has_ref_video = True
+
         self.metadata_path = self.video_path[0:-3] + "csv"
         self.mask_path = self.video_path[0:-4] + "_mask.avi"
+        self.ref_mask_path = self.ref_video_path[0:-4] + "_mask.avi"
         p_name = os.path.dirname(os.path.realpath(self.video_path))
         self.filename = os.path.basename(os.path.realpath(self.video_path))
+        self.ref_filename = os.path.basename(os.path.realpath(self.ref_video_path))
         common_prefix = self.filename.split("_")
         common_prefix = "_".join(common_prefix[0:6])
 
@@ -111,6 +119,7 @@ class MEAODataset:
         self.video_data = np.empty([1])
         self.ref_video_data = np.empty([1])
         self.mask_data = np.empty([1])
+        self.ref_mask_data = np.empty([1])
         # Extracted data (temporal profiles
         self.raw_profile_data = np.empty([1])
         self.postproc_profile_data = np.empty([1])
@@ -120,6 +129,7 @@ class MEAODataset:
         del self.video_data
         del self.ref_video_data
         del self.mask_data
+        del self.ref_mask_data
 
     def load_data(self):
         if self.stage is PipeStages.RAW:
@@ -150,12 +160,24 @@ class MEAODataset:
 
         # Load the reference video data.
         if os.path.exists(self.ref_video_path) and self.ref_video_path != self.mask_path:
+
+            # Load the reference video mask.
+            if os.path.exists(self.ref_mask_path):
+                res = load_video(self.ref_mask_path)
+                self.ref_mask_data = res.data / 255
+                self.ref_mask_data[self.ref_mask_data < 0] = 0
+            else:
+                warnings.warn("No processed reference mask data detected.")
+
             res = load_video(self.ref_video_path)
-            self.ref_video_data = (res.data * self.mask_data).astype("uint8")
+            self.ref_video_data = (res.data * self.ref_mask_data).astype("uint8")
         elif self.ref_video_path == self.video_path:
             self.ref_video_data = self.video_data
+            self.ref_mask_data = self.mask_data
         else:
             warnings.warn("No processed reference video data detected.")
+
+
 
         # Load our text data.
         metadata = pd.read_csv(self.metadata_path, delimiter=',', encoding="utf-8-sig")
@@ -191,14 +213,7 @@ class MEAODataset:
                     kern[:, clip_top] = 1
 
                     for f in range(self.num_frames):
-                        # plt.figure(0)
-                        # plt.subplot(2, 1, 1)
-                        # plt.imshow(self.mask_data[:, :, f])
                         self.mask_data[:,:,f] = cv2.erode(self.mask_data[:,:,f].astype("uint8"), kernel=kern, borderType=cv2.BORDER_CONSTANT, borderValue=0)
-                        # plt.subplot(2, 1, 2)
-                        # plt.imshow(self.mask_data[:, :, f])
-                        # plt.show()
-                        # plt.waitforbuttonpress()
 
                 self.video_data = (self.video_data * self.mask_data).astype("uint8")
             else:
@@ -206,10 +221,28 @@ class MEAODataset:
 
             # Load the reference video data.
             if os.path.exists(self.ref_video_path) and self.ref_video_path != self.mask_path:
+
+                # Load the reference video mask.
+                if os.path.exists(self.ref_mask_path):
+                    res = load_video(self.ref_mask_path)
+                    self.ref_mask_data = res.data / 255
+                    self.ref_mask_data[self.ref_mask_data < 0] = 0
+
+                    if clip_top != 0:
+                        kern = np.zeros((clip_top * 2 + 1, clip_top * 2 + 1), dtype=np.uint8)
+                        kern[:, clip_top] = 1
+
+                        for f in range(self.num_frames):
+                            self.ref_mask_data[:, :, f] = cv2.erode(self.ref_mask_data[:, :, f].astype("uint8"), kernel=kern,
+                                                                    borderType=cv2.BORDER_CONSTANT, borderValue=0)
+                else:
+                    warnings.warn("No processed reference mask data detected.")
+
                 res = load_video(self.ref_video_path)
-                self.ref_video_data = (res.data * self.mask_data).astype("uint8")
+                self.ref_video_data = (res.data * self.ref_mask_data).astype("uint8")
             elif self.ref_video_path == self.video_path:
                 self.ref_video_data = self.video_data
+                self.ref_mask_data = self.mask_data
             else:
                 warnings.warn("No processed reference video data detected.")
 
@@ -264,9 +297,10 @@ class MEAODataset:
             self.mask_data = warp_mask.astype("uint8")
             self.ref_video_data = (255 * ref_vid).astype("uint8")
 
+            print("Ref frame:"+str(self.reference_frame_idx))
             self.ref_video_data, xforms, inliers = optimizer_stack_align(self.ref_video_data, self.mask_data,
                                                                          reference_idx=self.reference_frame_idx,
-                                                                         dropthresh=0.0)
+                                                                         dropthresh=0)
 
             print( "Keeping " + str(np.sum(inliers)) + " of " + str(self.num_frames)+"...")
 
@@ -275,6 +309,7 @@ class MEAODataset:
             self.framestamps = self.framestamps[inliers]
             self.video_data = self.video_data[..., inliers]
             self.mask_data = self.mask_data[..., inliers]
+            self.num_frames = np.sum(inliers)
 
             (rows, cols) = self.video_data.shape[0:2]
 

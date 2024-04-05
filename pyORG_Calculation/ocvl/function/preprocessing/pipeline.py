@@ -41,11 +41,11 @@ def initialize_and_load_meao(file, a_mode, ref_mode):
 
     dataset.load_processed_data(clip_top=16)
 
-    imp, wp = weighted_z_projection(dataset.video_data, dataset.mask_data)
+    imp, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
 
-    ref_imp = weighted_z_projection(dataset.ref_video_data, dataset.mask_data)
+    ref_imp, rwp = weighted_z_projection(dataset.ref_video_data, dataset.ref_mask_data)
 
-    return dataset, imp, wp, ref_imp[0]
+    return dataset, imp, awp, ref_imp, rwp
 
 
 def run_generic_pipeline(pName, tkroot):
@@ -222,19 +222,21 @@ def run_meao_pipeline(pName, tkroot):
                 pb.update()
                 pb_label.update()
                 if not first:
-                    dataset[r], a_im_proj[..., r], weight_proj[..., r], ref_im_proj[..., r] = initialize_and_load_meao(toload, a_mode, ref_mode)
+                    dataset[r], a_im_proj[..., r], a_weight_proj[..., r], ref_im_proj[..., r], ref_weight_proj[..., r] = initialize_and_load_meao(toload, a_mode, ref_mode)
                 else:
-                    dat, imp, wp, ref_imp = initialize_and_load_meao(toload, a_mode, ref_mode)
+                    dat, imp, awp, ref_imp, rwp = initialize_and_load_meao(toload, a_mode, ref_mode)
 
                     dataset = np.empty((len(allFiles[loc])), dtype=type(dat))
                     a_im_proj = np.empty((imp.shape[0], imp.shape[1], len(allFiles[loc])), dtype=imp.dtype)
-                    weight_proj = np.empty((wp.shape[0], wp.shape[1], len(allFiles[loc])), dtype=wp.dtype)
+                    a_weight_proj = np.empty((awp.shape[0], awp.shape[1], len(allFiles[loc])), dtype=awp.dtype)
                     ref_im_proj = np.empty((ref_imp.shape[0], ref_imp.shape[1], len(allFiles[loc])), dtype=ref_imp.dtype)
+                    ref_weight_proj = np.empty((rwp.shape[0], rwp.shape[1], len(allFiles[loc])), dtype=rwp.dtype)
 
                     dataset[r] = dat
                     a_im_proj[..., r] = imp
-                    weight_proj[..., r] = wp
+                    a_weight_proj[..., r] = awp
                     ref_im_proj[..., r] = ref_imp
+                    ref_weight_proj[..., r] = awp
                     first = False
 
                 r += 1
@@ -244,8 +246,8 @@ def run_meao_pipeline(pName, tkroot):
 
             num_vid_proj = ref_im_proj.shape[-1]
             print("Selecting ideal central frame...")
-            dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(ref_im_proj.astype("uint8")),
-                                                                        repeat(np.ceil(weight_proj).astype("uint8")),
+            dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(a_im_proj.astype("uint8")),
+                                                                        repeat(np.ceil(a_weight_proj).astype("uint8")),
                                                                         range(len(allFiles[loc]))))
             shift_info = dist_res.get()
 
@@ -275,35 +277,48 @@ def run_meao_pipeline(pName, tkroot):
             #             "\\\\134.48.93.176\\Raw Study Data\\00-64774\\MEAOSLO1\\20210824\\Processed\\Functional Pipeline\\apre_selected_stk.avi",
             #             a_im_proj.astype("uint8"), 29.4)
 
-            ref_im_proj, ref_xforms, inliers = optimizer_stack_align(ref_im_proj.astype("uint8"),
-                                                                (weight_proj > 0).astype("uint8"),
-                                                                dist_ref_idx, determine_initial_shifts=True,
-                                                                dropthresh=0.0, transformtype="affine")
+            if dataset[0].has_ref_video:
+                all_im_proj, ref_xforms, inliers = optimizer_stack_align(np.dstack((a_im_proj, ref_im_proj)),
+                                                                       np.dstack(((a_weight_proj > 0).astype("uint8"), (ref_weight_proj > 0).astype("uint8"))),
+                                                                       dist_ref_idx, determine_initial_shifts=True,
+                                                                       dropthresh=0.0, transformtype="affine")
+                numa = a_im_proj.shape[-1]
+                a_im_proj = all_im_proj[...,0:numa]
+                ref_im_proj = all_im_proj[..., numa:]
+            else:
+                all_im_proj, ref_xforms, inliers = optimizer_stack_align(a_im_proj.astype("uint8"),
+                                                                       (a_weight_proj > 0).astype("uint8"),
+                                                                       dist_ref_idx, determine_initial_shifts=True,
+                                                                       dropthresh=0.0, transformtype="affine")
+                a_im_proj = all_im_proj
+
+            numa = a_im_proj.shape[-1]
 
             # Use the xforms from each type (reference/analysis) to do the alignment.
             # Inliers will be determined by the reference modality.
             for f in range(len(ref_xforms)):
                 if inliers[f]:
 
-                    for i in range(dataset[f].num_frames):  # Make all of the data in our dataset relative as well.
-                        (rows, cols) = dataset[f].video_data.shape[0:2]
-                        dataset[f].video_data[..., i] = cv2.warpAffine(dataset[f].video_data[..., i], ref_xforms[f],
-                                                                       (cols, rows),
-                                                                       flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
-                        dataset[f].ref_video_data[..., i] = cv2.warpAffine(dataset[f].ref_video_data[..., i], ref_xforms[f],
+                    if f < numa:
+                        for i in range(dataset[f].num_frames):  # Make all of the data in our dataset relative as well.
+                            (rows, cols) = dataset[f].video_data.shape[0:2]
+                            dataset[f].video_data[..., i] = cv2.warpAffine(dataset[f].video_data[..., i], ref_xforms[f],
+                                                                               (cols, rows),
+                                                                               flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
+                            dataset[f].mask_data[..., i] = cv2.warpAffine(dataset[f].mask_data[..., i], ref_xforms[f],
+                                                                          (cols, rows),
+                                                                          flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+                    else:
+                        f_offset = f-numa
+                        for i in range(dataset[f_offset].num_frames):  # Make all of the data in our dataset relative as well.
+                            (rows, cols) = dataset[f_offset].ref_video_data.shape[0:2]
+                            dataset[f_offset].ref_video_data[..., i] = cv2.warpAffine(dataset[f_offset].ref_video_data[..., i], ref_xforms[f],
                                                                            (cols, rows),
                                                                            flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
-                        dataset[f].mask_data[..., i] = cv2.warpAffine(dataset[f].mask_data[..., i], ref_xforms[f],
-                                                                      (cols, rows),
-                                                                      flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+                            dataset[f_offset].ref_mask_data[..., i] = cv2.warpAffine(dataset[f_offset].ref_mask_data[..., i], ref_xforms[f],
+                                                                          (cols, rows),
+                                                                          flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
 
-
-                    a_im_proj[..., f] = cv2.warpAffine(a_im_proj[..., f], ref_xforms[f],
-                                                     a_im_proj[..., f].shape[::-1],
-                                                     flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
-                    weight_proj[..., f] = cv2.warpAffine(weight_proj[..., f], ref_xforms[f],
-                                                         weight_proj[..., f].shape[::-1],
-                                                         flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
 
             base_ref_frame = os.path.basename(os.path.realpath(dataset[dist_ref_idx].video_path))
             common_prefix = base_ref_frame.split("_")
@@ -315,13 +330,18 @@ def run_meao_pipeline(pName, tkroot):
                               "ALL_ACQ_AVG.tif"
             ref_vid_fname = "_".join(common_prefix[0:6]) + "_" + dataset[dist_ref_idx].reference_modality + "_" + \
                             "ALL_ACQ_STK.avi"
-            dataset = dataset[inliers]
-            weight_proj = weight_proj[..., inliers]
-            a_im_proj = a_im_proj[..., inliers]
-            ref_im_proj = ref_im_proj[..., inliers]
+
+            # This would be needed... if our drop threshold was any higher.
+            # dataset = dataset[inliers]
+            # a_weight_proj = a_weight_proj[..., inliers]
+            # a_im_proj = a_im_proj[..., inliers]
+            # ref_im_proj = ref_im_proj[..., inliers]
 
             # Crop to the area that X images overlap. (start with all)
-            mask_area = weight_proj > 0
+            if dataset[0].has_ref_video:
+                mask_area = np.dstack(((a_weight_proj > 0), (ref_weight_proj > 0)))
+            else:
+                mask_area = a_weight_proj > 0
             mask_area = np.sum(mask_area.astype("uint8"), axis=-1)
             mask_area[mask_area < int(np.amax(mask_area)/2)] = 0
             mask_area[mask_area >= int(np.amax(mask_area)/2)] = 1
@@ -344,21 +364,24 @@ def run_meao_pipeline(pName, tkroot):
             # Crop and output the data.
             for data in dataset:
                 data.video_data = data.video_data[cropy:(cropy+croph), cropx:(cropx+cropw), :]
-                data.ref_video_data = data.ref_video_data[cropy:(cropy + croph), cropx:(cropx + cropw), :]
                 data.mask_data = data.mask_data[cropy:(cropy + croph), cropx:(cropx + cropw), :]
+                data.ref_video_data = data.ref_video_data[cropy:(cropy + croph), cropx:(cropx + cropw), :]
+                data.ref_mask_data = data.mask_data[cropy:(cropy + croph), cropx:(cropx + cropw), :]
 
                 # Save the pipelined dataset.
                 metadata = pd.DataFrame(data.framestamps, columns=["FrameStamps"])
                 metadata.to_csv(os.path.join(writepath, data.filename[:-4] + "_piped.csv"), index=False)
                 save_video(os.path.join(writepath, data.filename[:-4] + "_piped.avi"), data.video_data, data.framerate)
+                metadata.to_csv(os.path.join(writepath, data.ref_filename[:-4] + "_piped.csv"), index=False)
+                save_video(os.path.join(writepath, data.ref_filename[:-4] + "_piped.avi"), data.ref_video_data, data.framerate)
 
-            weight_proj = weight_proj[cropy:(cropy+croph), cropx:(cropx+cropw), :]
+            a_weight_proj = a_weight_proj[cropy:(cropy+croph), cropx:(cropx+cropw), :]
             a_im_proj = a_im_proj[cropy:(cropy+croph), cropx:(cropx+cropw), :]
             ref_im_proj = ref_im_proj[cropy:(cropy+croph), cropx:(cropx+cropw), :]
 
             # Z Project each of our image types
-            ref_zproj, weight_zproj = weighted_z_projection(ref_im_proj, weight_proj)
-            analysis_zproj, weight_zproj = weighted_z_projection(a_im_proj, weight_proj)
+            ref_zproj, weight_zproj = weighted_z_projection(ref_im_proj.astype("uint8"))
+            analysis_zproj, weight_zproj = weighted_z_projection(a_im_proj.astype("uint8"))
 
             # After we z-project everything, dump it to disk.
 
@@ -371,29 +394,14 @@ def run_meao_pipeline(pName, tkroot):
 
             del dataset
             del a_im_proj
-            del weight_proj
+            del a_weight_proj
             del ref_im_proj
             print("Completed processing of location " + loc)
         pb.stop()
 
 
 if __name__ == "__main__":
-    # dataset = MEAODataset("\\\\134.48.93.176\\Raw Study Data\\00-64774\\MEAOSLO1\\20210824\\Processed\\00-64774_20210824_OS_(-1,0)_1x1_622_760nm1_extract_reg_cropped.avi",
-    #                       analysis_modality="760nm", ref_modality="Confocal", stage=PipeStages.PROCESSED)
-    #
-    # dataset.load_unpipelined_data()
-    #vid = load_video("\\\\134.48.93.176\\Raw Study Data\\00-64774\\MEAOSLO1\\20210824\\Processed\\Functional Pipeline\\(-1,0)\\stimulus\\00-64774_20210824_OS_(-1,0)_1x1_727_Confocal_ALL_ACQ_STK.avi")
-    # vid = load_video(
-    #      "E:\\Dropbox (Personal)\\Grant_Proposals\\2022_Feb_R01\\LSO_Prelim_data\\Test\\Subject1_Session20220112_OD_(1.5,0)_1.2x0.8_43028_Confocal1_extract_reg_cropped.avi")
-    #
-    # mask = np.ones(vid.data.shape, dtype="uint8")
-    # mask[vid.data == 0] = 0
-    # numfrm = vid.data.shape[-1]
-    #
-    # optimizer_stack_align(vid.data, mask, 33, determine_initial_shifts=True, transformtype="affine")
 
-    #
-    # print("wtfbbq")
     root = Tk()
     root.lift()
     w = 1
