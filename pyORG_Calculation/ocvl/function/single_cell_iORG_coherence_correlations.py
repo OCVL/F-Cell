@@ -4,10 +4,8 @@
 
 # Importing all the things...
 import os
-from os import walk
-from os.path import splitext
 from pathlib import Path
-from tkinter import Tk, filedialog, ttk, HORIZONTAL
+from tkinter import Tk, filedialog, ttk, HORIZONTAL, simpledialog
 
 import numpy as np
 import pandas as pd
@@ -16,12 +14,6 @@ import re
 from matplotlib import pyplot as plt
 from matplotlib.colors import Normalize
 
-from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles
-from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
-from ocvl.function.utility.generic import PipeStages
-from ocvl.function.utility.meao import MEAODataset
-from ocvl.function.utility.resources import save_video
-from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
 from datetime import datetime, date, time, timezone
 
 # User selects dataset from file
@@ -32,12 +24,24 @@ print('selected path: ' + fName_1)
 if not fName_1:
     quit()
 
+first_cond = simpledialog.askstring(title="Input the first condition plot label: ",
+                                    prompt="Input the first condition plot label:",
+                                    initialvalue="760nm", parent=root)
+if not first_cond:
+    firs_cond = "760nm"
+
 
 fName_2 = filedialog.askopenfilename(title="Select the Stimulus_cell_power_iORG csv for the second condition.", parent=root)
 print('selected path: ' + fName_2)
 
 if not fName_2:
     quit()
+
+second_cond = simpledialog.askstring(title="Input the second condition plot label: ",
+                                    prompt="Input the second condition plot label:",
+                                    initialvalue="Conf", parent=root)
+if not second_cond:
+    second_cond = "Conf"
 
 stimName = filedialog.askopenfilename(title="Select the stimulus train file.", parent=root)
 print('selected path: ' + stimName)
@@ -48,10 +52,10 @@ if not stimName:
 # TODO: have user select their output directory instead of doing this hardcoded crap...
 # Splitting the fName_1 string in order to create a results directory for saving figure and csv outputs
 fName_1_split = fName_1.split('/')
-fName_1_sliced = fName_1_split[0:10:1] #This probs shouldn't be hardcoded but alas I'm lazy
+fName_1_sliced = fName_1_split[0:9:1] #This probs shouldn't be hardcoded but alas I'm lazy
 fName_1_joined = '/'.join(fName_1_sliced)
 out_dir = Path(fName_1_joined)
-trial_type = fName_1_split[11]
+trial_type = fName_1_split[10]
 
 dt = datetime.now()
 now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
@@ -101,34 +105,34 @@ max_loc = int(testCorrW.idxmax())
 plt.figure(1)
 plt.plot(cell_pwr_iORG_1.iloc[min_loc])
 plt.plot(cell_pwr_iORG_2.iloc[min_loc])
-plt.legend(labels = ["760nm", "Conf"])
+plt.legend(labels = [first_cond, second_cond])
 plt.title('Full Length Min Correlation')
 plt.show(block=False)
-plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".svg"),
-            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".png"),
-            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-plt.close(plt.gcf())
+# plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".svg"),
+#             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+# plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".png"),
+#             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+# plt.close(plt.gcf())
 
 
 fig, ax1 = plt.subplots()
-ax1.plot(cell_pwr_iORG_1.iloc[min_loc], label='760nm', color='tab:blue')
+ax1.plot(cell_pwr_iORG_1.iloc[min_loc], label=first_cond, color='tab:blue')
 ax2 = ax1.twinx()
-ax2.plot(cell_pwr_iORG_2.iloc[min_loc], label='Conf', color='tab:orange')
+ax2.plot(cell_pwr_iORG_2.iloc[min_loc], label=second_cond, color='tab:orange')
 plt.title('Full Length Min Correlation')
 fig.legend(loc='upper right')
 fig.tight_layout()  # otherwise the right y-label is slightly clipped
 plt.show(block=False)
-plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".svg"),
-            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".png"),
-            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-plt.close(plt.gcf())
+# plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".svg"),
+#             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+# plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".png"),
+#             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+#plt.close(plt.gcf())
 
 plt.figure(2)
 plt.plot(cell_pwr_iORG_1.iloc[max_loc])
 plt.plot(cell_pwr_iORG_2.iloc[max_loc])
-plt.legend(labels = ["760nm", "Conf"])
+plt.legend(labels = [first_cond, second_cond])
 plt.title('Full Length Max Correlation')
 plt.show(block=False)
 plt.savefig(out_dir.joinpath(trial_type + "_full_length_max_corr_" + now_timestamp + ".svg"),
@@ -138,9 +142,9 @@ plt.savefig(out_dir.joinpath(trial_type + "_full_length_max_corr_" + now_timesta
 plt.close(plt.gcf())
 
 fig, ax1 = plt.subplots()
-ax1.plot(cell_pwr_iORG_1.iloc[max_loc], label='760nm', color='tab:blue')
+ax1.plot(cell_pwr_iORG_1.iloc[max_loc], label=first_cond, color='tab:blue')
 ax2 = ax1.twinx()
-ax2.plot(cell_pwr_iORG_2.iloc[max_loc], label='Conf', color='tab:orange')
+ax2.plot(cell_pwr_iORG_2.iloc[max_loc], label=second_cond, color='tab:orange')
 plt.title('Full Length Max Correlation')
 fig.legend(loc='upper right')
 fig.tight_layout()  # otherwise the right y-label is slightly clipped
@@ -154,19 +158,19 @@ plt.close(plt.gcf())
 plt.figure(3)
 plt.plot(cell_pwr_iORG_1.iloc[med_loc])
 plt.plot(cell_pwr_iORG_2.iloc[med_loc])
-plt.legend(labels = ["760nm", "Conf"])
+plt.legend(labels = [first_cond, second_cond])
 plt.title('Full Length Median Correlation')
 plt.show(block=False)
-plt.savefig(out_dir.joinpath(trial_type + "_full_length_median_corr_" + now_timestamp + ".svg"),
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_med_corr_" + now_timestamp + ".svg"),
             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-plt.savefig(out_dir.joinpath(trial_type + "_full_length_median_corr_" + now_timestamp + ".png"),
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_med_corr_" + now_timestamp + ".png"),
             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
 plt.close(plt.gcf())
 
 fig, ax1 = plt.subplots()
-ax1.plot(cell_pwr_iORG_1.iloc[med_loc], label='760nm', color='tab:blue')
+ax1.plot(cell_pwr_iORG_1.iloc[med_loc], label=first_cond, color='tab:blue')
 ax2 = ax1.twinx()
-ax2.plot(cell_pwr_iORG_2.iloc[med_loc], label='Conf', color='tab:orange')
+ax2.plot(cell_pwr_iORG_2.iloc[med_loc], label=second_cond, color='tab:orange')
 plt.title('Full Length Median Correlation')
 fig.legend(loc='upper right')
 fig.tight_layout()  # otherwise the right y-label is slightly clipped

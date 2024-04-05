@@ -333,8 +333,8 @@ if __name__ == "__main__":
         # plt.ylim([-5, 60]) #was 60
         #plt.legend()
 
-        plt.savefig( res_dir.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".svg"))
-        plt.savefig( res_dir.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".png"))
+        plt.savefig(res_dir.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".svg"))
+        plt.savefig(res_dir.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".png"))
 
         # plt.figure(14)
         # plt.plot(np.nanmean(np.log(pop_iORG_amp), axis=-1),
@@ -370,7 +370,7 @@ if __name__ == "__main__":
 
 
         # Pooled variance calc
-        pooled_iORG = np.nansum( all_incl*all_iORG, axis=0 ) / np.nansum(all_incl, axis=0)
+        pooled_iORG = np.nansum(all_incl*all_iORG, axis=0 ) / np.nansum(all_incl, axis=0)
         #pooled_stddev_iORG = np.sqrt(pooled_var_iORG)
         all_frmstamps = np.arange(max_frmstamp+1)
 
