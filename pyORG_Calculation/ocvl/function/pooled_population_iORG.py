@@ -20,25 +20,6 @@ from ocvl.function.utility.resources import save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles, trim_video
 from datetime import datetime, date, time, timezone
 
-def pop_iORG(dataset):
-    temp_profiles = extract_profiles(dataset.video_data, dataset.coord_data[perm, :], seg_radius=2,
-                                     display=False, sigma=1)
-
-    temp_profiles, num_removed = exclude_profiles(temp_profiles, dataset.framestamps,
-                                                  critical_region=np.arange(
-                                                      dataset.stimtrain_frame_stamps[0] - int(0.1 * dataset.framerate),
-                                                      dataset.stimtrain_frame_stamps[1] + int(0.2 * dataset.framerate)),
-                                                  critical_fraction=0.5)
-
-    stdize_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
-                                           dataset.stimtrain_frame_stamps[0], method="mean_sub", display=False)
-
-    tmp_iorg, tmp_incl = signal_power_iORG(stdize_profiles, dataset.framestamps, summary_method="rms")
-
-    _, amplitude, intrinsic_time = iORG_signal_metrics(tmp_iorg, dataset.framestamps,
-                                                       filter_type="MS1", display=False,
-                                                       prestim_idx=prestim_ind, poststim_idx=poststim_ind)
-
 
 if __name__ == "__main__":
     root = Tk()
