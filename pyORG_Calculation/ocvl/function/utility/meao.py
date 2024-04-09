@@ -357,9 +357,24 @@ class MEAODataset:
                 # warnings.warn("No pipelined mask data detected.")
 
             # Load the reference video data.
-            if os.path.exists(self.ref_video_path):
+            if os.path.exists(self.ref_video_path) and self.ref_video_path != self.mask_path:
+
                 res = load_video(self.ref_video_path)
-                self.ref_video_data = (res.data * self.mask_data).astype("uint8")
+                self.ref_video_data = res.data.astype("uint8")
+
+                # Load the reference video mask.
+                if os.path.exists(self.ref_mask_path):
+                    res = load_video(self.ref_mask_path)
+                    self.ref_mask_data = res.data / 255
+                    self.ref_mask_data[self.ref_mask_data < 0] = 0
+                    self.ref_video_data = (res.data * self.ref_mask_data).astype("uint8")
+                else:
+                    pass
+                    #warnings.warn("No pipelined reference mask data detected.")
+
+            elif self.ref_video_path == self.video_path:
+                self.ref_video_data = self.video_data
+                self.ref_mask_data = self.mask_data
             else:
                 pass
                 # warnings.warn("No pipelined reference video data detected.")
