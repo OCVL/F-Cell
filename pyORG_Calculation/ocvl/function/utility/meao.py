@@ -13,7 +13,7 @@ from matplotlib import pyplot
 
 from ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align
 from ocvl.function.utility.generic import PipeStages
-from ocvl.function.utility.resources import load_video
+from ocvl.function.utility.resources import load_video, save_video
 
 
 class MEAODataset:
@@ -303,7 +303,7 @@ class MEAODataset:
             self.ref_video_data = (255 * ref_vid)
 
             print("Ref frame:"+str(self.reference_frame_idx))
-            self.tmp, xforms, inliers = optimizer_stack_align(self.ref_video_data, self.ref_mask_data,
+            tmp, xforms, inliers = optimizer_stack_align(self.ref_video_data, self.ref_mask_data,
                                                                          reference_idx=self.reference_frame_idx,
                                                                          dropthresh=0)
 
@@ -322,17 +322,18 @@ class MEAODataset:
                 if xforms[f] is not None:
                     self.ref_video_data[..., f] = cv2.warpAffine(self.ref_video_data[..., f], xforms[f],
                                                              (cols, rows),
-                                                             flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+                                                             flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
                     self.ref_mask_data[..., f] = np.isfinite(self.ref_video_data[..., f])
 
                     self.video_data[..., f] = cv2.warpAffine(self.video_data[..., f], xforms[f],
                                                              (cols, rows),
-                                                             flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+                                                             flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
                     self.mask_data[..., f] = np.isfinite(self.video_data[..., f])
 
 
             self.num_frames = self.video_data.shape[-1]
-            # save_video("//134.48.93.176/Raw Study Data/00-64774/MEAOSLO1/20210824/Processed/Functional Pipeline/", dataset[f].video_data, 29.4)
+            # save_video("B:/Dropbox/Grant_Proposals/2024_R01_iORG\Prelim_Data\Reflect_direct/Functional Pipeline/(2,0)/test.avi",
+            #            self.video_data, 29.4)
             # for i in range(this_data.shape[-1]):
             #     # Display the resulting frame
             #

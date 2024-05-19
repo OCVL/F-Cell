@@ -323,7 +323,7 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
 
     maxval = np.amax(xcorr_out[:])
     maxloc = np.unravel_index(np.argmax(xcorr_out[:]), xcorr_out.shape)
-    maxshift = (float(maxloc[1]-np.floor(ogcols/2.0)), float(maxloc[0]-np.floor(ogrows/2.0))) #Output as X and Y.
+    maxshift = (-float(maxloc[1]-np.floor(ogcols/2.0)), -float(maxloc[0]-np.floor(ogrows/2.0))) #Output as X and Y.
     # pyplot.imshow(xcorr_out, cmap='gray')
     # pyplot.show()
 
@@ -411,7 +411,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
             # print("Excluded: " + str(imreg_method.GetMetricValue()))
             inliers[f] = False
         else:
-            print("INCLUDED: " + str(imreg_method.GetMetricValue()))
+            #print("INCLUDED: " + str(imreg_method.GetMetricValue()))
             inliers[f] = True
 
         if transformtype == "rigid":
@@ -429,7 +429,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         Tx[0:2, 2] = -np.dot(A, c)+t+c
         xforms[f] = Tx[0:2, :]
 
-        out_im = sitk.Resample(sitk.GetImageFromArray(im_stack[..., f]), ref_im, outXform.GetInverse(), sitk.sitkBSpline)
+        out_im = sitk.Resample(sitk.GetImageFromArray(im_stack[..., f]), ref_im, outXform.GetInverse(), sitk.sitkLinear)
         reg_stack[..., f] = sitk.GetArrayFromImage(out_im)
 
     # save_video(
