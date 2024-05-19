@@ -9,6 +9,8 @@ import os.path
 import pandas as pd
 from os import path
 
+from matplotlib import pyplot
+
 from ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align
 from ocvl.function.utility.generic import PipeStages
 from ocvl.function.utility.resources import load_video
@@ -282,10 +284,13 @@ class MEAODataset:
             warp_mask = np.zeros(self.video_data.shape)
             ref_vid = np.zeros(self.video_data.shape)
             for f in range(self.num_frames):
-                warp_mask[..., f] = cv2.remap(self.mask_data[..., f].astype("float64"), map_mesh_x,
-                                              map_mesh_y, interpolation=cv2.INTER_NEAREST)
+                norm_frame = self.ref_video_data[..., f].astype("float64") / 255.0
+                norm_frame[norm_frame == 0] = np.nan
 
-                ref_vid[..., f] = cv2.remap(self.ref_video_data[..., f].astype("float64") / 255,
+                warp_mask[..., f] = cv2.remap(self.ref_mask_data[..., f].astype("float64"),
+                                              map_mesh_x, map_mesh_y, interpolation=cv2.INTER_NEAREST)
+
+                ref_vid[..., f] = cv2.remap(norm_frame,
                                             map_mesh_x, map_mesh_y,
                                             interpolation=cv2.INTER_CUBIC)
             # Clamp our values.
@@ -294,18 +299,18 @@ class MEAODataset:
             ref_vid[ref_vid < 0] = 0
             ref_vid[ref_vid >= 1] = 1
 
-            self.mask_data = warp_mask.astype("uint8")
-            self.ref_video_data = (255 * ref_vid).astype("uint8")
+            self.ref_mask_data = warp_mask
+            self.ref_video_data = (255 * ref_vid)
 
             print("Ref frame:"+str(self.reference_frame_idx))
-            self.ref_video_data, xforms, inliers = optimizer_stack_align(self.ref_video_data, self.mask_data,
+            self.tmp, xforms, inliers = optimizer_stack_align(self.ref_video_data, self.ref_mask_data,
                                                                          reference_idx=self.reference_frame_idx,
                                                                          dropthresh=0)
 
             print( "Keeping " + str(np.sum(inliers)) + " of " + str(self.num_frames)+"...")
 
             # Update everything with what's an inlier now.
-            self.ref_video_data = self.ref_video_data[..., inliers].astype("uint8")
+            self.ref_video_data = self.ref_video_data[..., inliers]
             self.framestamps = self.framestamps[inliers]
             self.video_data = self.video_data[..., inliers]
             self.mask_data = self.mask_data[..., inliers]
@@ -315,15 +320,16 @@ class MEAODataset:
 
             for f in range(self.num_frames):
                 if xforms[f] is not None:
+                    self.ref_video_data[..., f] = cv2.warpAffine(self.ref_video_data[..., f], xforms[f],
+                                                             (cols, rows),
+                                                             flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+                    self.ref_mask_data[..., f] = np.isfinite(self.ref_video_data[..., f])
+
                     self.video_data[..., f] = cv2.warpAffine(self.video_data[..., f], xforms[f],
                                                              (cols, rows),
-                                                             flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
-                    self.mask_data[..., f] = cv2.warpAffine(self.mask_data[..., f], xforms[f],
-                                                            (cols, rows),
-                                                            flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+                                                             flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+                    self.mask_data[..., f] = np.isfinite(self.video_data[..., f])
 
-            self.video_data = self.video_data.astype("uint8")
-            self.ref_video_data = self.ref_video_data.astype("uint8")
 
             self.num_frames = self.video_data.shape[-1]
             # save_video("//134.48.93.176/Raw Study Data/00-64774/MEAOSLO1/20210824/Processed/Functional Pipeline/", dataset[f].video_data, 29.4)

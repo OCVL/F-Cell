@@ -257,11 +257,19 @@ if __name__ == "__main__":
                 # full_profiles[:, :, :, ~good_profiles] = np.nan
 
                 plt.figure(0)
+                plt.figure(1)
                 plt.show(block=False)
-                for cind in range(len(good_profiles)):
+                for cind in range(200, len(good_profiles)):
+                    plt.figure(0)
                     plt.clf()
                     plt.plot(temp_profiles[cind,:])
                     plt.plot(temp_ref_profiles[cind,:])
+                    plt.draw()
+
+                    plt.figure(1)
+                    plt.clf()
+                    plt.imshow(dataset.reference_im)
+                    plt.plot(reference_coord_data[cind, 0], reference_coord_data[cind, 1], "r*")
                     plt.waitforbuttonpress()
 
 
