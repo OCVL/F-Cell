@@ -215,9 +215,9 @@ class MEAODataset:
                     kern[:, clip_top] = 1
 
                     for f in range(self.num_frames):
-                        self.mask_data[:,:,f] = cv2.erode(self.mask_data[:,:,f].astype("uint8"), kernel=kern, borderType=cv2.BORDER_CONSTANT, borderValue=0)
+                        self.mask_data[:, :, f] = cv2.erode(self.mask_data[:,:,f].astype("uint8"), kernel=kern, borderType=cv2.BORDER_CONSTANT, borderValue=0)
 
-                self.video_data = (self.video_data * self.mask_data).astype("uint8")
+                self.video_data = (self.video_data * self.mask_data).astype("float32")
             else:
                 warnings.warn("No processed mask data detected.")
 
@@ -241,7 +241,7 @@ class MEAODataset:
                     warnings.warn("No processed reference mask data detected.")
 
                 res = load_video(self.ref_video_path)
-                self.ref_video_data = (res.data * self.ref_mask_data).astype("uint8")
+                self.ref_video_data = (res.data * self.ref_mask_data).astype("float32")
             elif self.ref_video_path == self.video_path:
                 self.ref_video_data = self.video_data
                 self.ref_mask_data = self.mask_data
@@ -281,13 +281,13 @@ class MEAODataset:
             self.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(self.video_data, yshifts, xshifts)
 
             # Dewarp our other two datasets as well.
-            warp_mask = np.zeros(self.video_data.shape)
-            ref_vid = np.zeros(self.video_data.shape)
+            warp_mask = np.zeros(self.video_data.shape, dtype=np.float32)
+            ref_vid = np.zeros(self.video_data.shape, dtype=np.float32)
             for f in range(self.num_frames):
-                norm_frame = self.ref_video_data[..., f].astype("float64") / 255.0
+                norm_frame = self.ref_video_data[..., f].astype("float32") / 255.0
                 norm_frame[norm_frame == 0] = np.nan
 
-                warp_mask[..., f] = cv2.remap(self.ref_mask_data[..., f].astype("float64"),
+                warp_mask[..., f] = cv2.remap(self.ref_mask_data[..., f].astype("float32"),
                                               map_mesh_x, map_mesh_y, interpolation=cv2.INTER_NEAREST)
 
                 ref_vid[..., f] = cv2.remap(norm_frame,

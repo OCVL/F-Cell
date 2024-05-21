@@ -142,7 +142,7 @@ if __name__ == "__main__":
                 mask_data[..., f] = cv2.remap(mask_data[..., f], map_mesh_x,
                                               map_mesh_y, interpolation=cv2.INTER_NEAREST)
                 split_video_data[..., f] = cv2.remap(split_video_data[..., f], map_mesh_x,
-                                                     map_mesh_y, interpolation=cv2.INTER_CUBIC)
+                                                     map_mesh_y, interpolation=cv2.INTER_LINEAR)
 
             # Clamp our data.
             mask_data[mask_data < 0] = 0
@@ -183,7 +183,7 @@ if __name__ == "__main__":
                                                        flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
                     split_video_data[..., f] = cv2.warpAffine(split_video_data[..., f],  xforms[f],
                                                               (cols, rows),
-                                                              flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP)
+                                                              flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
 
             # Clamp our data.
             mask_data[mask_data < 0] = 0

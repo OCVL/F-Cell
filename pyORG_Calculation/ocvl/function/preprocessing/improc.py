@@ -21,9 +21,9 @@ def flat_field_frame(dataframe, sigma, rescale=False):
     mask[dataframe == 0] = 0
 
     dataframe[dataframe == 0] = 1
-    blurred_frame = cv2.GaussianBlur(dataframe.astype("float64"), (kernelsize, kernelsize),
+    blurred_frame = cv2.GaussianBlur(dataframe.astype("float32"), (kernelsize, kernelsize),
                                      sigmaX=sigma, sigmaY=sigma)
-    flat_fielded = (dataframe.astype("float64") / blurred_frame)
+    flat_fielded = (dataframe.astype("float32") / blurred_frame)
 
     flat_fielded *= mask
 
@@ -197,7 +197,7 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
         centered_col_shifts = -np.nanmedian(indiv_colshift, axis=0)
         centered_row_shifts = -np.nanmedian(indiv_rowshift, axis=0)
 
-    dewarped = np.zeros(image_data.shape)
+    dewarped = np.zeros(image_data.shape, dtype=np.float32)
 
     col_base = np.tile(np.arange(width, dtype=np.float32)[np.newaxis, :], [height, 1])
     row_base = np.tile(np.arange(height, dtype=np.float32)[:, np.newaxis], [1, width])
@@ -207,7 +207,7 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
 
     if image_data.dtype == np.uint8:
         for f in range(num_frames):
-            norm_frame = image_data[..., f].astype("float64") / 255.0
+            norm_frame = image_data[..., f].astype("float32") / 255.0
             norm_frame[norm_frame==0] = np.nan
             dewarped[..., f] = cv2.remap(norm_frame, centered_col_shifts,
                                          centered_row_shifts,
@@ -221,7 +221,7 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
     else:
         datmax = np.amax(image_data[:])
         for f in range(num_frames):
-            norm_frame = image_data[..., f].astype("float64")  / datmax
+            norm_frame = image_data[..., f].astype("float32") / datmax
             norm_frame[norm_frame == 0] = np.nan
             dewarped[..., f] = cv2.remap(norm_frame,
                                          centered_col_shifts,
@@ -377,10 +377,10 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
     # #https://insightsoftwareconsortium.github.io/SimpleITK-Notebooks/Python_html/61_Registration_Introduction_Continued.html#Final-registration
     #imreg_method.SetInterpolator(sitk.sitkLanczosWindowedSinc) # Adding this just makes it dog slow.
 
-    im_stack = im_stack.astype("float64")
+    im_stack = im_stack.astype("float32")
     im_stack[np.isnan(im_stack)] = 0
     ref_im = sitk.GetImageFromArray(im_stack[..., reference_idx])
-    # ref_im = sitk.Cast(ref_im, sitk.sitkFloat64)
+    # ref_im = sitk.Cast(ref_im, sitk.sitkfloat32)
     #ref_im = sitk.Normalize(ref_im)
     dims = ref_im.GetDimension()
 

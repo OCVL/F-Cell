@@ -234,10 +234,10 @@ class DemotionDataset:
             warp_mask = np.zeros(self.video_data.shape)
             ref_vid = np.zeros(self.video_data.shape)
             for f in range(self.num_frames):
-                warp_mask[..., f] = cv2.remap(self.mask_data[..., f].astype("float64"), map_mesh_x,
+                warp_mask[..., f] = cv2.remap(self.mask_data[..., f].astype("float32"), map_mesh_x,
                                               map_mesh_y, interpolation=cv2.INTER_NEAREST)
 
-                ref_vid[..., f] = cv2.remap(self.ref_video_data[..., f].astype("float64") / 255,
+                ref_vid[..., f] = cv2.remap(self.ref_video_data[..., f].astype("float32") / 255,
                                             map_mesh_x, map_mesh_y,
                                             interpolation=cv2.INTER_LANCZOS4)
             # Clamp our values.

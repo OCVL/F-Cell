@@ -152,7 +152,7 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
     if coordinates is None:
         pass # Todo: create coordinates for every position in the image stack.
 
-    #im_stack = image_stack.astype("float64")
+    #im_stack = image_stack.astype("float32")
 
     im_stack_mask = image_stack == 0
     im_stack_mask = cv2.morphologyEx(im_stack_mask.astype("uint8"), cv2.MORPH_OPEN, np.ones((3, 3)),
