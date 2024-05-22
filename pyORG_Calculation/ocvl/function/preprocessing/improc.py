@@ -211,13 +211,13 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
             norm_frame[norm_frame==0] = np.nan
             dewarped[..., f] = cv2.remap(norm_frame, centered_col_shifts,
                                          centered_row_shifts,
-                                         interpolation=cv2.INTER_CUBIC)
+                                         interpolation=cv2.INTER_LINEAR)
 
         # Clamp our values.
         dewarped[dewarped < 0] = 0
         dewarped[dewarped > 1] = 1
 
-        return (dewarped * 255), centered_col_shifts, centered_row_shifts
+        return (dewarped * 255).astype("uint8"), centered_col_shifts, centered_row_shifts
     else:
         datmax = np.amax(image_data[:])
         for f in range(num_frames):
@@ -226,7 +226,7 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
             dewarped[..., f] = cv2.remap(norm_frame,
                                          centered_col_shifts,
                                          centered_row_shifts,
-                                         interpolation=cv2.INTER_CUBIC)
+                                         interpolation=cv2.INTER_LINEAR)
 
         # Clamp our values.
         dewarped[dewarped < 0] = 0
@@ -562,4 +562,4 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
     # pyplot.imshow(image_projection, cmap='gray')
     # pyplot.show()
 
-    return image_projection, (weight_projection / np.nanmax(weight_projection.flatten()))
+    return image_projection.astype("uint8"), (weight_projection / np.nanmax(weight_projection.flatten()))

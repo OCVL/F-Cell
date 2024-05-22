@@ -207,28 +207,27 @@ class MEAODataset:
 
             if os.path.exists(self.mask_path):
                 res = load_video(self.mask_path)
-                self.mask_data = res.data / 255
-                self.mask_data[self.mask_data < 0] = 0
+                self.mask_data = (res.data / 255).astype("uint8")
 
                 if clip_top != 0:
                     kern = np.zeros((clip_top*2+1, clip_top*2+1), dtype=np.uint8)
                     kern[:, clip_top] = 1
 
                     for f in range(self.num_frames):
-                        self.mask_data[:, :, f] = cv2.erode(self.mask_data[:,:,f].astype("uint8"), kernel=kern, borderType=cv2.BORDER_CONSTANT, borderValue=0)
+                        self.mask_data[:, :, f] = cv2.erode(self.mask_data[:,:,f].astype("uint8"), kernel=kern,
+                                                            borderType=cv2.BORDER_CONSTANT, borderValue=0)
 
-                self.video_data = (self.video_data * self.mask_data).astype("float32")
+                self.video_data = (self.video_data * self.mask_data).astype("uint8")
             else:
                 warnings.warn("No processed mask data detected.")
 
             # Load the reference video data.
-            if os.path.exists(self.ref_video_path) and self.ref_video_path != self.mask_path:
+            if os.path.exists(self.ref_video_path) and self.ref_video_path != self.video_path:
 
                 # Load the reference video mask.
                 if os.path.exists(self.ref_mask_path):
                     res = load_video(self.ref_mask_path)
-                    self.ref_mask_data = res.data / 255
-                    self.ref_mask_data[self.ref_mask_data < 0] = 0
+                    self.ref_mask_data = (res.data / 255).astype("uint8")
 
                     if clip_top != 0:
                         kern = np.zeros((clip_top * 2 + 1, clip_top * 2 + 1), dtype=np.uint8)
@@ -241,7 +240,7 @@ class MEAODataset:
                     warnings.warn("No processed reference mask data detected.")
 
                 res = load_video(self.ref_video_path)
-                self.ref_video_data = (res.data * self.ref_mask_data).astype("float32")
+                self.ref_video_data = (res.data * self.ref_mask_data).astype("uint8")
             elif self.ref_video_path == self.video_path:
                 self.ref_video_data = self.video_data
                 self.ref_mask_data = self.mask_data
@@ -281,32 +280,25 @@ class MEAODataset:
             self.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(self.video_data, yshifts, xshifts)
 
             # Dewarp our other two datasets as well.
-            warp_mask = np.zeros(self.video_data.shape, dtype=np.float32)
-            ref_vid = np.zeros(self.video_data.shape, dtype=np.float32)
             for f in range(self.num_frames):
                 norm_frame = self.ref_video_data[..., f].astype("float32") / 255.0
                 norm_frame[norm_frame == 0] = np.nan
 
-                warp_mask[..., f] = cv2.remap(self.ref_mask_data[..., f].astype("float32"),
-                                              map_mesh_x, map_mesh_y, interpolation=cv2.INTER_NEAREST)
+                self.ref_mask_data[..., f] = cv2.remap(self.ref_mask_data[..., f],
+                                                        map_mesh_x, map_mesh_y,
+                                                        interpolation=cv2.INTER_NEAREST)
 
-                ref_vid[..., f] = cv2.remap(norm_frame,
-                                            map_mesh_x, map_mesh_y,
-                                            interpolation=cv2.INTER_CUBIC)
-            # Clamp our values.
-            warp_mask[warp_mask < 0] = 0
-            warp_mask[warp_mask >= 1] = 1
-            ref_vid[ref_vid < 0] = 0
-            ref_vid[ref_vid >= 1] = 1
+                self.ref_video_data[..., f] = (cv2.remap(norm_frame,
+                                                        map_mesh_x, map_mesh_y,
+                                                        interpolation=cv2.INTER_LINEAR)*255.0).astype("uint8")
 
-            self.ref_mask_data = warp_mask
-            self.ref_video_data = (255 * ref_vid)
 
             print("Ref frame:"+str(self.reference_frame_idx))
             tmp, xforms, inliers = optimizer_stack_align(self.ref_video_data, self.ref_mask_data,
-                                                                         reference_idx=self.reference_frame_idx,
-                                                                         dropthresh=0)
+                                                         reference_idx=self.reference_frame_idx,
+                                                         dropthresh=0)
 
+            del tmp
             print( "Keeping " + str(np.sum(inliers)) + " of " + str(self.num_frames)+"...")
 
             # Update everything with what's an inlier now.
@@ -320,15 +312,23 @@ class MEAODataset:
 
             for f in range(self.num_frames):
                 if xforms[f] is not None:
-                    self.ref_video_data[..., f] = cv2.warpAffine(self.ref_video_data[..., f], xforms[f],
-                                                             (cols, rows),
-                                                             flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
-                    self.ref_mask_data[..., f] = np.isfinite(self.ref_video_data[..., f])
+                    norm_frame = self.ref_video_data[..., f].astype("float32")
+                    norm_frame[norm_frame == 0] = np.nan
 
-                    self.video_data[..., f] = cv2.warpAffine(self.video_data[..., f], xforms[f],
+                    norm_frame = cv2.warpAffine(norm_frame, xforms[f],
                                                              (cols, rows),
                                                              flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
-                    self.mask_data[..., f] = np.isfinite(self.video_data[..., f])
+                    self.ref_mask_data[..., f] = np.isfinite(norm_frame).astype("uint8")
+                    self.ref_video_data[..., f] = norm_frame.astype("uint8")
+
+                    norm_frame = self.video_data[..., f].astype("float32")
+                    norm_frame[norm_frame == 0] = np.nan
+
+                    norm_frame = cv2.warpAffine(norm_frame, xforms[f],
+                                                             (cols, rows),
+                                                             flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+                    self.mask_data[..., f] = np.isfinite(norm_frame).astype("uint8")
+                    self.video_data[..., f] = norm_frame.astype("uint8")
 
 
             self.num_frames = self.video_data.shape[-1]

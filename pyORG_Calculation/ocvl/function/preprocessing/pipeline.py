@@ -305,17 +305,20 @@ def run_meao_pipeline(pName, tkroot):
                     if f < numa:
                         (rows, cols) = dataset[f].video_data.shape[0:2]
 
-                        tmp = a_im_proj[..., f]
+                        tmp = a_im_proj[..., f].astype("float32")
                         tmp[np.round(tmp) == 0] = np.nan
                         a_im_proj[..., f] = cv2.warpAffine(tmp, ref_xforms[f],  (cols, rows),
-                                                           flags=cv2.INTER_LINEAR  | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+                                                           flags=cv2.INTER_LINEAR  | cv2.WARP_INVERSE_MAP, borderValue=np.nan).astype("uint8")
 
                         for i in range(dataset[f].num_frames):  # Make all of the data in our dataset relative as well.
-
-                            dataset[f].video_data[..., i] = cv2.warpAffine(dataset[f].video_data[..., i], ref_xforms[f],
+                            tmp = dataset[f].video_data[..., i].astype("float32")
+                            tmp[np.round(tmp) == 0] = np.nan
+                            dataset[f].video_data[..., i] = cv2.warpAffine(tmp, ref_xforms[f],
                                                                                (cols, rows),
                                                                                flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
-                            dataset[f].mask_data[..., i] = cv2.warpAffine(dataset[f].mask_data[..., i], ref_xforms[f],
+                            tmp = dataset[f].mask_data[..., i].astype("float32")
+                            tmp[np.round(tmp) == 0] = np.nan
+                            dataset[f].mask_data[..., i] = cv2.warpAffine(tmp, ref_xforms[f],
                                                                           (cols, rows),
                                                                           flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
                     else:
@@ -323,18 +326,24 @@ def run_meao_pipeline(pName, tkroot):
 
                         (rows, cols) = dataset[f_offset].ref_video_data.shape[0:2]
 
-                        tmp = ref_im_proj[..., f_offset]
+                        tmp = ref_im_proj[..., f_offset].astype("float32")
                         tmp[np.round(tmp)==0] = np.nan
                         ref_im_proj[..., f_offset] = cv2.warpAffine(tmp, ref_xforms[f], (cols, rows),
-                                                                    flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+                                                                    flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan).astype("uint8")
 
                         for i in range(dataset[f_offset].num_frames):  # Make all of the data in our dataset relative as well.
-                            dataset[f_offset].ref_video_data[..., i] = cv2.warpAffine(dataset[f_offset].ref_video_data[..., i], ref_xforms[f],
+                            tmp = dataset[f_offset].ref_video_data[..., i].astype("float32")
+                            tmp[np.round(tmp) == 0] = np.nan
+                            dataset[f_offset].ref_video_data[..., i] = cv2.warpAffine(tmp, ref_xforms[f],
                                                                            (cols, rows),
-                                                                           flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
-                            dataset[f_offset].ref_mask_data[..., i] = cv2.warpAffine(dataset[f_offset].ref_mask_data[..., i], ref_xforms[f],
+                                                                           flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP).astype("uint8")
+                            tmp = dataset[f_offset].ref_mask_data[..., i].astype("float32")
+                            tmp[np.round(tmp) == 0] = np.nan
+                            dataset[f_offset].ref_mask_data[..., i] = cv2.warpAffine(tmp, ref_xforms[f],
                                                                           (cols, rows),
-                                                                          flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+                                                                          flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP).astype("uint8")
+
+
 
 
             base_ref_frame = os.path.basename(os.path.realpath(dataset[dist_ref_idx].video_path))
