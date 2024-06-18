@@ -236,6 +236,7 @@ if __name__ == "__main__":
                                                             dataset.framestamps >= (
                                                                     dataset.stimtrain_frame_stamps[0] - int(
                                                                 1 * dataset.framerate))))
+
                 poststim_ind = np.flatnonzero(np.logical_and(dataset.framestamps >= dataset.stimtrain_frame_stamps[1],
                                                              dataset.framestamps < (
                                                                      dataset.stimtrain_frame_stamps[1] + int(
@@ -419,7 +420,7 @@ if __name__ == "__main__":
         plt.plot(all_frmstamps / dataset.framerate, pooled_iORG)
         plt.vlines(dataset.stimtrain_frame_stamps[0] / dataset.framerate, -1, 10, color="red")
         plt.xlim([0, 6])
-        plt.ylim([-5, 50]) #was 1, 60
+        #plt.ylim([-5, 50]) #was 1, 60
         plt.xlabel("Time (seconds)")
         plt.ylabel("Response")
         plt.show(block=False)

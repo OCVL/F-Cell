@@ -49,6 +49,12 @@ print('selected path: ' + stimName)
 if not stimName:
     quit()
 
+# coordName = filedialog.askopenfilename(title="Select the coordinate file.", parent=root)
+# print('selected path: ' + stimName)
+#
+# if not stimName:
+#     quit()
+
 # TODO: have user select their output directory instead of doing this hardcoded crap...
 # Splitting the fName_1 string in order to create a results directory for saving figure and csv outputs
 fName_1_split = fName_1.split('/')
@@ -61,9 +67,12 @@ dt = datetime.now()
 now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
 
 # Reading in datasets as dataframe
-cell_pwr_iORG_1 = pd.read_csv(fName_1)
-cell_pwr_iORG_2 = pd.read_csv(fName_2)
+cell_pwr_iORG_tmp_1 = pd.read_csv(fName_1)
+cell_pwr_iORG_tmp_2 = pd.read_csv(fName_2)
 stimTrain = pd.read_csv(stimName, header=None)
+
+cell_pwr_iORG_1 = cell_pwr_iORG_tmp_1 #.T for raw
+cell_pwr_iORG_2 = cell_pwr_iORG_tmp_2 #.T for raw
 
 # Creating a truncated dataframe that only includes frames during and after stimulus
 prestim_ind = stimTrain.iloc[0,0] - 21 # Chose 21 to match the number of pre and post stim frames from indvidual cell iORG script
@@ -101,6 +110,9 @@ med_loc = testCorrW.index.get_loc(sort_testCorrW[sort_testCorrW == sort_testCorr
 
 min_loc = int(testCorrW.idxmin())
 max_loc = int(testCorrW.idxmax())
+near_zero = testCorrW.loc[testCorrW > 0].min()
+near_zero_loc = testCorrW[testCorrW==near_zero].index.values
+
 
 plt.figure(1)
 plt.plot(cell_pwr_iORG_1.iloc[min_loc])
@@ -108,11 +120,11 @@ plt.plot(cell_pwr_iORG_2.iloc[min_loc])
 plt.legend(labels = [first_cond, second_cond])
 plt.title('Full Length Min Correlation')
 plt.show(block=False)
-# plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".svg"),
-#             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-# plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".png"),
-#             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-# plt.close(plt.gcf())
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
 
 
 fig, ax1 = plt.subplots()
@@ -123,11 +135,38 @@ plt.title('Full Length Min Correlation')
 fig.legend(loc='upper right')
 fig.tight_layout()  # otherwise the right y-label is slightly clipped
 plt.show(block=False)
-# plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".svg"),
-#             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-# plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".png"),
-#             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
-#plt.close(plt.gcf())
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_min_corr_adjustedAxes_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
+
+plt.figure(11)
+plt.plot(cell_pwr_iORG_1.iloc[near_zero_loc].T)
+plt.plot(cell_pwr_iORG_2.iloc[near_zero_loc].T)
+plt.legend(labels = [first_cond, second_cond])
+plt.title('Full Length Near Zero Correlation')
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_nearZero_corr_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_nearZero_corr_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
+
+
+fig, ax1 = plt.subplots()
+ax1.plot(cell_pwr_iORG_1.iloc[near_zero_loc].T, label=first_cond, color='tab:blue')
+ax2 = ax1.twinx()
+ax2.plot(cell_pwr_iORG_2.iloc[near_zero_loc].T, label=second_cond, color='tab:orange')
+plt.title('Full Length Near Zero Correlation')
+fig.legend(loc='upper right')
+fig.tight_layout()  # otherwise the right y-label is slightly clipped
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_nearZero_corr_adjustedAxes_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_nearZero_corr_adjustedAxes_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
 
 plt.figure(2)
 plt.plot(cell_pwr_iORG_1.iloc[max_loc])
@@ -185,11 +224,28 @@ plt.figure(4)
 plt.hist(testCorrW)
 plt.xlabel('Pearsons correlation')
 plt.ylabel('Count')
+plt.ylim([0, 900])
+plt.xlim([-1, 1])
 plt.title('Full Length Correlation Histogram')
 plt.show(block=False)
 plt.savefig(out_dir.joinpath(trial_type + "_full_length_stim_hist_" + now_timestamp + ".svg"),
             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
 plt.savefig(out_dir.joinpath(trial_type + "_full_length_stim_hist_" + now_timestamp + ".png"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.close(plt.gcf())
+
+
+plt.figure(14)
+plt.hist(testCorrW, histtype = 'step')
+plt.xlabel('Pearsons correlation')
+plt.ylabel('Count')
+plt.ylim([0, 900])
+plt.xlim([-1, 1])
+plt.title('Full Length Correlation Histogram')
+plt.show(block=False)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_stim_hist_wire_" + now_timestamp + ".svg"),
+            transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
+plt.savefig(out_dir.joinpath(trial_type + "_full_length_stim_hist_wire_" + now_timestamp + ".png"),
             transparent=False, dpi=72, bbox_inches = "tight", pad_inches = 0)
 plt.close(plt.gcf())
 
