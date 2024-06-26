@@ -40,6 +40,7 @@ if __name__ == "__main__":
     totFiles = 0
     # Parse out the locations and filenames, store them in a hash table.
     for (dirpath, dirnames, filenames) in walk(pName):
+
         for fName in filenames:
             if "Confocal" in fName and splitext(fName)[1] == ".avi":
                 splitfName = fName.split("_")
@@ -171,21 +172,32 @@ if __name__ == "__main__":
                 thresh = 0.5
 
             # Determine and remove residual torsion.
-            video_data, xforms, inliers = optimizer_stack_align(video_data, mask_data,
+            _, xforms, inliers = optimizer_stack_align(video_data, mask_data,
                                                                 reference_idx=reference_frame_idx,
                                                                 dropthresh=thresh)
 
             (rows, cols) = video_data.shape[0:2]
             for f in range(num_frames):
                 if xforms[f] is not None:
-                    mask_data[..., f] = cv2.warpAffine(mask_data[..., f], xforms[f],
+                    tmp = video_data[..., f]
+                    tmp[tmp == 0] = np.nan
+                    video_data[..., f] = cv2.warpAffine(tmp, xforms[f],
+                                                              (cols, rows),
+                                                              flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
+                    tmp = mask_data[..., f]
+                    tmp[tmp == 0] = np.nan
+                    mask_data[..., f] = cv2.warpAffine(tmp, xforms[f],
                                                        (cols, rows),
                                                        flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
-                    split_video_data[..., f] = cv2.warpAffine(split_video_data[..., f],  xforms[f],
+                    tmp = split_video_data[..., f]
+                    tmp[tmp == 0] = np.nan
+                    split_video_data[..., f] = cv2.warpAffine(tmp,  xforms[f],
                                                               (cols, rows),
                                                               flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
 
             # Clamp our data.
+            video_data[video_data < 0] = 0
+            video_data[video_data >= 1] = 1
             mask_data[mask_data < 0] = 0
             mask_data[mask_data >= 1] = 1
             split_video_data[split_video_data < 0] = 0
@@ -198,8 +210,8 @@ if __name__ == "__main__":
             # mask_data = mask_data[crop_top: crop_bottom, crop_left: crop_right, :]
             # split_video_data = split_video_data[crop_top: crop_bottom, crop_left: crop_right, :]
 
-            overlap_map, sum_map = weighted_z_projection(mask_data, mask_data)
-            avg_im, sum_map = weighted_z_projection(video_data, mask_data)
+            overlap_map, sum_map = weighted_z_projection(mask_data)
+            avg_im, sum_map = weighted_z_projection(video_data)
 
             #cv2.imwrite(avg_path, (avg_im*255).astype("uint8"))
             allim = np.dstack((avg_im,avg_im,avg_im,overlap_map))

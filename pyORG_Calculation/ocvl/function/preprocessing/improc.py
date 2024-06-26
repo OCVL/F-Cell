@@ -541,6 +541,7 @@ def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=
 def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="average"):
     num_frames = image_data.shape[-1]
 
+    og_dtype = image_data.dtype
     if weights is None:
         weights = image_data > 0
 
@@ -557,9 +558,14 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
     weight_projection[np.isnan(weight_projection)] = 0
     image_projection[np.isnan(image_projection)] = 0
     image_projection[image_projection < 0] = 0
-    image_projection[image_projection > 255] = 255
+
+    if og_dtype == np.uint8:
+        image_projection[image_projection > 255] = 255
+        image_projection=image_projection.astype("uint8")
+    else:
+        image_projection[image_projection > 1] = 1
 
     # pyplot.imshow(image_projection, cmap='gray')
     # pyplot.show()
 
-    return image_projection.astype("uint8"), (weight_projection / np.nanmax(weight_projection.flatten()))
+    return image_projection, (weight_projection / np.nanmax(weight_projection.flatten()))

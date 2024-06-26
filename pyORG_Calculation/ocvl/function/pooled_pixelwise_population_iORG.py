@@ -13,6 +13,7 @@ from matplotlib.colors import Normalize
 
 from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
+from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.generic import PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
@@ -129,9 +130,12 @@ if __name__ == "__main__":
                     del x, y, xv, yv
                     first = False
 
+                dataset.video_data = norm_video(dataset.video_data, norm_method="score", rescaled=True,
+                                                rescale_mean=70, rescale_std=35)
+
                 temp_profiles = extract_profiles(dataset.video_data, coord_data, seg_radius=0)
-                norm_temporal_profiles = norm_profiles(temp_profiles, norm_method="mean", rescaled=True)
-                stdize_profiles = standardize_profiles(norm_temporal_profiles, dataset.framestamps,
+
+                stdize_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
                                                        dataset.stimtrain_frame_stamps[0], method="mean_sub")
                 #stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps)
                 #plt.savefig(res_dir.joinpath(this_dirname +  "_all_std_profiles.svg"))
