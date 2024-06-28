@@ -9,7 +9,8 @@ from ocvl.function.utility.resources import load_video, save_video
 if __name__ == "__main__":
 
     # Parse out the locations and filenames, store them in a hash table.
-    searchpath = Path("//134.48.93.176/Raw Study Data/00-04710/MEAOSLO1/20210920/Functional/bkup")
+    searchpath = Path("//134.48.93.176/Raw Study Data/00-36828/FFB_IndivInvest_2020_PRO38673/MEAOSLO1/20240620")
+
     for path in searchpath.rglob("*.avi"):
         print("Processing: "+path.name)
         if "Confocal" in path.name:

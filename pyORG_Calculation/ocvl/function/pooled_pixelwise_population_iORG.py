@@ -111,6 +111,8 @@ if __name__ == "__main__":
                 pb.update()
                 pb_label.update()
 
+                print("Processing " + file.name + "...")
+
                 dataset = MEAODataset(file.as_posix(), analysis_modality="760nm", ref_modality="760nm",
                                       stimtrain_path=stimtrain_fName, stage=PipeStages.PIPELINED)
                 dataset.load_pipelined_data()
