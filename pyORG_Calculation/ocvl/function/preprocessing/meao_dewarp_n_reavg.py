@@ -3,7 +3,7 @@ import pathlib
 from os import walk
 from os.path import splitext
 from tkinter import Tk, filedialog, ttk, HORIZONTAL
-
+import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 import pandas as pd
@@ -150,7 +150,6 @@ if __name__ == "__main__":
             split_video_data[split_video_data < 0] = 0
             split_video_data[split_video_data >= 1] = 1
 
-
             crop_left = np.ceil(np.amax(map_mesh_x[:, 0])).astype("int")+1
             crop_right = np.floor(np.amin(map_mesh_x[:, -1])).astype("int")-1
             crop_top = np.ceil(np.amax(map_mesh_y[0, :])).astype("int")+1
@@ -202,7 +201,7 @@ if __name__ == "__main__":
             avg_im, sum_map = weighted_z_projection(video_data, mask_data)
 
             #cv2.imwrite(avg_path, (avg_im*255).astype("uint8"))
-            allim = np.dstack((avg_im,avg_im,avg_im,overlap_map))
+            allim = np.dstack((avg_im, avg_im, avg_im, overlap_map))
             im_conf = Image.fromarray((allim * 255).astype("uint8"))
             im_conf.save(avg_path, compress_level=0)
 

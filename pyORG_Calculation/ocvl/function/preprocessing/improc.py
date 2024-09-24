@@ -561,5 +561,6 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
 
     # pyplot.imshow(image_projection, cmap='gray')
     # pyplot.show()
+    # return image_projection.astype("uint8"), (weight_projection / np.nanmax(weight_projection.flatten()))
 
-    return image_projection.astype("uint8"), (weight_projection / np.nanmax(weight_projection.flatten()))
+    return image_projection, (weight_projection / np.nanmax(weight_projection.flatten()))
