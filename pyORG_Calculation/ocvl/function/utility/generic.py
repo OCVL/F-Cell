@@ -30,7 +30,7 @@ class Metadata(Enum):
     FRAMERATE = 9
 
 class Dataset:
-    def __init__(self, video_data=None, timestamps=None, query_locations=None,
+    def __init__(self, video_data=None, mask_data=None, timestamps=None, query_locations=None,
                  stimseq=None, metadata=None, stage=PipeStages.PROCESSED):
 
         # Paths to the data used here.
@@ -138,7 +138,7 @@ class Dataset:
         del self.video_data
         del self.mask_data
 
-    def load_data(self):
+    def reload_data(self):
         if self.stage is PipeStages.RAW:
             self.load_raw_data()
         elif self.stage is PipeStages.PROCESSED:
@@ -163,26 +163,28 @@ class Dataset:
             self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
                                           encoding="utf-8-sig").to_numpy()
 
-    def load_pipelined_data(self):
+    def load_pipelined_data(self, force_reload=False):
         if self.stage is PipeStages.PIPELINED:
 
-            resource = load_video(self.video_path)
+            # Go down the line, loading data that doesn't already exist in this dataset.
+            if not self.video_data and os.path.exists(self.video_path):
+                resource = load_video(self.video_path)
 
-            self.video_data = resource.data
+                self.video_data = resource.data
 
-            self.framerate = resource.metadict["framerate"]
-            self.metadata_data = resource.metadict
-            self.width = resource.data.shape[1]
-            self.height = resource.data.shape[0]
-            self.num_frames = resource.data.shape[-1]
+                self.framerate = resource.metadict["framerate"]
+                self.metadata_data = resource.metadict
+                self.width = resource.data.shape[1]
+                self.height = resource.data.shape[0]
+                self.num_frames = resource.data.shape[-1]
 
-            if os.path.exists(self.mask_path):
+            if not self.mask_data and os.path.exists(self.mask_path):
                 mask_res = load_video(self.mask_path)
-
 
             if self.coord_path:
                 self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
                                               encoding="utf-8-sig").to_numpy()
+
             if self.framestamp_path:
                 # Load our text data.
                 self.framestamps = pd.read_csv(self.framestamp_path, delimiter=',', header=None,
