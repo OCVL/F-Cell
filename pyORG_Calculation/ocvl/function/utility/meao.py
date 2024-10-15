@@ -76,7 +76,6 @@ class MEAODataset:
             if stage is PipeStages.PROCESSED:
                 for filename in glob.glob(
                         path.join(p_name, common_prefix + "_" + self.analysis_modality + "?_extract_reg_avg_coords.csv")):
-                    print(filename)
                     coordname = filename
             elif stage is PipeStages.PIPELINED:
                 # First look for an image associated with this dataset

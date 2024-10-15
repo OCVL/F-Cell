@@ -30,7 +30,7 @@ import pandas as pd
 from matplotlib import pyplot as plt, pyplot
 from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
-from ocvl.function.utility.generic import GenericDataset, PipeStages
+from ocvl.function.utility.generic import Dataset, PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
 
@@ -95,7 +95,7 @@ def run_generic_pipeline(pName, tkroot):
             pb.update()
             pb_label.update()
 
-            dataset = GenericDataset(toload, stage=PipeStages.RAW)
+            dataset = Dataset(toload, stage=PipeStages.RAW)
 
             dataset.load_data()
             dataset.video_data = flat_field(dataset.video_data)
