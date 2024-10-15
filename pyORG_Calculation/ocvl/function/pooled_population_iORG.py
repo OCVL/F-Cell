@@ -67,7 +67,7 @@ if __name__ == "__main__":
     # Parse out the locations and filenames, store them in a hash table.
     searchpath = Path(pName)
     for path in searchpath.rglob("*.avi"):
-        if "piped" in path.name:
+        if "piped" in path.name and a_mode in path.name:
             splitfName = path.name.split("_")
 
             if (path.parent.parent == searchpath or path.parent == searchpath):

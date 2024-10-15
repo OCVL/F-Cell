@@ -40,6 +40,7 @@ if __name__ == "__main__":
     totFiles = 0
     # Parse out the locations and filenames, store them in a hash table.
     for (dirpath, dirnames, filenames) in walk(pName):
+
         for fName in filenames:
             if "Confocal" in fName and splitext(fName)[1] == ".avi":
                 splitfName = fName.split("_")
@@ -100,8 +101,10 @@ if __name__ == "__main__":
 
             # Also load other modalities.
             split_path = video_path.replace("Confocal", "CalculatedSplit")
-            res = load_video(split_path)
-            split_video_data = res.data.astype("float32") / 255
+            hassplit = os.path.isfile(split_path)
+            if hassplit:
+                res = load_video(split_path)
+                split_video_data = res.data.astype("float32") / 255
 
             # Load our mask data.
             res = load_video(mask_path)
@@ -141,14 +144,16 @@ if __name__ == "__main__":
             for f in range(num_frames):
                 mask_data[..., f] = cv2.remap(mask_data[..., f], map_mesh_x,
                                               map_mesh_y, interpolation=cv2.INTER_NEAREST)
-                split_video_data[..., f] = cv2.remap(split_video_data[..., f], map_mesh_x,
-                                                     map_mesh_y, interpolation=cv2.INTER_LINEAR)
+                if hassplit:
+                    split_video_data[..., f] = cv2.remap(split_video_data[..., f], map_mesh_x,
+                                                         map_mesh_y, interpolation=cv2.INTER_LINEAR)
 
             # Clamp our data.
             mask_data[mask_data < 0] = 0
             mask_data[mask_data >= 1] = 1
-            split_video_data[split_video_data < 0] = 0
-            split_video_data[split_video_data >= 1] = 1
+            if hassplit:
+                split_video_data[split_video_data < 0] = 0
+                split_video_data[split_video_data >= 1] = 1
 
             crop_left = np.ceil(np.amax(map_mesh_x[:, 0])).astype("int")+1
             crop_right = np.floor(np.amin(map_mesh_x[:, -1])).astype("int")-1
@@ -170,25 +175,38 @@ if __name__ == "__main__":
                 thresh = 0.5
 
             # Determine and remove residual torsion.
-            video_data, xforms, inliers = optimizer_stack_align(video_data, mask_data,
+            _, xforms, inliers = optimizer_stack_align(video_data, mask_data,
                                                                 reference_idx=reference_frame_idx,
                                                                 dropthresh=thresh)
 
             (rows, cols) = video_data.shape[0:2]
             for f in range(num_frames):
                 if xforms[f] is not None:
-                    mask_data[..., f] = cv2.warpAffine(mask_data[..., f], xforms[f],
+                    tmp = video_data[..., f]
+                    tmp[tmp == 0] = np.nan
+                    video_data[..., f] = cv2.warpAffine(tmp, xforms[f],
+                                                              (cols, rows),
+                                                              flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
+                    tmp = mask_data[..., f]
+                    tmp[tmp == 0] = np.nan
+                    mask_data[..., f] = cv2.warpAffine(tmp, xforms[f],
                                                        (cols, rows),
                                                        flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
-                    split_video_data[..., f] = cv2.warpAffine(split_video_data[..., f],  xforms[f],
+                    if hassplit:
+                        tmp = split_video_data[..., f]
+                        tmp[tmp == 0] = np.nan
+                        split_video_data[..., f] = cv2.warpAffine(tmp,  xforms[f],
                                                               (cols, rows),
                                                               flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
 
             # Clamp our data.
+            video_data[video_data < 0] = 0
+            video_data[video_data >= 1] = 1
             mask_data[mask_data < 0] = 0
             mask_data[mask_data >= 1] = 1
-            split_video_data[split_video_data < 0] = 0
-            split_video_data[split_video_data >= 1] = 1
+            if hassplit:
+                split_video_data[split_video_data < 0] = 0
+                split_video_data[split_video_data >= 1] = 1
 
 
             # Crop our mapped data to only non-zero areas so we have no black/transparent areas and everything
@@ -197,22 +215,23 @@ if __name__ == "__main__":
             # mask_data = mask_data[crop_top: crop_bottom, crop_left: crop_right, :]
             # split_video_data = split_video_data[crop_top: crop_bottom, crop_left: crop_right, :]
 
-            overlap_map, sum_map = weighted_z_projection(mask_data, mask_data)
-            avg_im, sum_map = weighted_z_projection(video_data, mask_data)
+            overlap_map, sum_map = weighted_z_projection(mask_data)
+            avg_im, sum_map = weighted_z_projection(video_data)
 
             #cv2.imwrite(avg_path, (avg_im*255).astype("uint8"))
             allim = np.dstack((avg_im, avg_im, avg_im, overlap_map))
             im_conf = Image.fromarray((allim * 255).astype("uint8"))
             im_conf.save(avg_path, compress_level=0)
 
-            splitvid_as_path = pathlib.Path(split_path)
-            avg_split_path = os.path.join(vid_as_path.parent, "Dewarped", splitvid_as_path.name[0:-11] + "dewarpavg.png")
-            avg_split_im, sum_map = weighted_z_projection(split_video_data, mask_data)
+            if hassplit:
+                splitvid_as_path = pathlib.Path(split_path)
+                avg_split_path = os.path.join(vid_as_path.parent, "Dewarped", splitvid_as_path.name[0:-11] + "dewarpavg.png")
+                avg_split_im, sum_map = weighted_z_projection(split_video_data, mask_data)
 
             #cv2.imwrite(avg_split_path, (avg_split_im*255).astype("uint8"))
-            allim = np.dstack((avg_split_im, avg_split_im, avg_split_im, overlap_map))
-            im_split = Image.fromarray((allim * 255).astype("uint8"))
-            im_split.save(avg_split_path, compress_level=0)
+                allim = np.dstack((avg_split_im, avg_split_im, avg_split_im, overlap_map))
+                im_split = Image.fromarray((allim * 255).astype("uint8"))
+                im_split.save(avg_split_path, compress_level=0)
 
             r += 1
 

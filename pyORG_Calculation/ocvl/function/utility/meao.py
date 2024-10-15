@@ -76,7 +76,7 @@ class MEAODataset:
             if stage is PipeStages.PROCESSED:
                 for filename in glob.glob(
                         path.join(p_name, common_prefix + "_" + self.analysis_modality + "?_extract_reg_avg_coords.csv")):
-                    # print(filename)
+                    print(filename)
                     coordname = filename
             elif stage is PipeStages.PIPELINED:
                 # First look for an image associated with this dataset
@@ -86,7 +86,7 @@ class MEAODataset:
 
                 # If we don't have an image specific to this dataset, search for the all acq avg
                 if not coordname:
-                    for filename in glob.glob(path.join(p_name, "*_ALL_ACQ_AVG_coords.csv")):
+                    for filename in glob.glob(path.join(p_name, "*_" + self.analysis_modality +"_ALL_ACQ_AVG_coords.csv")):
                         # print(filename)
                         coordname = filename
             else:
@@ -97,8 +97,10 @@ class MEAODataset:
                 self.coord_path = None
             else:
                 self.coord_path = path.join(p_name, coordname)
+                self.ref_coord_path = path.join(p_name, coordname.replace(analysis_modality, ref_modality))
         else:
             self.coord_path = coord_path
+            self.ref_coord_path = coord_path.replace(analysis_modality, ref_modality)
 
         self.stimtrain_path = stimtrain_path
 
@@ -115,6 +117,7 @@ class MEAODataset:
         # The data are roughly grouped by the following:
         # Base data
         self.coord_data = np.empty([1])
+        self.ref_coord_data = np.empty([1])
         self.reference_im = np.empty([1])
         self.metadata_data = np.empty([1])
         # Video data (processed or pipelined)
@@ -404,6 +407,8 @@ class MEAODataset:
 
             if self.coord_path:
                 self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
+                                              encoding="utf-8-sig").to_numpy()
+                self.ref_coord_data = pd.read_csv(self.ref_coord_path, delimiter=',', header=None,
                                               encoding="utf-8-sig").to_numpy()
                 # print(self.coord_data)
 
