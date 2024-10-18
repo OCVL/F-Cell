@@ -1,0 +1,25 @@
+{
+
+  "raw": {
+    "vid_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality.avi",
+
+    "metadata": {
+      "type": "file",
+      "metadata_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality.csv",
+      "timestamps": "Timestamp_us",
+      "stimulus_train": "StimulusOn"
+    }
+  },
+  "processed": {
+    "im_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_avg.tif",
+    "vid_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped.avi",
+    "mask_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped_mask.avi",
+    "metadata": {
+      "type": "file",
+      "metadata_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped.csv"
+    },
+  "pipelined": {
+
+  }
+
+}

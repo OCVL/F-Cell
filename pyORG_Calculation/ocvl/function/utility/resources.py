@@ -1,3 +1,4 @@
+import json
 import os
 import warnings
 from enum import Enum
@@ -14,6 +15,13 @@ class ResourceType(Enum):
     IMAGE4D = 4
     TEXT = 5
     COORDINATES = 6
+
+
+def load_config_json(json_path):
+    with open(json_path, 'r') as f:
+        config = json.load(f)
+
+
 
 
 def load_video(video_path):

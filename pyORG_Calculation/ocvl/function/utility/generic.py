@@ -39,11 +39,28 @@ class Dataset:
         else:
             self.metadata = metadata
 
-        if not video_data:
+        # Information about the dataset
+        self.stage = stage
+        self.framerate = -1
+        self.num_frames = -1
+        self.width = -1
+        self.height = -1
+        self.time_stamps = timestamps
+        self.reference_frame_idx = []
+        self.stimtrain_frame_stamps = stimseq
+
+        # The data are roughly grouped by the following:
+        # Base data
+        self.coord_data = query_locations
+        self.z_proj_image_data = np.empty([1])
+        # Video data (processed or pipelined)
+        self.video_data = video_data
+        self.mask_data = mask_data
+
+        if video_data:
             self.num_frames = video_data.shape[-1]
             self.width = video_data.shape[1]
             self.height = video_data.shape[0]
-            self.video_data = video_data
 
         self.framerate = self.metadata[Metadata.FRAMERATE]
 
@@ -112,95 +129,14 @@ class Dataset:
 
                 self.coord_path = os.path.join(self.base_path, coordname)
 
-
-
-        # Information about the dataset
-        self.stage = stage
-        self.framerate = -1
-        self.num_frames = -1
-        self.width = -1
-        self.height = -1
-        self.framestamps = np.empty([1])
-        self.reference_frame_idx = []
-        self.stimtrain_frame_stamps = np.empty([1])
-
-        # The data are roughly grouped by the following:
-        # Base data
-        self.coord_data = np.empty([1])
-        self.image_data = np.empty([1])
-        # Video data (processed or pipelined)
-        self.video_data = np.empty([1])
-        self.mask_data = np.empty([1])
-
-
     def clear_video_data(self):
-        print("Deleting video data from "+self.video_path)
         del self.video_data
         del self.mask_data
 
-    def reload_data(self):
-        if self.stage is PipeStages.RAW:
-            self.load_raw_data()
-        elif self.stage is PipeStages.PROCESSED:
-            self.load_processed_data()
-        elif self.stage is PipeStages.PIPELINED:
-            self.load_pipelined_data()
-        elif self.stage is PipeStages.ANALYSIS_READY:
-            self.load_analysis_ready_data()
+    def load_data(self, force_reload=False):
 
-    def load_raw_data(self):
-        resource = load_video(self.video_path)
-
-        self.video_data = resource.data
-
-        self.framerate = resource.metadict["framerate"]
-        self.metadata_data = resource.metadict
-        self.width = resource.data.shape[1]
-        self.height = resource.data.shape[0]
-        self.num_frames = resource.data.shape[-1]
-
-        if self.coord_path:
-            self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
-                                          encoding="utf-8-sig").to_numpy()
-
-    def load_pipelined_data(self, force_reload=False):
-        if self.stage is PipeStages.PIPELINED:
-
-            # Go down the line, loading data that doesn't already exist in this dataset.
-            if not self.video_data and os.path.exists(self.video_path):
-                resource = load_video(self.video_path)
-
-                self.video_data = resource.data
-
-                self.framerate = resource.metadict["framerate"]
-                self.metadata_data = resource.metadict
-                self.width = resource.data.shape[1]
-                self.height = resource.data.shape[0]
-                self.num_frames = resource.data.shape[-1]
-
-            if not self.mask_data and os.path.exists(self.mask_path):
-                mask_res = load_video(self.mask_path)
-
-            if self.coord_path:
-                self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
-                                              encoding="utf-8-sig").to_numpy()
-
-            if self.framestamp_path:
-                # Load our text data.
-                self.framestamps = pd.read_csv(self.framestamp_path, delimiter=',', header=None,
-                                               encoding="utf-8-sig").to_numpy()
-
-            if self.stimtrain_path:
-                self.stimtrain_frame_stamps = np.cumsum(np.squeeze(pd.read_csv(self.stimtrain_path, delimiter=',', header=None,
-                                                          encoding="utf-8-sig").to_numpy()))
-            else:
-                self.stimtrain_frame_stamps = self.num_frames-1
-        else:
-            warnings.warn("Dataset is not currently set as pipelined. Cannot load data.")
-
-    def load_processed_data(self, force=False):
-        # Establish our unpipelined filenames
-        if self.stage is not PipeStages.RAW or force:
+        # Go down the line, loading data that doesn't already exist in this dataset.
+        if (not self.video_data or force_reload) and os.path.exists(self.video_path):
             resource = load_video(self.video_path)
 
             self.video_data = resource.data
@@ -211,32 +147,32 @@ class Dataset:
             self.height = resource.data.shape[0]
             self.num_frames = resource.data.shape[-1]
 
-            self.video_data, xforms, inliers = optimizer_stack_align(self.video_data,
-                                                                         reference_idx=self.reference_frame_idx,
-                                                                         dropthresh=0.0)
+        if (not self.mask_data or force_reload) and os.path.exists(self.mask_path):
+            mask_res = load_video(self.mask_path)
+            self.mask_data = mask_res.data / mask_res.data.max()
+            self.mask_data[self.mask_data < 0] = 0
+            self.mask_data[self.mask_data > 1] = 1
+            # Mask our video data correspondingly.
+            self.video_data = (self.video_data * self.mask_data)
 
-            print( "Keeping " +str(np.sum(inliers))+ " of " +str(self.num_frames)+"...")
+        if (not self.coord_data or force_reload) and os.path.exists(self.coord_path):
+            self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
+                                          encoding="utf-8-sig").to_numpy()
 
-            # Update everything with what's an inlier now.
-            self.ref_video_data = self.ref_video_data[..., inliers]
-            self.framestamps = self.framestamps[inliers]
-            self.video_data = self.video_data[..., inliers]
-            self.mask_data = self.mask_data[..., inliers]
+        if (not self.z_proj_image_data or force_reload) and os.path.exists(self.image_path) :
+            self.z_proj_image_data = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
 
-            (rows, cols) = self.video_data.shape[0:2]
+        if (not self.stimtrain_frame_stamps or force_reload) and os.path.exists(self.stimtrain_path):
+            self.stimtrain_frame_stamps = np.cumsum(np.squeeze(pd.read_csv(self.stimtrain_path, delimiter=',', header=None,
+                                                                           encoding="utf-8-sig").to_numpy()))
+        else:
+            self.stimtrain_frame_stamps = 0
 
-            for f in range(self.num_frames):
-                if xforms[f] is not None:
-                    self.video_data[..., f] = cv2.warpAffine(self.video_data[..., f], xforms[f],
-                                                             (cols, rows),
-                                                             flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
-                    self.mask_data[..., f] = cv2.warpAffine(self.mask_data[..., f], xforms[f],
-                                                            (cols, rows),
-                                                            flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
 
-            self.num_frames = self.video_data.shape[-1]
+
 
     def save_data(self, suffix):
         save_video(self.video_path[0:-4]+suffix+".avi", self.video_data, self.framerate)
+
 
 

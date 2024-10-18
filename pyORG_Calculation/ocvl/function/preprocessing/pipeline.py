@@ -395,7 +395,7 @@ def run_meao_pipeline(pName, tkroot):
                 data.ref_mask_data = data.mask_data[cropy:(cropy + croph), cropx:(cropx + cropw), :]
 
                 # Save the pipelined dataset.
-                metadata = pd.DataFrame(data.framestamps, columns=["FrameStamps"])
+                metadata = pd.DataFrame(data.time_stamps, columns=["FrameStamps"])
                 metadata.to_csv(os.path.join(writepath, data.ref_filename[:-4] + "_piped.csv"), index=False)
                 save_video(os.path.join(writepath, data.ref_filename[:-4] + "_piped.avi"), data.ref_video_data, data.framerate)
                 metadata.to_csv(os.path.join(writepath, data.filename[:-4] + "_piped.csv"), index=False)
