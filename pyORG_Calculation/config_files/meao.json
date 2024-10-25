@@ -1,5 +1,4 @@
 {
-
   "raw": {
     "vid_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality.avi",
 
@@ -19,7 +18,12 @@
       "metadata_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped.csv"
     },
   "pipelined": {
-
+    "im_format": "(LocX,LocY)/IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_avg.tif",
+    "vid_format": "(LocX,LocY)/IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped_piped.avi",
+    "metadata": {
+      "type": "file",
+      "metadata_format": "(LocX,LocY)/IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped_piped.csv"
+    }
   }
 
 }
