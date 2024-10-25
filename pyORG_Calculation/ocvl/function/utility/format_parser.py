@@ -27,7 +27,11 @@ class FormatParser():
 
         loc_ind = 0
         for chunk in file_string.split(self.separator):
-            self.formatlocs[loc_ind]
+            dataformat = self.formatlocs[loc_ind]
+            if len(dataformat) == 1:
+                filename_metadata[dataformat] = chunk
+            else:
+                pass
             loc_ind += 1
 
         for key, value in self.formatlocs.items():

@@ -36,6 +36,7 @@ from ocvl.function.utility.format_parser import FormatParser
 from ocvl.function.utility.generic import Dataset, PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
+import parse
 
 
 def initialize_and_load_meao(file, a_mode, ref_mode):
@@ -472,14 +473,14 @@ if __name__ == "__main__":
 
             vid_ext = vid_form[vid_form.rfind(".", -5, -1):]
 
-
             parser = FormatParser(vid_form, separator)
 
 
             # Parse out the locations and filenames, store them in a hash table.
             searchpath = Path(pName)
             for path in searchpath.rglob("*"+vid_ext):
-                meta = parser.parse_file(path.name)
+                parse.parse(vid_form, path.name)
+                #meta = parser.parse_file(path.name)
                 print(meta)
 
                 # if "piped" in path.name and a_mode in path.name:

@@ -6,9 +6,9 @@ from enum import Enum
 class DataFormat(Enum):
     DATA_ID = "IDnum"
     VIDEO_ID = "VidNum"
-    YEAR = "Year"
-    MONTH = "Month"
-    DAY = "Day"
+    YEAR = "Year" # YYYY
+    MONTH = "Month" # MM
+    DAY = "Day" # DD
     HOUR = "Hour"
     MINUTE = "Minute"
     SECOND = "Second"
