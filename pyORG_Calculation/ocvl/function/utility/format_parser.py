@@ -1,40 +1,25 @@
+import parse
+
 from ocvl.function.utility.json_format_constants import DataFormat
 
 
 class FormatParser():
-    def __init__(self, format_string, separator):
+    def __init__(self, format_string):
         self.formatlocs = dict()
-        self.max_loc = len(format_string)
-        self.separator = separator
-
-        loc_ind = 0
-        for chunk in format_string.split(separator):
-            print(chunk)
-            for formatstr in DataFormat:
-                if formatstr.value in chunk and loc_ind not in self.formatlocs:
-                    self.formatlocs[loc_ind] = (formatstr, )
-                elif formatstr.value in chunk and loc_ind in self.formatlocs:
-                    # Concat other formats to the tuple associated with this chunk- this is implicitly in the order they appear.
-                    self.formatlocs[loc_ind] = self.formatlocs[loc_ind] + (formatstr,)
-
-            loc_ind += 1
-        print(self.formatlocs)
+        self.file_parse = parse.compile(format_string)
 
 
     def parse_file(self, file_string):
 
         filename_metadata = dict()
+        print(self.file_parse)
+        ext_str = self.file_parse.parse(file_string)
+        # Need to parse using each of our types to determine the format it matches
 
-        loc_ind = 0
-        for chunk in file_string.split(self.separator):
-            dataformat = self.formatlocs[loc_ind]
-            if len(dataformat) == 1:
-                filename_metadata[dataformat] = chunk
+        for formatstr in DataFormat:
+            if formatstr.value in ext_str.named:
+                filename_metadata[formatstr] = ext_str[formatstr.value]
             else:
-                pass
-            loc_ind += 1
-
-        for key, value in self.formatlocs.items():
-            filename_metadata[key] = file_string[value[0]:value[0]+value[1]]
+                print("Didn't find "+ formatstr.value +" in the parsed file.")
 
         return filename_metadata

@@ -473,14 +473,13 @@ if __name__ == "__main__":
 
             vid_ext = vid_form[vid_form.rfind(".", -5, -1):]
 
-            parser = FormatParser(vid_form, separator)
-
+            parser = FormatParser(vid_form)
 
             # Parse out the locations and filenames, store them in a hash table.
             searchpath = Path(pName)
             for path in searchpath.rglob("*"+vid_ext):
-                parse.parse(vid_form, path.name)
-                #meta = parser.parse_file(path.name)
+                print(path.name)
+                meta = parser.parse_file(path.name)
                 print(meta)
 
                 # if "piped" in path.name and a_mode in path.name:
