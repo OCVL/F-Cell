@@ -1,7 +1,7 @@
 {
   "version": "0.1",
   "raw": {
-    "vid_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}.avi",
+    "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}.avi",
     "metadata": {
       "type": "file",
       "metadata_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}.csv",
@@ -12,8 +12,8 @@
     }
   },
   "processed": {
-    "im_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_avg.tif",
-    "vid_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped.avi",
+    "image_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_avg.tif",
+    "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped.avi",
     "mask_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_mask.avi",
     "metadata": {
       "type": "file",
@@ -22,8 +22,8 @@
     }
   },
   "pipelined": {
-    "im_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_avg.tif",
-    "vid_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_piped.avi",
+    "image_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_avg.tif",
+    "video_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_piped.avi",
     "metadata": {
       "type": "file",
       "metadata_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_piped.csv",

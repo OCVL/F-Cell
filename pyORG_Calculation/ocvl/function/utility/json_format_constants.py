@@ -1,6 +1,11 @@
 from enum import Enum
 
 
+class FormatTypes(Enum):
+    IMAGE = "image_format"
+    VIDEO = "video_format"
+    MASK = "mask_format"
+
 # Will probably want to make a list of these corresponding to the version of the json files.
 # This verson assumes that we don't have any naming collisions; e.g. these constants aren't used in the filenames.
 class DataFormat(Enum):

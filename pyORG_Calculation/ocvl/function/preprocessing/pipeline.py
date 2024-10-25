@@ -34,6 +34,7 @@ from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection
     optimizer_stack_align
 from ocvl.function.utility.format_parser import FormatParser
 from ocvl.function.utility.generic import Dataset, PipeStages
+from ocvl.function.utility.json_format_constants import FormatTypes
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
 import parse
@@ -461,48 +462,48 @@ if __name__ == "__main__":
 
     with open(json_fName, 'r') as json_f:
         dat_form = json.load(json_f)
-        print(dat_form)
 
-    processed_dat_format = dat_form.get("processed")
-    if processed_dat_format:
+        processed_dat_format = dat_form.get("processed")
+        if processed_dat_format:
+    
+            im_form = processed_dat_format.get(FormatTypes.IMAGE.value)
+            vid_form = processed_dat_format.get(FormatTypes.VIDEO.value)
+            mask_form = processed_dat_format.get(FormatTypes.MASK.value)
 
-        vid_form = processed_dat_format.get("vid_format")
-        separator =processed_dat_format.get("separator")
+            if vid_form:
 
-        if vid_form:
+                vid_ext = vid_form[vid_form.rfind(".", -5, -1):]
 
-            vid_ext = vid_form[vid_form.rfind(".", -5, -1):]
+                parser = FormatParser(vid_form, mask_form, im_form)
 
-            parser = FormatParser(vid_form)
-
-            # Parse out the locations and filenames, store them in a hash table.
-            searchpath = Path(pName)
-            for path in searchpath.rglob("*"+vid_ext):
-                print(path.name)
-                meta = parser.parse_file(path.name)
-                print(meta)
-
-                # if "piped" in path.name and a_mode in path.name:
-                #     splitfName = path.name.split("_")
-                #
-                #     if (path.parent.parent == searchpath or path.parent == searchpath):
-                #         if path.parent not in allFiles:
-                #             allFiles[path.parent] = []
-                #             allFiles[path.parent].append(path)
-                #
-                #             if "control" in path.parent.name:
-                #                 # print("DETECTED CONTROL DATA AT: " + str(path.parent))
-                #                 controlpath = path.parent
-                #         else:
-                #             allFiles[path.parent].append(path)
-                #
-                #     totFiles += 1
+                # Parse out the locations and filenames, store them in a hash table.
+                searchpath = Path(pName)
+                for path in searchpath.rglob("*"+vid_ext):
+                    print(path.name)
+                    format_type, file_info = parser.parse_file(path.name)
 
 
+                    # if "piped" in path.name and a_mode in path.name:
+                    #     splitfName = path.name.split("_")
+                    #
+                    #     if (path.parent.parent == searchpath or path.parent == searchpath):
+                    #         if path.parent not in allFiles:
+                    #             allFiles[path.parent] = []
+                    #             allFiles[path.parent].append(path)
+                    #
+                    #             if "control" in path.parent.name:
+                    #                 # print("DETECTED CONTROL DATA AT: " + str(path.parent))
+                    #                 controlpath = path.parent
+                    #         else:
+                    #             allFiles[path.parent].append(path)
+                    #
+                    #     totFiles += 1
 
 
-    else:
-        warning("Unable to detect \"processed\" json value!")
+
+
+        else:
+            warning("Unable to detect \"processed\" json value!")
     # run_generic_pipeline(pName, tkroot=root)
 
     #run_meao_pipeline(pName, tkroot=root)

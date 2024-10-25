@@ -1,25 +1,35 @@
 import parse
 
-from ocvl.function.utility.json_format_constants import DataFormat
+from ocvl.function.utility.json_format_constants import DataFormat, FormatTypes
 
 
 class FormatParser():
-    def __init__(self, format_string):
+    def __init__(self, video_format, mask_format=None, image_format=None):
         self.formatlocs = dict()
-        self.file_parse = parse.compile(format_string)
+        self.vid_parser = parse.compile(video_format)
+        if mask_format:
+            self.mask_parser = parse.compile(mask_format)
+        if image_format:
+            self.im_parser = parse.compile(image_format)
 
 
     def parse_file(self, file_string):
 
         filename_metadata = dict()
-        print(self.file_parse)
-        ext_str = self.file_parse.parse(file_string)
-        # Need to parse using each of our types to determine the format it matches
+
+        parsed_str = self.vid_parser.parse(file_string)
+        parser_used = FormatTypes.VIDEO
+        if not parsed_str:
+            parsed_str = self.mask_parser.parse(file_string)
+            parser_used = FormatTypes.MASK
+        if not parsed_str:
+            parsed_str = self.im_parser.parse(file_string)
+            parser_used = FormatTypes.MASK
 
         for formatstr in DataFormat:
-            if formatstr.value in ext_str.named:
-                filename_metadata[formatstr] = ext_str[formatstr.value]
+            if formatstr.value in parsed_str.named:
+                filename_metadata[formatstr] = parsed_str[formatstr.value]
             else:
                 print("Didn't find "+ formatstr.value +" in the parsed file.")
 
-        return filename_metadata
+        return parser_used, filename_metadata
