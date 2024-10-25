@@ -13,7 +13,9 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+import json
 from itertools import repeat
+from logging import warning
 from pathlib import Path
 
 import cv2
@@ -30,6 +32,7 @@ import pandas as pd
 from matplotlib import pyplot as plt, pyplot
 from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
+from ocvl.function.utility.format_parser import FormatParser
 from ocvl.function.utility.generic import Dataset, PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
@@ -449,6 +452,57 @@ if __name__ == "__main__":
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
     root.update()
 
+
+    json_fName = filedialog.askopenfilename(title="Select the filename format json file.", parent=root)
+
+    if not json_fName:
+        quit()
+
+    with open(json_fName, 'r') as json_f:
+        dat_form = json.load(json_f)
+        print(dat_form)
+
+    processed_dat_format = dat_form.get("processed")
+    if processed_dat_format:
+
+        vid_form = processed_dat_format.get("vid_format")
+        separator =processed_dat_format.get("separator")
+
+        if vid_form:
+
+            vid_ext = vid_form[vid_form.rfind(".", -5, -1):]
+
+
+            parser = FormatParser(vid_form, separator)
+
+
+            # Parse out the locations and filenames, store them in a hash table.
+            searchpath = Path(pName)
+            for path in searchpath.rglob("*"+vid_ext):
+                meta = parser.parse_file(path.name)
+                print(meta)
+
+                # if "piped" in path.name and a_mode in path.name:
+                #     splitfName = path.name.split("_")
+                #
+                #     if (path.parent.parent == searchpath or path.parent == searchpath):
+                #         if path.parent not in allFiles:
+                #             allFiles[path.parent] = []
+                #             allFiles[path.parent].append(path)
+                #
+                #             if "control" in path.parent.name:
+                #                 # print("DETECTED CONTROL DATA AT: " + str(path.parent))
+                #                 controlpath = path.parent
+                #         else:
+                #             allFiles[path.parent].append(path)
+                #
+                #     totFiles += 1
+
+
+
+
+    else:
+        warning("Unable to detect \"processed\" json value!")
     # run_generic_pipeline(pName, tkroot=root)
 
-    run_meao_pipeline(pName, tkroot=root)
+    #run_meao_pipeline(pName, tkroot=root)

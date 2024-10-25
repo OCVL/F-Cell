@@ -1,28 +1,38 @@
 {
+  "version": "0.1",
   "raw": {
+    "separator": "_",
     "vid_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality.avi",
-
     "metadata": {
       "type": "file",
       "metadata_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality.csv",
-      "timestamps": "Timestamp_us",
-      "stimulus_train": "StimulusOn"
+      "fields": {
+        "timestamps": "Timestamp_us",
+        "stimulus_train": "StimulusOn"
+      }
     }
   },
   "processed": {
+    "separator": "_",
     "im_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_avg.tif",
     "vid_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped.avi",
     "mask_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped_mask.avi",
     "metadata": {
       "type": "file",
-      "metadata_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped.csv"
-    },
+      "metadata_format": "IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped.csv",
+      "fields": "all"
+    }
+  },
   "pipelined": {
+    "separator": "_",
     "im_format": "(LocX,LocY)/IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_avg.tif",
     "vid_format": "(LocX,LocY)/IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped_piped.avi",
     "metadata": {
       "type": "file",
-      "metadata_format": "(LocX,LocY)/IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped_piped.csv"
+      "metadata_format": "(LocX,LocY)/IDnum_YearMonthDay_Eye_(LocX,LocY)_FOV_VidNum_Modality_extract_reg_cropped_piped.csv",
+      "fields": {
+        "framestamps": "FrameStamps"
+      }
     }
   }
 
