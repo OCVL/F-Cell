@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from ocvl.function.preprocessing.improc import optimizer_stack_align
+from ocvl.function.utility.json_format_constants import DataFormat
 from ocvl.function.utility.resources import load_video, save_video
 
 
@@ -28,6 +29,14 @@ class Metadata(Enum):
     BASE_PATH = 7,
     MASK_PATH = 8,
     FRAMERATE = 9
+
+''' A dictionary that stores acquisition associations-
+    Usually grouped by video number, these are videos that were obtained simultaneously.
+'''
+class Acquisition:
+    def __init__(self, association=DataFormat.VIDEO_ID):
+        self.file_path_association = dict()
+        self.dataset_association = dict()
 
 class Dataset:
     def __init__(self, video_data=None, mask_data=None, timestamps=None, query_locations=None,

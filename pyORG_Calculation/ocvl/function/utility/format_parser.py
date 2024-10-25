@@ -25,11 +25,14 @@ class FormatParser():
         if not parsed_str:
             parsed_str = self.im_parser.parse(file_string)
             parser_used = FormatTypes.MASK
+        if not parsed_str:
+            return None, filename_metadata
+
 
         for formatstr in DataFormat:
-            if formatstr.value in parsed_str.named:
-                filename_metadata[formatstr] = parsed_str[formatstr.value]
+            if formatstr in parsed_str.named:
+                filename_metadata[formatstr.value] = parsed_str[formatstr]
             else:
-                print("Didn't find "+ formatstr.value +" in the parsed file.")
+                print("Didn't find "+ formatstr +" in the parsed file.")
 
         return parser_used, filename_metadata

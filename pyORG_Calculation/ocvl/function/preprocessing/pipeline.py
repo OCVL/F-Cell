@@ -33,8 +33,8 @@ from matplotlib import pyplot as plt, pyplot
 from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.generic import Dataset, PipeStages
-from ocvl.function.utility.json_format_constants import FormatTypes
+from ocvl.function.utility.generic import Dataset, PipeStages, Acquisition
+from ocvl.function.utility.json_format_constants import FormatTypes, DataFormat
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
 import parse
@@ -463,41 +463,52 @@ if __name__ == "__main__":
     with open(json_fName, 'r') as json_f:
         dat_form = json.load(json_f)
 
+        allFilesColumns = ["Path", "Format_Type"]
+        allFilesColumns.extend([d.value for d in DataFormat])
+        allFiles = pd.DataFrame(columns=allFilesColumns)
+        acquisition = dict()
+
         processed_dat_format = dat_form.get("processed")
         if processed_dat_format:
-    
-            im_form = processed_dat_format.get(FormatTypes.IMAGE.value)
-            vid_form = processed_dat_format.get(FormatTypes.VIDEO.value)
-            mask_form = processed_dat_format.get(FormatTypes.MASK.value)
+
+            im_form = processed_dat_format.get(FormatTypes.IMAGE)
+            vid_form = processed_dat_format.get(FormatTypes.VIDEO)
+            mask_form = processed_dat_format.get(FormatTypes.MASK)
 
             if vid_form:
-
+                # Grab our extension
                 vid_ext = vid_form[vid_form.rfind(".", -5, -1):]
-
+                # Construct the parser we'll use for each of these forms
                 parser = FormatParser(vid_form, mask_form, im_form)
 
-                # Parse out the locations and filenames, store them in a hash table.
+                # Parse out the locations and filenames, store them in a hash table by location.
                 searchpath = Path(pName)
-                for path in searchpath.rglob("*"+vid_ext):
+                for path in searchpath.glob("*"+vid_ext):
                     print(path.name)
+
                     format_type, file_info = parser.parse_file(path.name)
+                    file_info["Format_Type"] = format_type.value
+                    file_info["Path"] = path.name
+                    entry = pd.DataFrame.from_dict([file_info])
+
+                    allFiles = pd.concat([allFiles, entry], ignore_index=True)
+
+                #     loc = "("
+                #     if file_info.get(DataFormat.RET_LOC_X):
+                #         loc += file_info[DataFormat.RET_LOC_X]
+                #     if file_info.get(DataFormat.RET_LOC_Y):
+                #         loc += "," + file_info[DataFormat.RET_LOC_Y]
+                #     if file_info.get(DataFormat.RET_LOC_Z):
+                #         loc += "," + file_info[DataFormat.RET_LOC_Z]
+                #     loc += ")"
+                #
+                # if loc not in allFiles:
+                #     allFiles[loc] = []
+                #     allFiles[loc].append(path)
+                # else:
+                #     allFiles[loc].append(path)
 
 
-                    # if "piped" in path.name and a_mode in path.name:
-                    #     splitfName = path.name.split("_")
-                    #
-                    #     if (path.parent.parent == searchpath or path.parent == searchpath):
-                    #         if path.parent not in allFiles:
-                    #             allFiles[path.parent] = []
-                    #             allFiles[path.parent].append(path)
-                    #
-                    #             if "control" in path.parent.name:
-                    #                 # print("DETECTED CONTROL DATA AT: " + str(path.parent))
-                    #                 controlpath = path.parent
-                    #         else:
-                    #             allFiles[path.parent].append(path)
-                    #
-                    #     totFiles += 1
 
 
 
@@ -506,4 +517,5 @@ if __name__ == "__main__":
             warning("Unable to detect \"processed\" json value!")
     # run_generic_pipeline(pName, tkroot=root)
 
+    print("PK FIRE")
     #run_meao_pipeline(pName, tkroot=root)

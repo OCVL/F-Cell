@@ -11,6 +11,7 @@
       }
     }
   },
+
   "processed": {
     "image_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_avg.tif",
     "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped.avi",
@@ -19,8 +20,18 @@
       "type": "file",
       "metadata_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped.csv",
       "fields": "all"
+    },
+    "pipeline_params": {
+      "gaus_blur": 0.0,
+      "align_crop": {
+        "r": 0,
+        "c": 0,
+        "width": -1,
+        "height": -1
+      }
     }
   },
+
   "pipelined": {
     "image_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_avg.tif",
     "video_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_piped.avi",
@@ -29,6 +40,15 @@
       "metadata_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_piped.csv",
       "fields": {
         "framestamps": "FrameStamps"
+      }
+    },
+    "analysis_params": {
+      "gaus_blur": 0.0,
+      "crop": {
+        "r": 0,
+        "c": 0,
+        "width": -1,
+        "height": -1
       }
     }
   }
