@@ -14,6 +14,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import json
+from importlib.metadata import metadata
 from itertools import repeat
 from logging import warning
 from pathlib import Path
@@ -400,7 +401,7 @@ def run_meao_pipeline(pName, tkroot):
                 data.ref_mask_data = data.mask_data[cropy:(cropy + croph), cropx:(cropx + cropw), :]
 
                 # Save the pipelined dataset.
-                metadata = pd.DataFrame(data.time_stamps, columns=["FrameStamps"])
+                metadata = pd.DataFrame(data.framestamps, columns=["FrameStamps"])
                 metadata.to_csv(os.path.join(writepath, data.ref_filename[:-4] + "_piped.csv"), index=False)
                 save_video(os.path.join(writepath, data.ref_filename[:-4] + "_piped.avi"), data.ref_video_data, data.framerate)
                 metadata.to_csv(os.path.join(writepath, data.filename[:-4] + "_piped.csv"), index=False)
@@ -478,22 +479,32 @@ if __name__ == "__main__":
             vid_form = processed_dat_format.get(FormatTypes.VIDEO)
             mask_form = processed_dat_format.get(FormatTypes.MASK)
 
+            metadata_form = None
+            if processed_dat_format.get("metadata"):
+                metadata_form = processed_dat_format.get("metadata").get(FormatTypes.METADATA)
+
             if vid_form:
-                # Grab our extension
-                vid_ext = vid_form[vid_form.rfind(".", -5, -1):]
+
+                # Grab our extensions, make sure to check them all.
+                all_ext = (vid_form[vid_form.rfind(".", -5, -1):],)
+                all_ext = all_ext + (mask_form[mask_form.rfind(".", -5, -1):],) if mask_form and mask_form[mask_form.rfind(".", -5, -1):] not in all_ext else all_ext
+                all_ext = all_ext + (im_form[im_form.rfind(".", -5, -1):],) if im_form and im_form[im_form.rfind(".", -5, -1):] not in all_ext else all_ext
+                all_ext = all_ext + (metadata_form[metadata_form.rfind(".", -5, -1):],) if metadata_form and metadata_form[metadata_form.rfind(".", -5, -1):] not in all_ext else all_ext
+
                 # Construct the parser we'll use for each of these forms
-                parser = FormatParser(vid_form, mask_form, im_form)
+                parser = FormatParser(vid_form, mask_form, im_form, metadata_form)
 
                 # Parse out the locations and filenames, store them in a hash table by location.
                 searchpath = Path(pName)
                 allFiles = list()
-                for path in searchpath.glob("*"+vid_ext):
-                    format_type, file_info = parser.parse_file(path.name)
-                    file_info[DataFormat.FORMAT_TYPE] = format_type
-                    file_info["DataPath"] = path
-                    entry = pd.DataFrame.from_dict([file_info])
+                for ext in all_ext:
+                    for path in searchpath.glob("*"+ext):
+                        format_type, file_info = parser.parse_file(path.name)
+                        file_info[DataFormat.FORMAT_TYPE] = format_type
+                        file_info["DataPath"] = path
+                        entry = pd.DataFrame.from_dict([file_info])
 
-                    allFiles.append(entry)
+                        allFiles.append(entry)
 
                 allData = pd.concat(allFiles, ignore_index=True)
 
@@ -508,14 +519,17 @@ if __name__ == "__main__":
                     if modes_of_interest:
                         for mode in modes_of_interest:
                             modevids = acquisition.loc[acquisition[DataFormat.MODALITY] == mode]
-                            if (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.MASK).sum() == 1 and \
+                            if (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.MASK).sum() <= 1 and \
+                               (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.METADATA).sum() <= 1 and \
                                (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.VIDEO).sum() == 1:
 
                                 video_info = modevids.loc[modevids[DataFormat.FORMAT_TYPE] == FormatTypes.VIDEO]
-                                mask_info = modevids.at(modevids[DataFormat.FORMAT_TYPE] == FormatTypes.MASK)
+                                mask_info = modevids.loc[modevids[DataFormat.FORMAT_TYPE] == FormatTypes.MASK]
+                                metadata_info = modevids.loc[modevids[DataFormat.FORMAT_TYPE] == FormatTypes.METADATA]
 
                                 initialize_and_load_dataset(video_info.at[video_info.index[0],"DataPath"],
-                                                            mask_info.at[mask_info.index[0],"DataPath"], video_info)
+                                                            mask_info.at[mask_info.index[0],"DataPath"],
+                                                            metadata_info.at[metadata_info.index[0],"DataPath"])
 
                             else:
                                 warning("Detected more than one video or mask associated with vidnum: "+num)
