@@ -33,7 +33,7 @@ from matplotlib import pyplot as plt, pyplot
 from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.generic import Dataset, PipeStages, Acquisition
+from ocvl.function.utility.generic import Dataset, PipeStages, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import FormatTypes, DataFormat
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
@@ -442,8 +442,8 @@ if __name__ == "__main__":
         '%dx%d+%d+%d' % (
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
-
+   # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
+    pName = "R:\\00-10397\\FFB_IndivInvest_2020_PRO38673\\MEAOSLO1\\20221117\\Processed"
     if not pName:
         quit()
 
@@ -455,8 +455,8 @@ if __name__ == "__main__":
     root.update()
 
 
-    json_fName = filedialog.askopenfilename(title="Select the filename format json file.", parent=root)
-
+   # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
+    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell\\pyORG_Calculation\\config_files\\meao.json"
     if not json_fName:
         quit()
 
@@ -465,11 +465,14 @@ if __name__ == "__main__":
 
         allFilesColumns = ["Path", "Format_Type"]
         allFilesColumns.extend([d.value for d in DataFormat])
-        allFiles = pd.DataFrame(columns=allFilesColumns)
+        allData = pd.DataFrame(columns=allFilesColumns)
         acquisition = dict()
 
         processed_dat_format = dat_form.get("processed")
         if processed_dat_format:
+
+            pipeline_params = processed_dat_format.get("pipeline_params")
+            modes_of_interest = pipeline_params.get("modalities")
 
             im_form = processed_dat_format.get(FormatTypes.IMAGE)
             vid_form = processed_dat_format.get(FormatTypes.VIDEO)
@@ -483,35 +486,39 @@ if __name__ == "__main__":
 
                 # Parse out the locations and filenames, store them in a hash table by location.
                 searchpath = Path(pName)
+                allFiles = list()
                 for path in searchpath.glob("*"+vid_ext):
-                    print(path.name)
-
                     format_type, file_info = parser.parse_file(path.name)
-                    file_info["Format_Type"] = format_type.value
-                    file_info["Path"] = path.name
+                    file_info[DataFormat.FORMAT_TYPE] = format_type
+                    file_info["DataPath"] = path
                     entry = pd.DataFrame.from_dict([file_info])
 
-                    allFiles = pd.concat([allFiles, entry], ignore_index=True)
+                    allFiles.append(entry)
 
-                #     loc = "("
-                #     if file_info.get(DataFormat.RET_LOC_X):
-                #         loc += file_info[DataFormat.RET_LOC_X]
-                #     if file_info.get(DataFormat.RET_LOC_Y):
-                #         loc += "," + file_info[DataFormat.RET_LOC_Y]
-                #     if file_info.get(DataFormat.RET_LOC_Z):
-                #         loc += "," + file_info[DataFormat.RET_LOC_Z]
-                #     loc += ")"
-                #
-                # if loc not in allFiles:
-                #     allFiles[loc] = []
-                #     allFiles[loc].append(path)
-                # else:
-                #     allFiles[loc].append(path)
+                allData = pd.concat(allFiles, ignore_index=True)
 
+                # Group files together based on Video number
+                vidnums = np.unique(allData[DataFormat.VIDEO_ID].to_numpy())
+                for num in vidnums:
+                    # Find the rows associated with this video number, and
+                    # extract the rows corresponding to this acquisition.
+                    acquisition = allData.loc[allData[DataFormat.VIDEO_ID]== num]
 
+                    # If we've selected modalities of interest, only process those; otherwise, process them all.
+                    if modes_of_interest:
+                        for mode in modes_of_interest:
+                            modevids = acquisition.loc[acquisition[DataFormat.MODALITY] == mode]
+                            if (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.MASK).sum() == 1 and \
+                               (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.VIDEO).sum() == 1:
 
+                                video_info = modevids.loc[modevids[DataFormat.FORMAT_TYPE] == FormatTypes.VIDEO]
+                                mask_info = modevids.at(modevids[DataFormat.FORMAT_TYPE] == FormatTypes.MASK)
 
+                                initialize_and_load_dataset(video_info.at[video_info.index[0],"DataPath"],
+                                                            mask_info.at[mask_info.index[0],"DataPath"], video_info)
 
+                            else:
+                                warning("Detected more than one video or mask associated with vidnum: "+num)
 
         else:
             warning("Unable to detect \"processed\" json value!")

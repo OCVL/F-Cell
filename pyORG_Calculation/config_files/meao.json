@@ -1,10 +1,10 @@
 {
   "version": "0.1",
   "raw": {
-    "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}.avi",
+    "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi",
     "metadata": {
       "type": "file",
-      "metadata_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}.csv",
+      "metadata_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.csv",
       "fields": {
         "timestamps": "Timestamp_us",
         "stimulus_train": "StimulusOn"
@@ -13,13 +13,15 @@
   },
 
   "processed": {
-    "image_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_avg.tif",
-    "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped.avi",
-    "mask_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_mask.avi",
+    "image_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_avg.tif",
+    "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped.avi",
+    "mask_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_mask.avi",
     "metadata": {
       "type": "file",
-      "metadata_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped.csv",
-      "fields": "all"
+      "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped.csv",
+      "fields": {
+        "framestamps": "OriginalFrameNumber"
+      }
     },
     "pipeline_params": {
       "gaus_blur": 0.0,
@@ -28,16 +30,17 @@
         "c": 0,
         "width": -1,
         "height": -1
-      }
+      },
+      "modalities": ["Confocal", "CalculatedSplit", "760nm"]
     }
   },
 
   "pipelined": {
-    "image_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_avg.tif",
-    "video_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_piped.avi",
+    "image_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_extract_reg_avg.tif",
+    "video_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_extract_reg_cropped_piped.avi",
     "metadata": {
       "type": "file",
-      "metadata_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV}_{VidNum}_{Modality}_extract_reg_cropped_piped.csv",
+      "metadata_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_extract_reg_cropped_piped.csv",
       "fields": {
         "framestamps": "FrameStamps"
       }

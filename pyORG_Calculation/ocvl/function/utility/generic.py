@@ -30,13 +30,38 @@ class Metadata(Enum):
     MASK_PATH = 8,
     FRAMERATE = 9
 
-''' A dictionary that stores acquisition associations-
-    Usually grouped by video number, these are videos that were obtained simultaneously.
-'''
-class Acquisition:
-    def __init__(self, association=DataFormat.VIDEO_ID):
-        self.file_path_association = dict()
-        self.dataset_association = dict()
+def initialize_and_load_dataset(video_path, mask_path, metadata):
+    # Go down the line, loading data that doesn't already exist in this dataset.
+    if video_path.exists():
+        resource = load_video(video_path)
+
+        video_data = resource.data
+
+        framerate = resource.metadict["framerate"]
+        metadata_data = resource.metadict
+
+        num_frames = resource.data.shape[-1]
+
+    # if (not self.mask_data or force_reload) and os.path.exists(self.mask_path):
+    #     mask_res = load_video(self.mask_path)
+    #     self.mask_data = mask_res.data / mask_res.data.max()
+    #     self.mask_data[self.mask_data < 0] = 0
+    #     self.mask_data[self.mask_data > 1] = 1
+    #     # Mask our video data correspondingly.
+    #     self.video_data = (self.video_data * self.mask_data)
+    #
+    # if (not self.coord_data or force_reload) and os.path.exists(self.coord_path):
+    #     self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
+    #                                   encoding="utf-8-sig").to_numpy()
+    #
+    # if (not self.z_proj_image_data or force_reload) and os.path.exists(self.image_path):
+    #     self.z_proj_image_data = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
+    #
+    # if (not self.stimtrain_frame_stamps or force_reload) and os.path.exists(self.stimtrain_path):
+    #     self.stimtrain_frame_stamps = np.cumsum(np.squeeze(pd.read_csv(self.stimtrain_path, delimiter=',', header=None,
+    #                                                                    encoding="utf-8-sig").to_numpy()))
+    # else:
+    #     self.stimtrain_frame_stamps = 0
 
 class Dataset:
     def __init__(self, video_data=None, mask_data=None, timestamps=None, query_locations=None,
@@ -176,9 +201,6 @@ class Dataset:
                                                                            encoding="utf-8-sig").to_numpy()))
         else:
             self.stimtrain_frame_stamps = 0
-
-
-
 
     def save_data(self, suffix):
         save_video(self.video_path[0:-4]+suffix+".avi", self.video_data, self.framerate)

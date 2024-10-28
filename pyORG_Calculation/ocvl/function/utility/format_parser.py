@@ -32,7 +32,7 @@ class FormatParser():
         for formatstr in DataFormat:
             if formatstr in parsed_str.named:
                 filename_metadata[formatstr.value] = parsed_str[formatstr]
-            else:
-                print("Didn't find "+ formatstr +" in the parsed file.")
+            #else:
+            #    print("Didn't find "+ formatstr +" in the parsed file.")
 
         return parser_used, filename_metadata
