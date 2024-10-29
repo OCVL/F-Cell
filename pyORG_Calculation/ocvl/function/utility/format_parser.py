@@ -1,6 +1,6 @@
 import parse
 
-from ocvl.function.utility.json_format_constants import DataFormat, FormatTypes
+from ocvl.function.utility.json_format_constants import DataTags, FormatTypes
 
 
 class FormatParser():
@@ -34,7 +34,7 @@ class FormatParser():
             return None, filename_metadata
 
 
-        for formatstr in DataFormat:
+        for formatstr in DataTags:
             if formatstr in parsed_str.named:
                 filename_metadata[formatstr.value] = parsed_str[formatstr]
 

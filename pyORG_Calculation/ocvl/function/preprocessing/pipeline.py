@@ -34,8 +34,8 @@ from matplotlib import pyplot as plt, pyplot
 from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.generic import Dataset, PipeStages, initialize_and_load_dataset
-from ocvl.function.utility.json_format_constants import FormatTypes, DataFormat
+from ocvl.function.utility.generic import Dataset, PipeStages, initialize_and_load_dataset, Metadata, AcquisiTags
+from ocvl.function.utility.json_format_constants import FormatTypes, DataTags, MetaTags
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
 import parse
@@ -464,8 +464,8 @@ if __name__ == "__main__":
     with open(json_fName, 'r') as json_f:
         dat_form = json.load(json_f)
 
-        allFilesColumns = ["Path", "Format_Type"]
-        allFilesColumns.extend([d.value for d in DataFormat])
+        allFilesColumns = [AcquisiTags.DATA_PATH, FormatTypes.FORMAT]
+        allFilesColumns.extend([d.value for d in DataTags])
         allData = pd.DataFrame(columns=allFilesColumns)
         acquisition = dict()
 
@@ -480,8 +480,10 @@ if __name__ == "__main__":
             mask_form = processed_dat_format.get(FormatTypes.MASK)
 
             metadata_form = None
-            if processed_dat_format.get("metadata"):
-                metadata_form = processed_dat_format.get("metadata").get(FormatTypes.METADATA)
+            metadata_params = None
+            if processed_dat_format.get(MetaTags.METATAG):
+                metadata_params = processed_dat_format.get(MetaTags.METATAG)
+                metadata_form = metadata_params.get(FormatTypes.METADATA)
 
             if vid_form:
 
@@ -500,8 +502,8 @@ if __name__ == "__main__":
                 for ext in all_ext:
                     for path in searchpath.glob("*"+ext):
                         format_type, file_info = parser.parse_file(path.name)
-                        file_info[DataFormat.FORMAT_TYPE] = format_type
-                        file_info["DataPath"] = path
+                        file_info[DataTags.FORMAT_TYPE] = format_type
+                        file_info[AcquisiTags.DATA_PATH] = path
                         entry = pd.DataFrame.from_dict([file_info])
 
                         allFiles.append(entry)
@@ -509,27 +511,38 @@ if __name__ == "__main__":
                 allData = pd.concat(allFiles, ignore_index=True)
 
                 # Group files together based on Video number
-                vidnums = np.unique(allData[DataFormat.VIDEO_ID].to_numpy())
+                vidnums = np.unique(allData[DataTags.VIDEO_ID].to_numpy())
                 for num in vidnums:
                     # Find the rows associated with this video number, and
                     # extract the rows corresponding to this acquisition.
-                    acquisition = allData.loc[allData[DataFormat.VIDEO_ID]== num]
+                    acquisition = allData.loc[allData[DataTags.VIDEO_ID] == num]
 
                     # If we've selected modalities of interest, only process those; otherwise, process them all.
                     if modes_of_interest:
                         for mode in modes_of_interest:
-                            modevids = acquisition.loc[acquisition[DataFormat.MODALITY] == mode]
-                            if (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.MASK).sum() <= 1 and \
-                               (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.METADATA).sum() <= 1 and \
-                               (modevids[DataFormat.FORMAT_TYPE] == FormatTypes.VIDEO).sum() == 1:
+                            modevids = acquisition.loc[acquisition[DataTags.MODALITY] == mode]
+                            if (modevids[DataTags.FORMAT_TYPE] == FormatTypes.MASK).sum() <= 1 and \
+                               (modevids[DataTags.FORMAT_TYPE] == FormatTypes.METADATA).sum() <= 1 and \
+                               (modevids[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO).sum() == 1:
 
-                                video_info = modevids.loc[modevids[DataFormat.FORMAT_TYPE] == FormatTypes.VIDEO]
-                                mask_info = modevids.loc[modevids[DataFormat.FORMAT_TYPE] == FormatTypes.MASK]
-                                metadata_info = modevids.loc[modevids[DataFormat.FORMAT_TYPE] == FormatTypes.METADATA]
+                                video_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO]
+                                mask_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.MASK]
+                                metadata_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.METADATA]
 
-                                initialize_and_load_dataset(video_info.at[video_info.index[0],"DataPath"],
-                                                            mask_info.at[mask_info.index[0],"DataPath"],
-                                                            metadata_info.at[metadata_info.index[0],"DataPath"],
+                                if metadata_info and metadata_params:
+                                    if metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH].exists():
+                                        metadata_params.get(MetaTags.TYPE)
+                                        loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
+
+                                        dat_metadata = pd.read_csv(metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH], encoding="utf-8-sig")
+                                        meta_fields = pd.DataFrame()
+                                        for field in loadfields:
+                                            pass
+
+                                video_info = pd.merge(video_info, meta_fields, how="outer")
+
+                                initialize_and_load_dataset(video_info.at[video_info.index[0],AcquisiTags.DATA_PATH],
+                                                            mask_info.at[mask_info.index[0],AcquisiTags.DATA_PATH],
                                                             video_info)
 
                             else:

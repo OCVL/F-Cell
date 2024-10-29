@@ -2,6 +2,7 @@ from enum import StrEnum
 
 
 class FormatTypes(StrEnum):
+    FORMAT = "format"
     IMAGE = "image_format"
     VIDEO = "video_format"
     MASK = "mask_format"
@@ -9,7 +10,7 @@ class FormatTypes(StrEnum):
 
 # Will probably want to make a list of these corresponding to the version of the json files.
 # This verson assumes that we don't have any naming collisions; e.g. these constants aren't used in the filenames.
-class DataFormat(StrEnum):
+class DataTags(StrEnum):
     DATA_ID = "IDnum"
     VIDEO_ID = "VidNum"
     YEAR = "Year" # YYYY
@@ -27,3 +28,13 @@ class DataFormat(StrEnum):
     FOV_DEPTH = "FOV_Depth"
     MODALITY = "Modality"
     FORMAT_TYPE = "FormatType"
+
+class MetaTags(StrEnum):
+    METATAG = "metadata"
+    TYPE = "type"
+    FIELDS_OF_INTEREST = "fields_to_load"
+    TIMESTAMPS = "timestamps"
+    FRAMESTAMPS = "framestamps"
+    STIMULUS_TRAIN = "stimulus_train"
+    FRAMERATE = "framerate"
+

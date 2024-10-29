@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from ocvl.function.preprocessing.improc import optimizer_stack_align
-from ocvl.function.utility.json_format_constants import DataFormat
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags
 from ocvl.function.utility.resources import load_video, save_video
 
 
@@ -19,7 +19,8 @@ class PipeStages(Enum):
     PIPELINED = 2,
     ANALYSIS_READY = 3
 
-class Metadata(StrEnum):
+class AcquisiTags(StrEnum):
+    DATA_PATH = "Data_Path"
     OUTPUT_PATH = "Output_Path",
     VIDEO_PATH = "Video_Path",
     IMAGE_PATH = "Image_Path",
@@ -29,16 +30,19 @@ class Metadata(StrEnum):
     PREFIX = "Output_Prefix",
     BASE_PATH = "Base_Path",
     MASK_PATH = "Mask_Path",
-    FRAMERATE = "Framerate"
+
 
 def initialize_and_load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None):
 
     mask_data = None
-    metadata = dataset_metadata.to_dict()
+    metadata = dataset_metadata
+    metadata[AcquisiTags.VIDEO_PATH] = dataset_metadata[AcquisiTags.DATA_PATH]
+    metadata[AcquisiTags.MASK_PATH] = mask_path
 
     if video_path.exists():
         resource = load_video(video_path)
         video_data = resource.data
+        metadata[MetaTags.FRAMERATE] = resource.metadict.get("framerate")
     else:
         warning("Video path does not exist at: "+str(video_path))
         return None
@@ -55,7 +59,8 @@ def initialize_and_load_dataset(video_path, mask_path=None, extra_metadata_path=
             warning("Mask path does not exist at: "+str(mask_path))
 
     if extra_metadata_path:
-        metadata = pd.read_csv(extra_metadata_path, encoding="utf-8-sig")
+        extra_metadata = pd.read_csv(extra_metadata_path, encoding="utf-8-sig")
+
 
     return Dataset(video_data, mask_data, metadata)
 
@@ -92,14 +97,14 @@ class Dataset:
             self.width = video_data.shape[1]
             self.height = video_data.shape[0]
 
-        self.framerate = self.metadata[Metadata.FRAMERATE]
+        self.framerate = self.metadata[MetaTags.FRAMERATE]
 
-        self.stimtrain_path = self.metadata[Metadata.STIMSEQ_PATH]
-        self.video_path = self.metadata[Metadata.VIDEO_PATH]
-        self.mask_path = self.metadata.get(Metadata.MASK_PATH, self.video_path[0:-4] + "_mask" + self.video_path[-4:])
-        self.base_path = self.metadata[Metadata.BASE_PATH]
+        self.stimtrain_path = self.metadata[AcquisiTags.STIMSEQ_PATH]
+        self.video_path = self.metadata[AcquisiTags.VIDEO_PATH]
+        self.mask_path = self.metadata.get(AcquisiTags.MASK_PATH)
+        self.base_path = self.metadata[AcquisiTags.BASE_PATH]
 
-        self.prefix = self.metadata[Metadata.PREFIX]
+        self.prefix = self.metadata[AcquisiTags.PREFIX]
 
         if self.video_path:
             # If we don't have supplied definitions of the base path of the dataset or the filename prefix,
@@ -109,7 +114,7 @@ class Dataset:
             if not self.prefix:
                 self.prefix = os.path.basename(os.path.realpath(self.video_path))[0:-4]
 
-            self.image_path = self.metadata[Metadata.IMAGE_PATH]
+            self.image_path = self.metadata[AcquisiTags.IMAGE_PATH]
             # If we don't have supplied definitions of the image associated with this dataset,
             # then guess.
             if self.image_path is None:
@@ -135,7 +140,7 @@ class Dataset:
                 else:
                     self.image_path = os.path.join(self.base_path, imname)
 
-            self.coord_path = self.metadata[Metadata.QUERYLOC_PATH]
+            self.coord_path = self.metadata[AcquisiTags.QUERYLOC_PATH]
             # If we don't have query locations associated with this dataset, then try and find them out.
             if not self.coord_path:
                 coordname = None
