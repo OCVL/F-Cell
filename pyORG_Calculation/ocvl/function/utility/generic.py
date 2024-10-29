@@ -1,7 +1,7 @@
 import glob
 import os
 import warnings
-from enum import Enum
+from enum import Enum, StrEnum
 from logging import warning
 
 import cv2
@@ -19,22 +19,22 @@ class PipeStages(Enum):
     PIPELINED = 2,
     ANALYSIS_READY = 3
 
-class Metadata(Enum):
-    OUTPUT_PATH = 0,
-    VIDEO_PATH = 1,
-    IMAGE_PATH = 2,
-    QUERYLOC_PATH = 3,
-    STIMSEQ_PATH = 4,
-    MODALITY = 5,
-    PREFIX = 6,
-    BASE_PATH = 7,
-    MASK_PATH = 8,
-    FRAMERATE = 9
+class Metadata(StrEnum):
+    OUTPUT_PATH = "Output_Path",
+    VIDEO_PATH = "Video_Path",
+    IMAGE_PATH = "Image_Path",
+    QUERYLOC_PATH = "QueryLocation_Path",
+    STIMSEQ_PATH = "Stimulus_Sequence_Path",
+    MODALITY = "Modality",
+    PREFIX = "Output_Prefix",
+    BASE_PATH = "Base_Path",
+    MASK_PATH = "Mask_Path",
+    FRAMERATE = "Framerate"
 
-def initialize_and_load_dataset(video_path, mask_path=None, metadata_path=None, dataformat_info=None):
+def initialize_and_load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None):
 
     mask_data = None
-    metadata = None
+    metadata = dataset_metadata.to_dict()
 
     if video_path.exists():
         resource = load_video(video_path)
@@ -54,8 +54,8 @@ def initialize_and_load_dataset(video_path, mask_path=None, metadata_path=None, 
         else:
             warning("Mask path does not exist at: "+str(mask_path))
 
-    if metadata_path:
-        metadata = pd.read_csv(metadata_path, encoding="utf-8-sig")
+    if extra_metadata_path:
+        metadata = pd.read_csv(extra_metadata_path, encoding="utf-8-sig")
 
     return Dataset(video_data, mask_data, metadata)
 

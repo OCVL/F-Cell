@@ -457,7 +457,7 @@ if __name__ == "__main__":
 
 
    # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
-    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell\\pyORG_Calculation\\config_files\\meao.json"
+    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell_OCVL\\pyORG_Calculation\\config_files\\meao.json"
     if not json_fName:
         quit()
 
@@ -529,7 +529,8 @@ if __name__ == "__main__":
 
                                 initialize_and_load_dataset(video_info.at[video_info.index[0],"DataPath"],
                                                             mask_info.at[mask_info.index[0],"DataPath"],
-                                                            metadata_info.at[metadata_info.index[0],"DataPath"])
+                                                            metadata_info.at[metadata_info.index[0],"DataPath"],
+                                                            video_info)
 
                             else:
                                 warning("Detected more than one video or mask associated with vidnum: "+num)
