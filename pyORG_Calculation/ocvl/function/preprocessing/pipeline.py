@@ -34,7 +34,7 @@ from matplotlib import pyplot as plt, pyplot
 from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.generic import Dataset, PipeStages, initialize_and_load_dataset, Metadata, AcquisiTags
+from ocvl.function.utility.generic import Dataset, PipeStages, initialize_and_load_dataset, AcquisiTags
 from ocvl.function.utility.json_format_constants import FormatTypes, DataTags, MetaTags
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
@@ -528,22 +528,36 @@ if __name__ == "__main__":
                                 video_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO]
                                 mask_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.MASK]
                                 metadata_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.METADATA]
+                                im_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.IMAGE]
 
-                                if metadata_info and metadata_params:
+                                # Load our metadata file
+                                if not metadata_info.empty and metadata_params:
                                     if metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH].exists():
-                                        metadata_params.get(MetaTags.TYPE)
+                                        metatype = metadata_params.get(MetaTags.TYPE)
                                         loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
 
-                                        dat_metadata = pd.read_csv(metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH], encoding="utf-8-sig")
-                                        meta_fields = pd.DataFrame()
-                                        for field in loadfields:
+                                        if metatype == "text_file":
+                                            dat_metadata = pd.read_csv(metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH], encoding="utf-8-sig", skipinitialspace=True)
+                                            meta_fields = {}
+                                            for field, column in loadfields.items():
+                                                meta_fields[field] = dat_metadata[column].to_numpy()
+                                        elif metatype == "database":
+                                            pass
+                                        elif metatype == "mat_file":
                                             pass
 
-                                video_info = pd.merge(video_info, meta_fields, how="outer")
+                                # Take metadata gleaned from our filename, as well as our metadata files,
+                                # and combine them into a single dictionary.
+                                combined_meta_dict = video_info.squeeze().to_dict() | meta_fields
 
-                                initialize_and_load_dataset(video_info.at[video_info.index[0],AcquisiTags.DATA_PATH],
+                                # Add paths to things that we may want, depending on the stage we're at.
+                                combined_meta_dict[AcquisiTags.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiTags.DATA_PATH]
+
+                                dataset = initialize_and_load_dataset(video_info.at[video_info.index[0],AcquisiTags.DATA_PATH],
                                                             mask_info.at[mask_info.index[0],AcquisiTags.DATA_PATH],
-                                                            video_info)
+                                                            metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH],
+                                                            combined_meta_dict)
+                                print("Loaded.")
 
                             else:
                                 warning("Detected more than one video or mask associated with vidnum: "+num)

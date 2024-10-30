@@ -7,6 +7,7 @@ class FormatTypes(StrEnum):
     VIDEO = "video_format"
     MASK = "mask_format"
     METADATA = "metadata_format"
+    QUERYLOC = "queryloc_format"
 
 # Will probably want to make a list of these corresponding to the version of the json files.
 # This verson assumes that we don't have any naming collisions; e.g. these constants aren't used in the filenames.
@@ -35,6 +36,7 @@ class MetaTags(StrEnum):
     FIELDS_OF_INTEREST = "fields_to_load"
     TIMESTAMPS = "timestamps"
     FRAMESTAMPS = "framestamps"
-    STIMULUS_TRAIN = "stimulus_train"
+    STIMULUS_SEQ = "stimulus_sequence"
     FRAMERATE = "framerate"
+    QUERY_LOC = "query_locations"
 
