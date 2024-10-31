@@ -15,6 +15,7 @@
   "processed": {
     "image_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_avg.tif",
     "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped.avi",
+
     "mask_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_mask.avi",
     "metadata": {
       "type": "text_file",
@@ -25,13 +26,17 @@
     },
     "pipeline_params": {
       "gaus_blur": 0.0,
-      "align_crop": {
+      "crop": {
         "r": 0,
         "c": 0,
         "width": -1,
         "height": -1
       },
-      "modalities": ["Confocal", "CalculatedSplit", "760nm"]
+      "modalities": ["Confocal", "CalculatedSplit", "760nm"],
+      "correct_torsion": true,
+      "custom": {
+        "dewarp": "ocvl"
+      }
     }
   },
 

@@ -14,6 +14,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import json
+from enum import StrEnum
 from importlib.metadata import metadata
 from itertools import repeat
 from logging import warning
@@ -28,11 +29,13 @@ from os.path import splitext
 from tkinter import *
 from tkinter import filedialog, simpledialog
 from tkinter import ttk
-from scipy.ndimage import binary_dilation
+
+
+from scipy.ndimage import binary_dilation, gaussian_filter
 import pandas as pd
 from matplotlib import pyplot as plt, pyplot
 from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection, simple_image_stack_align, \
-    optimizer_stack_align
+    optimizer_stack_align, dewarp_2D_data
 from ocvl.function.utility.format_parser import FormatParser
 from ocvl.function.utility.generic import Dataset, PipeStages, initialize_and_load_dataset, AcquisiTags
 from ocvl.function.utility.json_format_constants import FormatTypes, DataTags, MetaTags
@@ -40,6 +43,12 @@ from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
 import parse
 
+class PipelineParams(StrEnum):
+    GAUSSIAN_BLUR = "gaus_blur",
+    CROP = "crop",
+    MODALITIES = "modalities",
+    CORRECT_TORSION = "correct_torsion",
+    CUSTOM = "custom"
 
 def initialize_and_load_meao(file, a_mode, ref_mode):
     print(file)
@@ -457,7 +466,7 @@ if __name__ == "__main__":
 
 
    # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
-    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell_OCVL\\pyORG_Calculation\\config_files\\meao.json"
+    json_fName = "C:\\Users\\rober\\Documents\\F-Cell_OCVL\\pyORG_Calculation\\config_files\\meao.json"
     if not json_fName:
         quit()
 
@@ -473,7 +482,7 @@ if __name__ == "__main__":
         if processed_dat_format:
 
             pipeline_params = processed_dat_format.get("pipeline_params")
-            modes_of_interest = pipeline_params.get("modalities")
+            modes_of_interest = pipeline_params.get(PipelineParams.MODALITIES)
 
             im_form = processed_dat_format.get(FormatTypes.IMAGE)
             vid_form = processed_dat_format.get(FormatTypes.VIDEO)
@@ -538,6 +547,7 @@ if __name__ == "__main__":
 
                                         if metatype == "text_file":
                                             dat_metadata = pd.read_csv(metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH], encoding="utf-8-sig", skipinitialspace=True)
+
                                             meta_fields = {}
                                             for field, column in loadfields.items():
                                                 meta_fields[field] = dat_metadata[column].to_numpy()
@@ -557,7 +567,95 @@ if __name__ == "__main__":
                                                             mask_info.at[mask_info.index[0],AcquisiTags.DATA_PATH],
                                                             metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH],
                                                             combined_meta_dict)
-                                print("Loaded.")
+
+                                # Run the processing pipeline on this dataset, with params specified by the json.
+
+                                # First do custom preprocessing steps, e.g. things implemented expressly for and by the OCVL
+                                # If you would like to "bake in" custom pipeline steps, please contact the OCVL using GitHub's Issues
+                                # or submit a pull request.
+                                custom_steps = pipeline_params.get(PipelineParams.CUSTOM)
+                                if custom_steps:
+                                    # For "baked in" dewarping- otherwise, data is expected to be dewarped already
+                                    pre_dewarp = custom_steps.get("dewarp")
+                                    match pre_dewarp:
+                                        case "ocvl":
+                                            if dataset.metadata[AcquisiTags.META_PATH] is not None:
+                                                dat_metadata = pd.read_csv(dataset.metadata[AcquisiTags.META_PATH], encoding="utf-8-sig", skipinitialspace=True)
+
+                                                ncc = 1 - dat_metadata["NCC"].to_numpy(dtype=float)
+                                                dataset.reference_frame_idx = min(range(len(ncc)), key=ncc.__getitem__)
+
+                                                # Dewarp our data.
+                                                # First find out how many strips we have.
+                                                numstrips = 0
+                                                for col in dat_metadata.columns.tolist():
+                                                    if "XShift" in col:
+                                                        numstrips += 1
+
+                                                xshifts = np.zeros([ncc.shape[0], numstrips])
+                                                yshifts = np.zeros([ncc.shape[0], numstrips])
+
+                                                for col in dat_metadata.columns.tolist():
+                                                    shiftrow = col.strip().split("_")[0][5:]
+                                                    npcol = dat_metadata[col].to_numpy()
+                                                    if npcol.dtype == "object":
+                                                        npcol[npcol == " "] = np.nan
+                                                    if col != "XShift" and "XShift" in col:
+                                                        xshifts[:, int(shiftrow)] = npcol
+                                                    if col != "YShift" and "YShift" in col:
+                                                        yshifts[:, int(shiftrow)] = npcol
+
+                                                # Determine the residual error in our dewarping, and obtain the maps
+                                                dataset.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(dataset.video_data,
+                                                                                                            yshifts, xshifts)
+
+                                                # Dewarp our mask too.
+                                                for f in range(dataset.num_frames):
+                                                    # norm_frame = dataset.video_data[..., f].astype("float32") / dataset.video_data[..., f].max()
+                                                    # norm_frame[norm_frame == 0] = np.nan
+
+                                                    dataset.mask_data[..., f] = cv2.remap(dataset.mask_data[..., f],
+                                                                                           map_mesh_x, map_mesh_y,
+                                                                                           interpolation=cv2.INTER_NEAREST)
+
+                                align_dat = dataset.video_data
+                                mask_dat = dataset.mask_data
+                                # Try and figure out the reference frame, if we haven't already.
+                                # This is based on the simple method of determining the maximum area subtended by our mask.
+                                if dataset.reference_frame_idx is None:
+                                    amt_data = np.zeros([dataset.num_frames])
+                                    for f in range(dataset.num_frames):
+                                        amt_data[f] = mask_dat[..., f].flatten().sum()
+
+                                    dataset.reference_frame_idx = amt_data.argmax()
+                                    del amt_data
+
+                                # Gaussian blur the data first before aligning, if requested
+                                gausblur = pipeline_params.get(PipelineParams.GAUSSIAN_BLUR)
+
+                                if gausblur is not None and gausblur != 0.0:
+                                    align_dat = gaussian_filter(dataset.video_data, sigma=gausblur)
+                                    align_dat *= mask_dat
+
+                                # Then crop the data, if requested
+                                crop_roi = pipeline_params.get(PipelineParams.CROP)
+                                if crop_roi is not None:
+                                    r = crop_roi.get("r")
+                                    c = crop_roi.get("c")
+                                    width = crop_roi.get("width")
+                                    height = crop_roi.get("height")
+
+                                    align_dat = align_dat[r:r+height, c:c+width]
+                                    mask_dat = mask_dat[r:r+height, c:c+width]
+
+                                # Finally, correct for residual torsion if requested
+                                correct_torsion = pipeline_params.get(PipelineParams.CORRECT_TORSION)
+                                if correct_torsion is not None and correct_torsion:
+                                    tmp, xforms, inliers = optimizer_stack_align(dataset.video_data, dataset.mask_data,
+                                                                                 reference_idx=dataset.reference_frame_idx,
+                                                                                 dropthresh=0)
+
+
 
                             else:
                                 warning("Detected more than one video or mask associated with vidnum: "+num)

@@ -205,36 +205,24 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
     centered_col_shifts = col_base + np.tile(centered_col_shifts[:, np.newaxis], [1, width]).astype("float32")
     centered_row_shifts = row_base + np.tile(centered_row_shifts[:, np.newaxis], [1, width]).astype("float32")
 
-    if image_data.dtype == np.uint8:
-        for f in range(num_frames):
-            norm_frame = image_data[..., f].astype("float32") / 255.0
-            norm_frame[norm_frame==0] = np.nan
-            dewarped[..., f] = cv2.remap(norm_frame, centered_col_shifts,
-                                         centered_row_shifts,
-                                         interpolation=cv2.INTER_LINEAR)
+    premask_dtype = image_data.dtype
+    datmax = np.iinfo(premask_dtype).max
 
-        # Clamp our values.
-        dewarped[dewarped < 0] = 0
-        dewarped[dewarped > 1] = 1
+    for f in range(num_frames):
+        norm_frame = image_data[..., f].astype("float64") / datmax
+        norm_frame[norm_frame == 0] = np.nan
+        dewarped[..., f] = cv2.remap(norm_frame,
+                                     centered_col_shifts,
+                                     centered_row_shifts,
+                                     interpolation=cv2.INTER_LINEAR)
 
-        return (dewarped * 255).astype("uint8"), centered_col_shifts, centered_row_shifts
-    else:
-        datmax = np.amax(image_data[:])
-        for f in range(num_frames):
-            norm_frame = image_data[..., f].astype("float32") / datmax
-            norm_frame[norm_frame == 0] = np.nan
-            dewarped[..., f] = cv2.remap(norm_frame,
-                                         centered_col_shifts,
-                                         centered_row_shifts,
-                                         interpolation=cv2.INTER_LINEAR)
+    # Clamp our values.
+    dewarped[dewarped < 0] = 0
+    dewarped[dewarped > 1] = 1
 
-        # Clamp our values.
-        dewarped[dewarped < 0] = 0
-        dewarped[dewarped > 1] = 1
+    return (dewarped*datmax).astype(premask_dtype), centered_col_shifts, centered_row_shifts
 
-        return dewarped*datmax, centered_col_shifts, centered_row_shifts
 
-    # save_video("C:\\Users\\rober\\Documents\\temp\\test.avi", (dewarped*255).astype("uint8"), 30)
 
 
 # Calculate a running sum in all four directions - apparently more memory efficient

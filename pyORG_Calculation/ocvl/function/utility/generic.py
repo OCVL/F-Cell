@@ -57,9 +57,14 @@ def initialize_and_load_dataset(video_path, mask_path=None, extra_metadata_path=
             mask_data[mask_data < 0] = 0
             mask_data[mask_data > 1] = 1
             # Mask our video data correspondingly.
-            video_data = (video_data * mask_data)
+            premask_dtype = video_data.dtype
+            video_data = (video_data * mask_data).astype(premask_dtype)
+            mask_data = mask_data.astype(premask_dtype)
         else:
             warning("Mask path does not exist at: "+str(mask_path))
+    else:
+        # If we don't have a mask path, then just make our mask from the video data
+        mask_data = (video_data != 0).astype(video_data.dtype)
 
     avg_image_data = None
     if AcquisiTags.IMAGE_PATH in metadata:
@@ -137,26 +142,18 @@ class Dataset:
             # then guess.
             if self.image_path is None:
                 imname = None
-                if stage is PipeStages.PROCESSED:
-                    for filename in glob.glob(os.path.join(self.base_path, self.prefix + ".tif")):
-                        imname = filename
-                elif stage is PipeStages.PIPELINED:
-                    # First look for an image associated with this dataset
-                    for filename in glob.glob(os.path.join(self.base_path, self.prefix + ".tif")):
-                        imname = filename
-                    # If we don't have an image specific to this dataset, search for the all acq avg from our pipeline script
-                    if not imname:
-                        for filename in glob.glob(os.path.join(self.base_path, "*_ALL_ACQ_AVG.tif")):
-                            # print(filename)
-                            imname = filename
-                else:
-                    imname = self.video_path[0:-3] + ".tif"
+                if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
+                        self.prefix.with_name(self.prefix.name + ".tif").exists():
+
+                        imname = self.prefix.with_name(self.prefix.name + ".tif")
 
                 if not imname:
+                    for filename in self.base_path.glob("*_ALL_ACQ_AVG.tif"):
+                        imname = filename
+
+                if not imname and stage is PipeStages.PIPELINED:
                     warnings.warn("Unable to detect viable average image file. Dataset functionality may be limited.")
                     self.image_path = None
-                else:
-                    self.image_path = os.path.join(self.base_path, imname)
 
             self.coord_path = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
             # If we don't have query locations associated with this dataset, then try and find them out.
@@ -169,13 +166,12 @@ class Dataset:
 
                     # If we don't have an image specific to this dataset, search for the all acq avg
                 if not coordname:
-                    for filename in glob.glob(self.base_path.joinpath("*_ALL_ACQ_AVG_coords.csv")):
+                    for filename in self.base_path.glob("*_ALL_ACQ_AVG_coords.csv"):
                             coordname = filename
 
                 if not coordname and stage is PipeStages.PIPELINED:
                     warnings.warn("Unable to detect viable coordinate file for dataset at: "+ self.video_path)
 
-                self.coord_path = os.path.join(self.base_path, coordname)
 
     def clear_video_data(self):
         del self.video_data
