@@ -216,8 +216,9 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
                                      centered_row_shifts,
                                      interpolation=cv2.INTER_LINEAR)
 
-    # Clamp our values.
+    # Clamp our values, and convert nan to 0s to maintain compatability
     dewarped[dewarped < 0] = 0
+    dewarped[np.isnan(dewarped)] = 0
     dewarped[dewarped > 1] = 1
 
     return (dewarped*datmax).astype(premask_dtype), centered_col_shifts, centered_row_shifts
@@ -338,12 +339,12 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
     num_frames = im_stack.shape[-1]
 
     reg_stack = np.zeros(im_stack.shape)
+    reg_mask = np.zeros(mask_stack.shape)
     eroded_mask = np.zeros(mask_stack.shape)
 
     # Erode our masks a bit to help with stability.
     for f in range(0, num_frames):
         eroded_mask[..., f] = binary_erosion(mask_stack[..., f], structure=np.ones((21, 21)))
-    #   #  im_stack[..., f] *= mask_stack[..., f]
 
     if determine_initial_shifts:
         initial_shifts = simple_image_stack_align(im_stack * eroded_mask, eroded_mask, reference_idx)
@@ -353,19 +354,15 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
     imreg_method = sitk.ImageRegistrationMethod()
     imreg_method.SetMetricAsCorrelation()
-
-    #imreg_method.SetMetricAsMeanSquares() #Equivalent to MATLAB results ?
-    #imreg_method.SetMetricAsANTSNeighborhoodCorrelation(16) # Similar to, but not better than the above
     imreg_method.SetOptimizerAsRegularStepGradientDescent(learningRate=0.0625, minStep=1e-5,
                                                           numberOfIterations=500,
                                                           relaxationFactor=0.6, gradientMagnitudeTolerance=1e-5)
-    #imreg_method.SetOptimizerAsConjugateGradientLineSearch()
     imreg_method.SetOptimizerScalesFromPhysicalShift() #This apparently allows parameters to change independently of one another.
                                                       # And is incredibly important.
     # #https://insightsoftwareconsortium.github.io/SimpleITK-Notebooks/Python_html/61_Registration_Introduction_Continued.html#Final-registration
-    #imreg_method.SetInterpolator(sitk.sitkLanczosWindowedSinc) # Adding this just makes it dog slow.
-
+    og_dtype = im_stack.dtype
     im_stack = im_stack.astype("float32")
+
     im_stack[np.isnan(im_stack)] = 0
     ref_im = sitk.GetImageFromArray(im_stack[..., reference_idx])
     # ref_im = sitk.Cast(ref_im, sitk.sitkfloat32)
@@ -396,10 +393,8 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         outXform = imreg_method.Execute(ref_im, moving_im)
 
         if dropthresh is not None and imreg_method.GetMetricValue() > -dropthresh:
-            # print("Excluded: " + str(imreg_method.GetMetricValue()))
             inliers[f] = False
         else:
-            #print("INCLUDED: " + str(imreg_method.GetMetricValue()))
             inliers[f] = True
 
         if transformtype == "rigid":
@@ -417,13 +412,24 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         Tx[0:2, 2] = -np.dot(A, c)+t+c
         xforms[f] = Tx[0:2, :]
 
-        out_im = sitk.Resample(sitk.GetImageFromArray(im_stack[..., f]), ref_im, outXform.GetInverse(), sitk.sitkLinear)
-        reg_stack[..., f] = sitk.GetArrayFromImage(out_im)
+        if inliers[f]:
+            norm_frame = im_stack[..., f]
+            # Make all masked data nan so that when we transform them we don't have weird edge effects
+            norm_frame[mask_stack[..., f] == 0] = np.nan
+
+            norm_frame = cv2.warpAffine(norm_frame, xforms[f],(norm_frame.shape[1], norm_frame.shape[0]),
+                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+
+            reg_mask[..., f] = np.isfinite(norm_frame).astype(og_dtype) # Our new mask corresponds to the real data.
+            norm_frame[np.isnan(norm_frame)] = 0 # Make anything that was nan into a 0, to be kind to non nan-types
+            reg_stack[..., f] = norm_frame.astype(og_dtype)
+
+
 
     # save_video(
-    #     "E:\\Dropbox (Personal)\\Grant_Proposals\\2022_Feb_R01\\LSO_Prelim_data\\Processed\\testalign.avi",
-    #     reg_stack, 100)
-    return reg_stack, xforms, inliers
+    #     "E:\\Dropbox (Personal)\\Grant_Proposals\\testalign.avi",
+    #      reg_stack, 30)
+    return reg_stack, xforms, inliers, reg_mask
 
 
 def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=5000, method="affine", dropthresh=None):

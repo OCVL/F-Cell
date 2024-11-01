@@ -45,7 +45,7 @@ import parse
 
 class PipelineParams(StrEnum):
     GAUSSIAN_BLUR = "gaus_blur",
-    CROP = "crop",
+    MASK_ROI = "mask_roi",
     MODALITIES = "modalities",
     CORRECT_TORSION = "correct_torsion",
     CUSTOM = "custom"
@@ -466,7 +466,7 @@ if __name__ == "__main__":
 
 
    # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
-    json_fName = "C:\\Users\\rober\\Documents\\F-Cell_OCVL\\pyORG_Calculation\\config_files\\meao.json"
+    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell\\pyORG_Calculation\\config_files\\meao.json"
     if not json_fName:
         quit()
 
@@ -638,22 +638,29 @@ if __name__ == "__main__":
                                     align_dat *= mask_dat
 
                                 # Then crop the data, if requested
-                                crop_roi = pipeline_params.get(PipelineParams.CROP)
-                                if crop_roi is not None:
-                                    r = crop_roi.get("r")
-                                    c = crop_roi.get("c")
-                                    width = crop_roi.get("width")
-                                    height = crop_roi.get("height")
+                                mask_roi = pipeline_params.get(PipelineParams.MASK_ROI)
+                                if mask_roi is not None:
+                                    r = mask_roi.get("r")
+                                    c = mask_roi.get("c")
+                                    width = mask_roi.get("width")
+                                    height = mask_roi.get("height")
+                                    # Everything outside the roi specified should be zero
+                                    # This approach is RAM intensive, but easy.
+                                    tmp = np.zeros_like(align_dat)
+                                    tmp[r:r+height, c:c+width, :] = align_dat[r:r+height, c:c+width, :]
+                                    align_dat = tmp
 
-                                    align_dat = align_dat[r:r+height, c:c+width]
-                                    mask_dat = mask_dat[r:r+height, c:c+width]
+                                    tmp = np.zeros_like(mask_dat)
+                                    tmp[r:r+height, c:c+width, :] = mask_dat[r:r+height, c:c+width, :]
+                                    mask_dat = tmp
 
                                 # Finally, correct for residual torsion if requested
                                 correct_torsion = pipeline_params.get(PipelineParams.CORRECT_TORSION)
                                 if correct_torsion is not None and correct_torsion:
-                                    tmp, xforms, inliers = optimizer_stack_align(dataset.video_data, dataset.mask_data,
-                                                                                 reference_idx=dataset.reference_frame_idx,
-                                                                                 dropthresh=0)
+                                    align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, dataset.mask_data,
+                                                                                                 reference_idx=dataset.reference_frame_idx,
+                                                                                                 dropthresh=0)
+
 
 
 
