@@ -258,7 +258,7 @@ def run_meao_pipeline(pName, tkroot):
             f = 0
             for allshifts in shift_info:
                 # allshifts = simple_image_stack_align(vid.data, mask, f)
-                print(allshifts)
+                #print(allshifts)
                 allshifts = np.stack(allshifts)
                 allshifts **= 2
                 allshifts = np.sum(allshifts, axis=1)
@@ -396,8 +396,10 @@ def run_meao_pipeline(pName, tkroot):
 
                 # Save the pipelined dataset.
                 metadata = pd.DataFrame(data.framestamps, columns=["FrameStamps"])
-                metadata.to_csv(os.path.join(writepath, data.ref_filename[:-4] + "_piped.csv"), index=False)
-                save_video(os.path.join(writepath, data.ref_filename[:-4] + "_piped.avi"), data.ref_video_data, data.framerate)
+                if data.has_ref_video:
+                    metadata.to_csv(os.path.join(writepath, data.ref_filename[:-4] + "_piped.csv"), index=False)
+                    save_video(os.path.join(writepath, data.ref_filename[:-4] + "_piped.avi"), data.ref_video_data, data.framerate)
+
                 metadata.to_csv(os.path.join(writepath, data.filename[:-4] + "_piped.csv"), index=False)
                 save_video(os.path.join(writepath, data.filename[:-4] + "_piped.avi"), data.video_data, data.framerate)
 
