@@ -12,7 +12,8 @@ from scipy.spatial.distance import pdist, squareform
 
 from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles, \
     refine_coord, refine_coord_to_stack, exclude_profiles
-from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG_signal_metrics
+from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG_signal_metrics, \
+    extract_texture_profiles
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.generic import PipeStages
 from ocvl.function.utility.meao import MEAODataset
@@ -167,11 +168,16 @@ if __name__ == "__main__":
                 temp_profiles = extract_profiles(dataset.video_data, dataset.coord_data, seg_radius=segmentation_radius,
                                                  seg_mask="disk", summary="mean")
 
+                full_profiles = extract_profiles(dataset.video_data, dataset.coord_data, seg_radius=segmentation_radius,
+                                                 seg_mask="box", summary="none")
+
                 temp_profiles, valid_profiles = exclude_profiles(temp_profiles, dataset.framestamps,
                                                                  critical_region=np.arange(
                                                                   dataset.stimtrain_frame_stamps[0] - int(0.2 * dataset.framerate),
                                                                   dataset.stimtrain_frame_stamps[1] + int(0.2 * dataset.framerate)),
                                                                  critical_fraction=0.5)
+
+                full_profiles[...,~valid_profiles] = np.nan
 
                 if np.sum(~valid_profiles) == len(dataset.coord_data):
                     pop_iORG_amp[r] = np.NaN
@@ -187,28 +193,18 @@ if __name__ == "__main__":
                 stdize_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
                                                        dataset.stimtrain_frame_stamps[0], method="mean_sub", std_indices=prestim_ind)
 
-                # stdize_profiles, reconst_framestamps, nummissed = reconstruct_profiles(tmp_profiles,
-                #                                                                        dataset.framestamps,
-                #                                                                        method="L1",
-                #                                                                        threshold=0.3)
-
-                # plt.figure(9)
-                #
-                # for i in range(stdize_profiles.shape[0]):
-                #     if np.all(np.isfinite(stdize_profiles[i, :])):
-                #         plt.clf()
-                #         plt.plot(dataset.framestamps, tmp_profiles[i, :])
-                #         plt.plot(reconst_framestamps, stdize_profiles[i, :])
-                #         plt.show(block=False)
-                #         plt.waitforbuttonpress()
-
-                #dataset.framestamps=reconst_framestamps
+                texture_iorg = extract_texture_profiles(full_profiles, summary_methods="all",
+                                                        framestamps=dataset.framestamps, display=True)
 
                 tmp_iorg, tmp_incl = signal_power_iORG(stdize_profiles, dataset.framestamps, summary_method="rms",
                                                        window_size=1)
 
                 plt.figure(9)
                 plt.plot(dataset.framestamps, tmp_incl)
+                plt.show(block=False)
+
+                plt.figure(90)
+                plt.plot(dataset.framestamps, np.nanmean(texture_iorg["entropy"], axis=1))
                 plt.show(block=False)
 
                 # This is just to make them all at the same baseline.

@@ -143,7 +143,7 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
     :param seg_mask: the mask shape that will be used to extract temporal profiles. Can be "box" or "disk".
     :param seg_radius: the radius of the mask shape that will be used.
     :param summary: the method used to summarize the area inside the segmentation radius. Default: "mean",
-                    Options: "mean", "median"
+                    Options: "mean", "median", "sum", "none"
     :param sigma: Precede extraction with a per-frame Gaussian filter of a supplied sigma. If none, no filtering is applied.
 
     :return: an NxM numpy matrix with N cells and M temporal samples of some signal.
@@ -165,8 +165,6 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
     if sigma is not None:
         for f in range(im_size[-1]):
             im_stack[..., f] = cv2.GaussianBlur(im_stack[..., f], ksize=(0, 0), sigmaX=sigma)
-
-
 
     pluscoord = coordinates + seg_radius
     includelist = pluscoord[:, 0] < im_size[1]
