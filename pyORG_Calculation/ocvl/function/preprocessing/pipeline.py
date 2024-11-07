@@ -39,7 +39,7 @@ def initialize_and_load_meao(file, a_mode, ref_mode):
     print(file)
     dataset = MEAODataset(file, analysis_modality=a_mode, ref_modality=ref_mode, stage=PipeStages.PROCESSED)
 
-    dataset.load_processed_data(clip_top=16)
+    dataset.load_processed_data()
 
     imp, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
 
@@ -282,10 +282,19 @@ def run_meao_pipeline(pName, tkroot):
             #             a_im_proj.astype("uint8"), 29.4)
 
             if dataset[0].has_ref_video:
-                all_im_proj, ref_xforms, inliers = optimizer_stack_align(np.dstack((a_im_proj, ref_im_proj)),
-                                                                       np.dstack(((a_weight_proj > 0), (ref_weight_proj > 0))),
-                                                                       dist_ref_idx, determine_initial_shifts=True,
-                                                                       dropthresh=0.0, transformtype="affine")
+                all_im_proj, ref_xforms, inliers = optimizer_stack_align(a_im_proj,
+                                                                         (a_weight_proj > 0),
+                                                                         dist_ref_idx, determine_initial_shifts=True,
+                                                                         dropthresh=0.0, transformtype="affine")
+                p2_all_im_proj, p2_ref_xforms, p2_inliers = optimizer_stack_align(ref_im_proj,
+                                                                         (ref_weight_proj > 0),
+                                                                         dist_ref_idx, determine_initial_shifts=True,
+                                                                         dropthresh=0.0, transformtype="affine")
+
+
+                #all_im_proj = np.dstack((all_im_proj, p2_all_im_proj))
+                ref_xforms.extend(p2_ref_xforms)
+                inliers = np.concat((inliers, p2_inliers))
                 numa = a_im_proj.shape[-1]
                 #a_im_proj = all_im_proj[...,0:numa]
                 #ref_im_proj = all_im_proj[..., numa:]
