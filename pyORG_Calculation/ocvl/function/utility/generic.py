@@ -105,7 +105,7 @@ class Dataset:
         self.width = -1
         self.height = -1
         self.framestamps = framestamps
-        self.reference_frame_idx = []
+        self.reference_frame_idx = None
         self.stimtrain_frame_stamps = stimseq
 
         # The data are roughly grouped by the following:

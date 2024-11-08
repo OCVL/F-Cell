@@ -335,11 +335,13 @@ def simple_image_stack_align(im_stack, mask_stack, ref_idx):
     return shifts
 
 
-def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=False, dropthresh=None, transformtype="affine"):
+def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=False, dropthresh=None, transformtype="affine", justalign=False):
     num_frames = im_stack.shape[-1]
 
-    reg_stack = np.zeros(im_stack.shape)
-    reg_mask = np.zeros(mask_stack.shape)
+    if not justalign:
+        reg_stack = np.zeros(im_stack.shape)
+        reg_mask = np.zeros(mask_stack.shape)
+
     eroded_mask = np.zeros(mask_stack.shape)
 
     # Erode our masks a bit to help with stability.
@@ -365,7 +367,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
     im_stack[np.isnan(im_stack)] = 0
     ref_im = sitk.GetImageFromArray(im_stack[..., reference_idx])
-    # ref_im = sitk.Cast(ref_im, sitk.sitkfloat32)
+    #ref_im = sitk.Cast(ref_im, sitk.sitkfloat32)
     #ref_im = sitk.Normalize(ref_im)
     dims = ref_im.GetDimension()
 
@@ -412,7 +414,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         Tx[0:2, 2] = -np.dot(A, c)+t+c
         xforms[f] = Tx[0:2, :]
 
-        if inliers[f]:
+        if inliers[f] and not justalign:
             norm_frame = im_stack[..., f]
             # Make all masked data nan so that when we transform them we don't have weird edge effects
             norm_frame[mask_stack[..., f] == 0] = np.nan
@@ -426,9 +428,9 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
 
 
-    # save_video(
-    #     "E:\\Dropbox (Personal)\\Grant_Proposals\\testalign.avi",
-    #      reg_stack, 30)
+     # save_video(
+     #     "B:\\Dropbox\\testalign.avi",
+     #      reg_stack, 25)
     return reg_stack, xforms, inliers, reg_mask
 
 

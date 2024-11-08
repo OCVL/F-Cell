@@ -3,19 +3,22 @@
 
   "processed": {
     "video_format": "{Modality}_{VidNum}_{Year:.4}{Month:.2}{Day:.2}_strip_ref{}_{}.avi",
+    "metadata": {
+      "framerate": 25.0
+    },
     "pipeline_params": {
       "gaus_blur": 0.0,
       "mask_roi": {
-        "r": 0,
-        "c": 0,
-        "width": -1,
-        "height": -1
+        "r": 83,
+        "c": 83,
+        "width": 330,
+        "height": 330
       },
-      "modalities": ["Confocal", "CalculatedSplit", "760nm"],
-      "correct_torsion": true,
-      "custom": {
-        "dewarp": "ocvl"
-      }
+      "trim": {
+        "start_idx": 0,
+        "end_idx": 250
+      },
+      "correct_torsion": true
     }
   },
 

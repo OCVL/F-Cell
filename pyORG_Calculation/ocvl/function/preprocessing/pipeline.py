@@ -43,9 +43,13 @@ from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
 import parse
 
+from ocvl.function.utility.temporal_signal_utils import trim_video
+
+
 class PipelineParams(StrEnum):
     GAUSSIAN_BLUR = "gaus_blur",
     MASK_ROI = "mask_roi",
+    TRIM = "trim",
     MODALITIES = "modalities",
     CORRECT_TORSION = "correct_torsion",
     CUSTOM = "custom"
@@ -453,7 +457,7 @@ if __name__ == "__main__":
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
    # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
-    pName = "R:\\00-10397\\FFB_IndivInvest_2020_PRO38673\\MEAOSLO1\\20221117\\Processed"
+    pName = "P:\\RFC_Projects\\McGregorLab_Collab\\iORG_attempts_20241107\\20241105 - 807_ORG_Registered videos\\trimmed"
     if not pName:
         quit()
 
@@ -466,7 +470,7 @@ if __name__ == "__main__":
 
 
    # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
-    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell\\pyORG_Calculation\\config_files\\meao.json"
+    json_fName = "C:\\Users\\rober\\Documents\\F-Cell_OCVL\\pyORG_Calculation\\config_files\\mcgregor.json"
     if not json_fName:
         quit()
 
@@ -527,46 +531,71 @@ if __name__ == "__main__":
                     acquisition = allData.loc[allData[DataTags.VIDEO_ID] == num]
 
                     # If we've selected modalities of interest, only process those; otherwise, process them all.
-                    if modes_of_interest:
-                        for mode in modes_of_interest:
-                            modevids = acquisition.loc[acquisition[DataTags.MODALITY] == mode]
-                            if (modevids[DataTags.FORMAT_TYPE] == FormatTypes.MASK).sum() <= 1 and \
-                               (modevids[DataTags.FORMAT_TYPE] == FormatTypes.METADATA).sum() <= 1 and \
-                               (modevids[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO).sum() == 1:
+                    if modes_of_interest is None:
+                        modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
 
-                                video_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO]
-                                mask_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.MASK]
-                                metadata_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.METADATA]
-                                im_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.IMAGE]
+                    for mode in modes_of_interest:
+                        modevids = acquisition.loc[acquisition[DataTags.MODALITY] == mode]
+                        if (modevids[DataTags.FORMAT_TYPE] == FormatTypes.MASK).sum() <= 1 and \
+                                (modevids[DataTags.FORMAT_TYPE] == FormatTypes.METADATA).sum() <= 1 and \
+                                (modevids[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO).sum() == 1:
 
-                                # Load our metadata file
-                                if not metadata_info.empty and metadata_params:
-                                    if metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH].exists():
-                                        metatype = metadata_params.get(MetaTags.TYPE)
-                                        loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
+                            video_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO]
+                            mask_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.MASK]
+                            metadata_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.METADATA]
+                            im_info = modevids.loc[modevids[DataTags.FORMAT_TYPE] == FormatTypes.IMAGE]
 
-                                        if metatype == "text_file":
-                                            dat_metadata = pd.read_csv(metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH], encoding="utf-8-sig", skipinitialspace=True)
+                            # Read in directly-entered metatags.
+                            meta_fields = {}
+                            if metadata_params is not None:
+                                for metatag in MetaTags:
+                                    thetag = metadata_params.get(metatag)
+                                    if thetag is not None \
+                                            and thetag is not MetaTags.METATAG \
+                                            and thetag is not MetaTags.TYPE:
+                                        meta_fields[metatag] = metadata_params.get(metatag)
 
-                                            meta_fields = {}
-                                            for field, column in loadfields.items():
-                                                meta_fields[field] = dat_metadata[column].to_numpy()
-                                        elif metatype == "database":
-                                            pass
-                                        elif metatype == "mat_file":
-                                            pass
+                            # Load our externally sourced metadata
+                            if not metadata_info.empty and metadata_params is not None:
+                                if metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH].exists():
+                                    metadata_path = metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH]
+                                    metatype = metadata_params.get(MetaTags.TYPE)
+                                    loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
 
-                                # Take metadata gleaned from our filename, as well as our metadata files,
-                                # and combine them into a single dictionary.
-                                combined_meta_dict = video_info.squeeze().to_dict() | meta_fields
+                                    if metatype == "text_file":
+                                        dat_metadata = pd.read_csv(metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH], encoding="utf-8-sig", skipinitialspace=True)
 
-                                # Add paths to things that we may want, depending on the stage we're at.
+                                        for field, column in loadfields.items():
+                                            meta_fields[field] = dat_metadata[column].to_numpy()
+                                    elif metatype == "database":
+                                        pass
+                                    elif metatype == "mat_file":
+                                        pass
+
+                                else:
+                                    metadata_path = None
+                            else:
+                                metadata_path = None
+
+                            # Take metadata gleaned from our filename, as well as our metadata files,
+                            # and combine them into a single dictionary.
+                            combined_meta_dict = video_info.squeeze().to_dict() | meta_fields
+
+                            # Add paths to things that we may want, depending on the stage we're at.
+                            if not im_info.empty:
                                 combined_meta_dict[AcquisiTags.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiTags.DATA_PATH]
 
+                            if not mask_info.empty:
+                                mask_path = mask_info.at[mask_info.index[0],AcquisiTags.DATA_PATH]
+                            else:
+                                mask_path = None
+
+                            if not video_info.empty:
                                 dataset = initialize_and_load_dataset(video_info.at[video_info.index[0],AcquisiTags.DATA_PATH],
-                                                            mask_info.at[mask_info.index[0],AcquisiTags.DATA_PATH],
-                                                            metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH],
-                                                            combined_meta_dict)
+                                                                      mask_path,
+                                                                      metadata_path,
+                                                                      combined_meta_dict)
+
 
                                 # Run the processing pipeline on this dataset, with params specified by the json.
 
@@ -574,7 +603,7 @@ if __name__ == "__main__":
                                 # If you would like to "bake in" custom pipeline steps, please contact the OCVL using GitHub's Issues
                                 # or submit a pull request.
                                 custom_steps = pipeline_params.get(PipelineParams.CUSTOM)
-                                if custom_steps:
+                                if custom_steps is not None:
                                     # For "baked in" dewarping- otherwise, data is expected to be dewarped already
                                     pre_dewarp = custom_steps.get("dewarp")
                                     match pre_dewarp:
@@ -615,8 +644,17 @@ if __name__ == "__main__":
                                                     # norm_frame[norm_frame == 0] = np.nan
 
                                                     dataset.mask_data[..., f] = cv2.remap(dataset.mask_data[..., f],
-                                                                                           map_mesh_x, map_mesh_y,
-                                                                                           interpolation=cv2.INTER_NEAREST)
+                                                                                          map_mesh_x, map_mesh_y,
+                                                                                          interpolation=cv2.INTER_NEAREST)
+
+                                # Trim the video down to a smaller/different size, if desired.
+                                trim = pipeline_params.get(PipelineParams.TRIM)
+                                if trim is not None:
+                                    start_idx = trim.get("start_idx")
+                                    end_idx = trim.get("end_idx")
+                                    dataset.video_data = dataset.video_data[..., start_idx:end_idx]
+                                    dataset.mask_data = dataset.mask_data[..., start_idx:end_idx]
+                                    dataset.num_frames = dataset.video_data.shape[-1]
 
                                 align_dat = dataset.video_data
                                 mask_dat = dataset.mask_data
@@ -644,28 +682,47 @@ if __name__ == "__main__":
                                     c = mask_roi.get("c")
                                     width = mask_roi.get("width")
                                     height = mask_roi.get("height")
+
                                     # Everything outside the roi specified should be zero
                                     # This approach is RAM intensive, but easy.
-                                    tmp = np.zeros_like(align_dat)
-                                    tmp[r:r+height, c:c+width, :] = align_dat[r:r+height, c:c+width, :]
-                                    align_dat = tmp
+                                    align_dat = align_dat[r:r+height, c:c+width, :]
 
-                                    tmp = np.zeros_like(mask_dat)
-                                    tmp[r:r+height, c:c+width, :] = mask_dat[r:r+height, c:c+width, :]
-                                    mask_dat = tmp
+                                    mask_dat = mask_dat[r:r+height, c:c+width, :]
+
 
                                 # Finally, correct for residual torsion if requested
                                 correct_torsion = pipeline_params.get(PipelineParams.CORRECT_TORSION)
                                 if correct_torsion is not None and correct_torsion:
-                                    align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, dataset.mask_data,
+                                    align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, mask_dat,
                                                                                                  reference_idx=dataset.reference_frame_idx,
-                                                                                                 dropthresh=0)
+                                                                                                 dropthresh=0, justalign=True)
 
+                                    # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
+                                    og_dtype = dataset.video_data.dtype
+                                    for f in range(dataset.num_frames):
+                                        if inliers[f]:
+                                            norm_frame = dataset.video_data[..., f].astype("float32")
+                                            # Make all masked data nan so that when we transform them we don't have weird edge effects
+                                            norm_frame[dataset.mask_data[..., f] == 0] = np.nan
 
+                                            norm_frame = cv2.warpAffine(norm_frame, xforms[f],
+                                                                        (norm_frame.shape[1], norm_frame.shape[0]),
+                                                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                                                                        borderValue=np.nan)
 
+                                            dataset.mask_data[..., f] = np.isfinite(norm_frame).astype(og_dtype)  # Our new mask corresponds to the real data.
+                                            norm_frame[np.isnan(norm_frame)] = 0  # Make anything that was nan into a 0, to be kind to non nan-types
+                                            dataset.video_data[..., f] = norm_frame.astype(og_dtype)
+
+                                    print("done.")
 
                             else:
-                                warning("Detected more than one video or mask associated with vidnum: "+num)
+                                warning("Unable to find a video path specified for vidnum: "+num)
+
+
+
+                        else:
+                            warning("Detected more than one video or mask associated with vidnum: "+num)
 
         else:
             warning("Unable to detect \"processed\" json value!")
