@@ -459,7 +459,7 @@ if __name__ == "__main__":
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
    # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
-    pName = "P:\\RFC_Projects\\McGregorLab_Collab\\iORG_attempts_20241107\\20241105 - 807_ORG_Registered videos\\trimmed\\loc1"
+    pName = "P:\\RFC_Projects\\McGregorLab_Collab\\iORG_attempts_20241107\\20241105 - 807_ORG_Registered videos\\trimmed\\loc7"
     if not pName:
         quit()
 
@@ -662,6 +662,7 @@ if __name__ == "__main__":
                                         dataset.video_data = dataset.video_data[..., start_idx:end_idx]
                                         dataset.mask_data = dataset.mask_data[..., start_idx:end_idx]
                                         dataset.num_frames = dataset.video_data.shape[-1]
+                                        dataset.framestamps = dataset.framestamps[ (dataset.framestamps < end_idx) & (dataset.framestamps >= start_idx) ]
 
                                     align_dat = dataset.video_data
                                     mask_dat = dataset.mask_data
@@ -754,7 +755,6 @@ if __name__ == "__main__":
                         avg_loc_dist = np.zeros(len(shift_info))
                         f = 0
                         for allshifts in shift_info:
-                            print(allshifts)
                             allshifts = np.stack(allshifts)
                             allshifts **= 2
                             allshifts = np.sum(allshifts, axis=1)
@@ -792,12 +792,14 @@ if __name__ == "__main__":
                             if pipe_im_form is not None:
                                 pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
 
+                        # Make sure our output folder exists.
+                        central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder).mkdir(exist_ok=True)
                         cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_im_fname),
                                     avg_avg_images)
                         save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, Path(pipe_im_fname).with_suffix(".avi")),
                                    avg_images, 1)
 
-
+                        print("Outputting data...")
                         for dataset, xform in zip(datasets, ref_xforms):
 
                             # Make sure our output folder exists.

@@ -41,7 +41,7 @@ class MEAODataset:
         common_prefix = self.filename.split("_")
         common_prefix = "_".join(common_prefix[0:6])
 
-        if not image_path:
+        if image_path is None:
             imname = None
             if stage is PipeStages.PROCESSED:
                 for filename in glob.glob( path.join(p_name, common_prefix + "_" + self.analysis_modality + "?_extract_reg_avg.tif") ):
@@ -65,13 +65,13 @@ class MEAODataset:
             else:
                 imname = path.join(p_name, common_prefix + "_" + self.analysis_modality + "1_extract_reg_avg.tif")
 
-        if not imname:
+        if imname is None:
             warnings.warn("Unable to detect viable average image file. Dataset functionality may be limited.")
             self.image_path = None
         else:
             self.image_path = path.join(p_name, imname)
 
-        if not coord_path:
+        if coord_path is None:
             coordname = None
             if stage is PipeStages.PROCESSED:
                 for filename in glob.glob(
@@ -88,10 +88,16 @@ class MEAODataset:
                     for filename in glob.glob(path.join(p_name, "*_" + self.analysis_modality +"_ALL_ACQ_AVG_coords.csv")):
                         # print(filename)
                         coordname = filename
+
+                # If we don't have an image specific to this dataset, search for the all acq avg
+                if not coordname:
+                    for filename in glob.glob(path.join(p_name, "*_ALL_ACQ_AVG_coords.csv")):
+                        # print(filename)
+                        coordname = filename
             else:
                 coordname = path.join(p_name, common_prefix + "_" + self.analysis_modality + "1_extract_reg_avg_coords.csv")
 
-            if not coordname:
+            if coordname is None:
                 #warnings.warn("Unable to detect viable coordinate file. Dataset functionality may be limited.")
                 self.coord_path = None
             else:
