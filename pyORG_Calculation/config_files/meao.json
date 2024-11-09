@@ -36,7 +36,8 @@
       "correct_torsion": true,
       "custom": {
         "dewarp": "ocvl"
-      }
+      },
+      "sort_by": "({LocX},{LocY})"
     }
   },
 

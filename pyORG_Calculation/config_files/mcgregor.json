@@ -18,19 +18,18 @@
         "start_idx": 0,
         "end_idx": 250
       },
-      "correct_torsion": true
+      "correct_torsion": true,
+      "output_folder": "Functional Pipeline"
     }
   },
 
   "pipelined": {
-    "image_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_extract_reg_avg.tif",
-    "video_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_extract_reg_cropped_piped.avi",
+    "image_format": "{Modality}_{VidNum}_{Year:.4}{Month:.2}{Day:.2}_strip_ref_ALL_ACQ_AVG.tif",
+    "video_format": "{Modality}_{VidNum}_{Year:.4}{Month:.2}{Day:.2}_strip_ref_piped.avi",
     "metadata": {
       "type": "text_file",
-      "metadata_format": "({LocX},{LocY})/{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({},{})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_extract_reg_cropped_piped.csv",
-      "fields_to_load": {
-        "framestamps": "FrameStamps"
-      }
+      "metadata_format": "{Modality}_{VidNum}_{Year:.4}{Month:.2}{Day:.2}_strip_ref_piped.csv",
+      "framerate": 25.0
     },
     "analysis_params": {
       "gaus_blur": 0.0,

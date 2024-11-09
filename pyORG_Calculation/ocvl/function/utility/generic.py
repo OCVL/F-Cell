@@ -78,6 +78,8 @@ def initialize_and_load_dataset(video_path, mask_path=None, extra_metadata_path=
         queryloc_data = metadata.get(MetaTags.QUERY_LOC)
 
     stamps = metadata.get(MetaTags.FRAMESTAMPS)
+    if stamps is None:
+        stamps = np.arange(video_data.shape[-1])
 
     stimulus_sequence = None
     if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata:

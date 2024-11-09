@@ -258,9 +258,9 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     target_size = (next_fast_len(ogrows), next_fast_len(ogcols))
 
     if template_mask is None:
-        template_mask = np.ones(temp_size)
+        template_mask = template_im > 0
     if reference_mask is None:
-        reference_mask = np.ones(ref_size)
+        reference_mask = reference_im > 0
 
     # First, cross correlate our two images (but this isn't normalized, yet!)
     # The templates should be rotated by 90 degrees. So...
@@ -303,7 +303,7 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     # Need this bit to avoid dividing by zero.
     tolerance = 1000*np.finfo(np.amax(denom)).eps
 
-    xcorr_out = numerator / denom
+    xcorr_out = numerator / (denom + 1)
 
     # By default, the images have to overlap by more than 20% of their maximal overlap.
     if not required_overlap:
@@ -334,13 +334,31 @@ def simple_image_stack_align(im_stack, mask_stack, ref_idx):
 
     return shifts
 
+def simple_dataset_dict_align(dataset_dict, ref_num):
+    num_frames = len(dataset_dict)
+    shifts = [None] * num_frames
+
+    ref_dataset = dataset_dict[ref_num]
+    print("Aligning to dataset with video number: " + str(ref_num))
+    i = 0
+    for num, dataset in dataset_dict.items():
+        shift, val, xcorrmap = general_normxcorr2(dataset.avg_image_data, ref_dataset.avg_image_data)
+        #print("Found shift of: " + str(shift) + ", value of " + str(val))
+        shifts[i] = shift
+        i+=1
+
+    return shifts
+
 
 def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=False, dropthresh=None, transformtype="affine", justalign=False):
     num_frames = im_stack.shape[-1]
-
+    og_dtype = im_stack.dtype
     if not justalign:
         reg_stack = np.zeros(im_stack.shape)
         reg_mask = np.zeros(mask_stack.shape)
+    else:
+        reg_stack = None
+        reg_mask = None
 
     eroded_mask = np.zeros(mask_stack.shape)
 
@@ -362,7 +380,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
     imreg_method.SetOptimizerScalesFromPhysicalShift() #This apparently allows parameters to change independently of one another.
                                                       # And is incredibly important.
     # #https://insightsoftwareconsortium.github.io/SimpleITK-Notebooks/Python_html/61_Registration_Introduction_Continued.html#Final-registration
-    og_dtype = im_stack.dtype
+
     im_stack = im_stack.astype("float32")
 
     im_stack[np.isnan(im_stack)] = 0
@@ -424,14 +442,17 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
             reg_mask[..., f] = np.isfinite(norm_frame).astype(og_dtype) # Our new mask corresponds to the real data.
             norm_frame[np.isnan(norm_frame)] = 0 # Make anything that was nan into a 0, to be kind to non nan-types
-            reg_stack[..., f] = norm_frame.astype(og_dtype)
+            reg_stack[..., f] = norm_frame
 
 
-
+    if justalign:
+        return None, xforms, inliers, None
+    else:
+        return reg_stack.astype(og_dtype), xforms, inliers, reg_mask.astype(og_dtype)
      # save_video(
      #     "B:\\Dropbox\\testalign.avi",
      #      reg_stack, 25)
-    return reg_stack, xforms, inliers, reg_mask
+
 
 
 def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=5000, method="affine", dropthresh=None):
@@ -565,4 +586,4 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
     # pyplot.show()
     # return image_projection.astype("uint8"), (weight_projection / np.nanmax(weight_projection.flatten()))
 
-    return image_projection, (weight_projection / np.nanmax(weight_projection.flatten()))
+    return image_projection.astype(og_dtype), (weight_projection / np.nanmax(weight_projection.flatten()))
