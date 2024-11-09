@@ -31,12 +31,12 @@ from tkinter import *
 from tkinter import filedialog, simpledialog
 from tkinter import ttk
 
-
+import pandas
 from scipy.ndimage import binary_dilation, gaussian_filter
 import pandas as pd
 from matplotlib import pyplot as plt, pyplot
 from ocvl.function.preprocessing.improc import flat_field, weighted_z_projection, simple_image_stack_align, \
-    optimizer_stack_align, dewarp_2D_data, simple_dataset_dict_align
+    optimizer_stack_align, dewarp_2D_data, simple_dataset_list_align
 from ocvl.function.utility.format_parser import FormatParser
 from ocvl.function.utility.generic import Dataset, PipeStages, initialize_and_load_dataset, AcquisiTags
 from ocvl.function.utility.json_format_constants import FormatTypes, DataTags, MetaTags
@@ -459,7 +459,7 @@ if __name__ == "__main__":
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
    # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
-    pName = "P:\\RFC_Projects\\McGregorLab_Collab\\iORG_attempts_20241107\\20241105 - 807_ORG_Registered videos\\trimmed\\subset_for_test"
+    pName = "P:\\RFC_Projects\\McGregorLab_Collab\\iORG_attempts_20241107\\20241105 - 807_ORG_Registered videos\\trimmed"
     if not pName:
         quit()
 
@@ -480,7 +480,7 @@ if __name__ == "__main__":
         with open(json_fName, 'r') as json_f:
             dat_form = json.load(json_f)
 
-            allFilesColumns = [AcquisiTags.DATA_PATH, FormatTypes.FORMAT]
+            allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, FormatTypes.FORMAT]
             allFilesColumns.extend([d.value for d in DataTags])
             allData = pd.DataFrame(columns=allFilesColumns)
             acquisition = dict()
@@ -521,6 +521,7 @@ if __name__ == "__main__":
                             file_info[DataTags.FORMAT_TYPE] = format_type
                             file_info[AcquisiTags.DATA_PATH] = path
                             file_info[AcquisiTags.BASE_PATH] = path.parent
+                            file_info[AcquisiTags.DATASET] = None
                             entry = pd.DataFrame.from_dict([file_info])
 
                             allFiles.append(entry)
@@ -532,12 +533,10 @@ if __name__ == "__main__":
                     if modes_of_interest is None:
                         modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
 
-                    dataset_mode_dict = {}
                     for mode in modes_of_interest:
                         modevids = allData.loc[allData[DataTags.MODALITY] == mode]
 
                         vidnums = np.unique(modevids[DataTags.VIDEO_ID].to_numpy())
-                        dataset_dict = {}
                         for num in vidnums:
                             # Find the rows associated with this video number, and
                             # extract the rows corresponding to this acquisition.
@@ -725,23 +724,29 @@ if __name__ == "__main__":
 
                                         dataset.avg_image_data, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
 
-                                    # When done, put it into the modality dictionary.
-                                    dataset_dict[num] = dataset
+                                    # When done, put it into the database.
+                                    allData.loc[acquisition.index, AcquisiTags.DATASET] = dataset
 
                                 else:
                                     warning("Unable to find a video path specified for vidnum: "+num)
                             else:
                                 warning("Detected more than one video or mask associated with vidnum: "+num)
 
-                        dataset_mode_dict[mode] = dataset_dict
 
-                    for mode, datasets in dataset_mode_dict.items():
+                    # Remove all entries without associated datasets.
+                    allData.drop(allData[allData[AcquisiTags.DATASET].isnull()].index, inplace=True)
+
+
+                    for mode in modes_of_interest:
+                        modevids = allData.loc[allData[DataTags.MODALITY] == mode]
+
+                        vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
+                        datasets = modevids[AcquisiTags.DATASET].to_list()
 
                         print("Selecting ideal central frame for mode and location: "+mode)
-                        vidnums = list(datasets.keys())
 
-                        dist_res = pool.starmap_async(simple_dataset_dict_align, zip(repeat(datasets),
-                                                                                     vidnums))
+                        dist_res = pool.starmap_async(simple_dataset_list_align, zip(repeat(datasets),
+                                                                                     np.arange(len(datasets)) ))
                         shift_info = dist_res.get()
 
                         avg_loc_dist = np.zeros(len(shift_info))
@@ -759,9 +764,9 @@ if __name__ == "__main__":
 
                         print("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
 
-                        central_dataset = datasets[vidnums[dist_ref_idx]]
+                        central_dataset = datasets[dist_ref_idx]
                         # "Functional Pipeline",
-                        avg_images = np.dstack([data.avg_image_data for data in datasets.values()])
+                        avg_images = np.dstack([data.avg_image_data for data in datasets])
 
                         avg_images, ref_xforms, inliers, avg_masks  = optimizer_stack_align(avg_images,
                                                                                  (avg_images > 0),
@@ -785,13 +790,13 @@ if __name__ == "__main__":
                             if pipe_im_form is not None:
                                 pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
 
-                        cv2.imwrite(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_im_fname),
+                        cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_im_fname),
                                     avg_avg_images)
-                        save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, Path(pipe_im_fname).with_suffix(".avi")),
-                                   avg_images, 25)
+                        save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, Path(pipe_im_fname).with_suffix(".avi")),
+                                   avg_images, 1)
 
 
-                        for dataset, xform in zip(datasets.values(), ref_xforms):
+                        for dataset, xform in zip(datasets, ref_xforms):
 
                             # Make sure our output folder exists.
                             dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder).mkdir(exist_ok=True)

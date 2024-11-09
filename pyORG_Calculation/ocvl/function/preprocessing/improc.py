@@ -334,14 +334,14 @@ def simple_image_stack_align(im_stack, mask_stack, ref_idx):
 
     return shifts
 
-def simple_dataset_dict_align(dataset_dict, ref_num):
-    num_frames = len(dataset_dict)
+def simple_dataset_list_align(datasets, ref_idx):
+    num_frames = len(datasets)
     shifts = [None] * num_frames
 
-    ref_dataset = dataset_dict[ref_num]
-    print("Aligning to dataset with video number: " + str(ref_num))
+    ref_dataset = datasets[ref_idx]
+    print("Aligning to dataset with video number: " + str(ref_idx))
     i = 0
-    for num, dataset in dataset_dict.items():
+    for dataset in datasets:
         shift, val, xcorrmap = general_normxcorr2(dataset.avg_image_data, ref_dataset.avg_image_data)
         #print("Found shift of: " + str(shift) + ", value of " + str(val))
         shifts[i] = shift

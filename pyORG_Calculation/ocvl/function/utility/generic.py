@@ -20,6 +20,7 @@ class PipeStages(Enum):
     ANALYSIS_READY = 3
 
 class AcquisiTags(StrEnum):
+    DATASET = "Dataset"
     DATA_PATH = "Data_Path"
     OUTPUT_PATH = "Output_Path",
     VIDEO_PATH = "Video_Path",
@@ -102,7 +103,7 @@ class Dataset:
 
         # Information about the dataset
         self.stage = stage
-        self.framerate = metadata.get(MetaTags.FRAMERATE)
+        self.framerate = self.metadata.get(MetaTags.FRAMERATE)
         self.num_frames = -1
         self.width = -1
         self.height = -1

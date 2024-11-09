@@ -33,11 +33,12 @@
         "height": -1
       },
       "modalities": ["Confocal", "CalculatedSplit", "760nm"],
+      "output_folder": "Functional Pipeline",
+      "sort_by": "({LocX},{LocY})",
       "correct_torsion": true,
       "custom": {
         "dewarp": "ocvl"
-      },
-      "sort_by": "({LocX},{LocY})"
+      }
     }
   },
 
