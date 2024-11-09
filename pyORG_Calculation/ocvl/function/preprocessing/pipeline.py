@@ -459,7 +459,7 @@ if __name__ == "__main__":
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
    # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
-    pName = "P:\\RFC_Projects\\McGregorLab_Collab\\iORG_attempts_20241107\\20241105 - 807_ORG_Registered videos\\trimmed"
+    pName = "P:\\RFC_Projects\\McGregorLab_Collab\\iORG_attempts_20241107\\20241105 - 807_ORG_Registered videos\\trimmed\\loc1"
     if not pName:
         quit()
 
@@ -476,7 +476,7 @@ if __name__ == "__main__":
     if not json_fName:
         quit()
 
-    with mp.Pool(processes=int(np.round(mp.cpu_count() ))) as pool:
+    with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
         with open(json_fName, 'r') as json_f:
             dat_form = json.load(json_f)
 
@@ -742,11 +742,13 @@ if __name__ == "__main__":
 
                         vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
                         datasets = modevids[AcquisiTags.DATASET].to_list()
+                        avg_images = np.dstack([data.avg_image_data for data in datasets])
 
                         print("Selecting ideal central frame for mode and location: "+mode)
 
-                        dist_res = pool.starmap_async(simple_dataset_list_align, zip(repeat(datasets),
-                                                                                     np.arange(len(datasets)) ))
+                        dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
+                                                                                    repeat(None),
+                                                                                    np.arange(len(datasets)) ))
                         shift_info = dist_res.get()
 
                         avg_loc_dist = np.zeros(len(shift_info))
@@ -766,7 +768,7 @@ if __name__ == "__main__":
 
                         central_dataset = datasets[dist_ref_idx]
                         # "Functional Pipeline",
-                        avg_images = np.dstack([data.avg_image_data for data in datasets])
+
 
                         avg_images, ref_xforms, inliers, avg_masks  = optimizer_stack_align(avg_images,
                                                                                  (avg_images > 0),

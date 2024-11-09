@@ -319,18 +319,24 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     return maxshift, maxval, xcorr_out
 
 
-def simple_image_stack_align(im_stack, mask_stack, ref_idx):
+def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0):
     num_frames = im_stack.shape[-1]
     shifts = [None] * num_frames
     # flattened = flat_field(im_stack)
     flattened = (im_stack)
     print("Aligning to frame " + str(ref_idx))
-    for f2 in range(0, num_frames):
-        shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx],
-                                                  template_mask=mask_stack[..., f2],
-                                                  reference_mask=mask_stack[..., ref_idx])
-        #print("Found shift of: " + str(shift) + ", value of " + str(val))
-        shifts[f2] = shift
+    if mask_stack is not None:
+        for f2 in range(0, num_frames):
+            shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx],
+                                                      template_mask=mask_stack[..., f2],
+                                                      reference_mask=mask_stack[..., ref_idx])
+            #print("Found shift of: " + str(shift) + ", value of " + str(val))
+            shifts[f2] = shift
+    else:
+        for f2 in range(0, num_frames):
+            shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx])
+            #print("Found shift of: " + str(shift) + ", value of " + str(val))
+            shifts[f2] = shift
 
     return shifts
 
