@@ -55,6 +55,7 @@ class PipelineParams(StrEnum):
     CORRECT_TORSION = "correct_torsion",
     CUSTOM = "custom"
     OUTPUT_FOLDER = "output_folder"
+    GROUP_BY = "group_by"
 
 def initialize_and_load_meao(file, a_mode, ref_mode):
     print(file)
@@ -459,7 +460,7 @@ if __name__ == "__main__":
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
    # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
-    pName = "P:\\RFC_Projects\\McGregorLab_Collab\\iORG_attempts_20241107\\20241105 - 807_ORG_Registered videos\\trimmed\\loc7"
+    pName = "P:\\RFC_Projects\\F-Cell_Generalization_Test_Data"
     if not pName:
         quit()
 
@@ -472,7 +473,7 @@ if __name__ == "__main__":
 
 
    # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
-    json_fName = "C:\\Users\\rober\\Documents\\F-Cell_OCVL\\pyORG_Calculation\\config_files\\mcgregor.json"
+    json_fName = "C:\\Users\\rober\\Documents\\F-Cell_OCVL\\pyORG_Calculation\\config_files\\meao.json"
     if not json_fName:
         quit()
 
@@ -726,7 +727,7 @@ if __name__ == "__main__":
                                         dataset.avg_image_data, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
 
                                     # When done, put it into the database.
-                                    allData.loc[acquisition.index, AcquisiTags.DATASET] = dataset
+                                    allData.loc[video_info.index, AcquisiTags.DATASET] = dataset
 
                                 else:
                                     warning("Unable to find a video path specified for vidnum: "+num)
@@ -737,111 +738,125 @@ if __name__ == "__main__":
                     # Remove all entries without associated datasets.
                     allData.drop(allData[allData[AcquisiTags.DATASET].isnull()].index, inplace=True)
 
+                    grouping = pipeline_params.get(PipelineParams.GROUP_BY)
+                    if grouping is not None:
+                        for row in allData.itertuples():
+                            print( grouping.format_map(row._asdict()) )
+                            allData.loc[row.Index, PipelineParams.GROUP_BY] = grouping.format_map(row._asdict())
 
-                    for mode in modes_of_interest:
-                        modevids = allData.loc[allData[DataTags.MODALITY] == mode]
+                        groups = allData[PipelineParams.GROUP_BY].unique().tolist()
+                    else:
+                        groups =[""] # If we don't have any groups, then just make the list an empty string.
 
-                        vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
-                        datasets = modevids[AcquisiTags.DATASET].to_list()
-                        avg_images = np.dstack([data.avg_image_data for data in datasets])
+                    for group in groups:
+                        group_datasets = allData.loc[allData[PipelineParams.GROUP_BY] == group]
 
-                        print("Selecting ideal central frame for mode and location: "+mode)
+                        for mode in modes_of_interest:
+                            modevids = group_datasets.loc[group_datasets[DataTags.MODALITY] == mode]
 
-                        dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
-                                                                                    repeat(None),
-                                                                                    np.arange(len(datasets)) ))
-                        shift_info = dist_res.get()
+                            vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
+                            datasets = modevids[AcquisiTags.DATASET].to_list()
+                            avg_images = np.dstack([data.avg_image_data for data in datasets])
 
-                        avg_loc_dist = np.zeros(len(shift_info))
-                        f = 0
-                        for allshifts in shift_info:
-                            allshifts = np.stack(allshifts)
-                            allshifts **= 2
-                            allshifts = np.sum(allshifts, axis=1)
-                            avg_loc_dist[f] = np.mean(np.sqrt(allshifts))  # Find the average distance to this reference.
-                            f += 1
+                            print("Selecting ideal central frame for mode and location: "+mode)
 
-                        avg_loc_idx = np.argsort(avg_loc_dist)
-                        dist_ref_idx = avg_loc_idx[0]
+                            dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
+                                                                                        repeat(None),
+                                                                                        np.arange(len(datasets)) ))
+                            shift_info = dist_res.get()
 
-                        print("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
+                            # Determine the average
+                            avg_loc_dist = np.zeros(len(shift_info))
+                            f = 0
+                            for allshifts in shift_info:
+                                allshifts = np.stack(allshifts)
+                                allshifts **= 2
+                                allshifts = np.sum(allshifts, axis=1)
+                                avg_loc_dist[f] = np.mean(np.sqrt(allshifts))  # Find the average distance to this reference.
+                                f += 1
 
-                        central_dataset = datasets[dist_ref_idx]
-                        # "Functional Pipeline",
+                            avg_loc_idx = np.argsort(avg_loc_dist)
+                            dist_ref_idx = avg_loc_idx[0]
 
+                            print("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
 
-                        avg_images, ref_xforms, inliers, avg_masks  = optimizer_stack_align(avg_images,
-                                                                                 (avg_images > 0),
-                                                                                 dist_ref_idx,
-                                                                                 determine_initial_shifts=True,
-                                                                                 dropthresh=0.0, transformtype="affine")
+                            central_dataset = datasets[dist_ref_idx]
 
-                        # Z Project each of our image types
-                        avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images)
+                            # Align the stack of average images from all datasets
+                            avg_images, ref_xforms, inliers, avg_masks  = optimizer_stack_align(avg_images,
+                                                                                     (avg_images > 0),
+                                                                                     dist_ref_idx,
+                                                                                     determine_initial_shifts=True,
+                                                                                     dropthresh=0.0, transformtype="affine")
 
-                        # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
-                        # pipeline filename structure.
-                        output_folder = processed_dat_format.get(PipelineParams.OUTPUT_FOLDER)
-                        if output_folder is None:
-                            output_folder = PurePath("Functional Pipeline")
+                            # Z Project each of our image types
+                            avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images)
 
-                        # Determine the filename for the superaverage using the central-most dataset.
-                        pipelined_dat_format = dat_form.get("pipelined")
-                        if pipelined_dat_format is not None:
-                            pipe_im_form = pipelined_dat_format.get(FormatTypes.IMAGE)
-                            if pipe_im_form is not None:
-                                pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
+                            # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
+                            # pipeline filename structure.
+                            output_folder = pipeline_params.get(PipelineParams.OUTPUT_FOLDER)
+                            if output_folder is None:
+                                output_folder = PurePath("Functional Pipeline").joinpath(group)
+                            else:
+                                output_folder = PurePath(output_folder).joinpath(group)
 
-                        # Make sure our output folder exists.
-                        central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder).mkdir(exist_ok=True)
-                        cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_im_fname),
-                                    avg_avg_images)
-                        save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, Path(pipe_im_fname).with_suffix(".avi")),
-                                   avg_images, 1)
-
-                        print("Outputting data...")
-                        for dataset, xform in zip(datasets, ref_xforms):
+                            # Determine the filename for the superaverage using the central-most dataset.
+                            pipelined_dat_format = dat_form.get("pipelined")
+                            if pipelined_dat_format is not None:
+                                pipe_im_form = pipelined_dat_format.get(FormatTypes.IMAGE)
+                                if pipe_im_form is not None:
+                                    pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
 
                             # Make sure our output folder exists.
-                            dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder).mkdir(exist_ok=True)
+                            central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder).mkdir(parents=True, exist_ok=True)
+                            cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_im_fname),
+                                        avg_avg_images)
+                            save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, Path(pipe_im_fname).with_suffix(".avi")),
+                                       avg_images, 1)
 
-                            (rows, cols) = dataset.video_data.shape[0:2]
+                            print("Outputting data...")
+                            for dataset, xform in zip(datasets, ref_xforms):
 
-                            if pipelined_dat_format is not None:
-                                pipe_vid_form = pipelined_dat_format.get(FormatTypes.VIDEO)
-                                pipe_mask_form = pipelined_dat_format.get(FormatTypes.MASK)
-                                pipe_meta_form = pipelined_dat_format.get(MetaTags.METATAG)
+                                # Make sure our output folder exists.
+                                dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder).mkdir(parents=True, exist_ok=True)
 
-                                if pipe_vid_form is not None:
-                                    pipe_vid_fname = pipe_vid_form.format_map(dataset.metadata)
-                                if pipe_mask_form is not None:
-                                    pipe_mask_fname = pipe_mask_form.format_map(dataset.metadata)
-                                if pipe_meta_form is not None:
-                                    pipe_meta_form = pipe_meta_form.get(FormatTypes.METADATA)
+                                (rows, cols) = dataset.video_data.shape[0:2]
+
+                                if pipelined_dat_format is not None:
+                                    pipe_vid_form = pipelined_dat_format.get(FormatTypes.VIDEO)
+                                    pipe_mask_form = pipelined_dat_format.get(FormatTypes.MASK)
+                                    pipe_meta_form = pipelined_dat_format.get(MetaTags.METATAG)
+
+                                    if pipe_vid_form is not None:
+                                        pipe_vid_fname = pipe_vid_form.format_map(dataset.metadata)
+                                    if pipe_mask_form is not None:
+                                        pipe_mask_fname = pipe_mask_form.format_map(dataset.metadata)
                                     if pipe_meta_form is not None:
-                                        pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
+                                        pipe_meta_form = pipe_meta_form.get(FormatTypes.METADATA)
+                                        if pipe_meta_form is not None:
+                                            pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
 
 
-                            og_dtype = dataset.video_data.dtype
-                            for i in range(dataset.num_frames):  # Make all of the data in our dataset relative as well.
-                                tmp = dataset.video_data[..., i].astype("float32")
-                                tmp[np.round(tmp) == 0] = np.nan
-                                tmp = cv2.warpAffine(tmp, xform,(cols, rows),
-                                                     flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
-                                tmp[np.isnan(tmp)] = 0
-                                dataset.video_data[..., i] = tmp.astype(og_dtype)
+                                og_dtype = dataset.video_data.dtype
+                                for i in range(dataset.num_frames):  # Make all of the data in our dataset relative as well.
+                                    tmp = dataset.video_data[..., i].astype("float32")
+                                    tmp[np.round(tmp) == 0] = np.nan
+                                    tmp = cv2.warpAffine(tmp, xform,(cols, rows),
+                                                         flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
+                                    tmp[np.isnan(tmp)] = 0
+                                    dataset.video_data[..., i] = tmp.astype(og_dtype)
 
-                                tmp = dataset.mask_data[..., i].astype("float32")
-                                tmp[np.round(tmp) == 0] = np.nan
-                                tmp = cv2.warpAffine(tmp, xform,(cols, rows),
-                                                     flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
-                                tmp[np.isnan(tmp)] = 0
-                                dataset.mask_data[..., i] = tmp.astype(og_dtype)
+                                    tmp = dataset.mask_data[..., i].astype("float32")
+                                    tmp[np.round(tmp) == 0] = np.nan
+                                    tmp = cv2.warpAffine(tmp, xform,(cols, rows),
+                                                         flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+                                    tmp[np.isnan(tmp)] = 0
+                                    dataset.mask_data[..., i] = tmp.astype(og_dtype)
 
-                            out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
-                            out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_meta_fname), index=False)
-                            save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_vid_fname), dataset.video_data,
-                                       framerate=dataset.framerate)
+                                out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
+                                out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_meta_fname), index=False)
+                                save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_vid_fname), dataset.video_data,
+                                           framerate=dataset.framerate)
 
 
             else:
