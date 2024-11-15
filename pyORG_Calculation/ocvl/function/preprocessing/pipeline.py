@@ -459,8 +459,8 @@ if __name__ == "__main__":
         '%dx%d+%d+%d' % (
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-   # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
-    pName = "P:\\RFC_Projects\\F-Cell_Generalization_Test_Data"
+    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
+    #pName = "P:\\RFC_Projects\\F-Cell_Generalization_Test_Data"
     if not pName:
         quit()
 
@@ -473,7 +473,7 @@ if __name__ == "__main__":
 
 
    # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
-    json_fName = "C:\\Users\\rober\\Documents\\F-Cell_OCVL\\pyORG_Calculation\\config_files\\meao.json"
+    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell\\pyORG_Calculation\\config_files\\mcgregor.json"
     if not json_fName:
         quit()
 
@@ -749,7 +749,10 @@ if __name__ == "__main__":
                         groups =[""] # If we don't have any groups, then just make the list an empty string.
 
                     for group in groups:
-                        group_datasets = allData.loc[allData[PipelineParams.GROUP_BY] == group]
+                        if group != "":
+                            group_datasets = allData.loc[allData[PipelineParams.GROUP_BY] == group]
+                        else:
+                            group_datasets = allData
 
                         for mode in modes_of_interest:
                             modevids = group_datasets.loc[group_datasets[DataTags.MODALITY] == mode]
