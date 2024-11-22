@@ -473,7 +473,7 @@ if __name__ == "__main__":
 
 
    # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
-    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell\\pyORG_Calculation\\config_files\\mcgregor.json"
+    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell\\pyORG_Calculation\\config_files\\meao.json"
     if not json_fName:
         quit()
 

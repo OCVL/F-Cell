@@ -30,7 +30,7 @@
         "width": -1,
         "height": -1
       },
-      "modalities": ["Confocal"],
+      "modalities": ["760nm"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
