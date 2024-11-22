@@ -12,7 +12,7 @@ from os import path
 from matplotlib import pyplot
 
 from ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align
-from ocvl.function.utility.generic import PipeStages
+from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.resources import load_video, save_video
 
 

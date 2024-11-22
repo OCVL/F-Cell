@@ -9,7 +9,7 @@ from skimage.morphology import disk
 from skimage.morphology.footprints import ellipse, octagon
 
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
-from ocvl.function.utility.generic import PipeStages
+from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
 

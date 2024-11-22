@@ -40,3 +40,27 @@ class MetaTags(StrEnum):
     FRAMERATE = "framerate"
     QUERY_LOC = "query_locations"
 
+class AcquisiTags(StrEnum):
+    DATASET = "Dataset"
+    DATA_PATH = "Data_Path"
+    OUTPUT_PATH = "Output_Path",
+    VIDEO_PATH = "Video_Path",
+    IMAGE_PATH = "Image_Path",
+    QUERYLOC_PATH = "QueryLocation_Path",
+    STIMSEQ_PATH = "Stimulus_Sequence_Path",
+    MODALITY = "Modality",
+    PREFIX = "Output_Prefix",
+    BASE_PATH = "Base_Path",
+    MASK_PATH = "Mask_Path",
+    META_PATH = "Metadata_Path",
+
+class PipelineParams(StrEnum):
+    GAUSSIAN_BLUR = "gaus_blur",
+    MASK_ROI = "mask_roi",
+    TRIM = "trim",
+    MODALITIES = "modalities",
+    CORRECT_TORSION = "correct_torsion",
+    CUSTOM = "custom"
+    OUTPUT_FOLDER = "output_folder"
+    GROUP_BY = "group_by"
+

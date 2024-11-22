@@ -1,0 +1,395 @@
+import glob
+import json
+import os
+import warnings
+from enum import Enum, StrEnum
+from logging import warning
+from pathlib import Path
+
+import cv2
+import numpy as np
+import pandas as pd
+from scipy.ndimage import gaussian_filter
+
+from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection
+from ocvl.function.utility.format_parser import FormatParser
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags, FormatTypes, AcquisiTags, PipelineParams
+from ocvl.function.utility.resources import load_video, save_video
+
+
+class PipeStages(Enum):
+    RAW = 0,
+    PROCESSED = 1,
+    PIPELINED = 2,
+    ANALYSIS_READY = 3
+
+def extract_and_parse_metadata(config_json_path, pName):
+    with open(config_json_path, 'r') as config_json_path:
+        dat_form = json.load(config_json_path)
+
+        allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, FormatTypes.FORMAT]
+        allFilesColumns.extend([d.value for d in DataTags])
+
+        processed_dat_format = dat_form.get("processed")
+        if processed_dat_format is not None:
+
+            im_form = processed_dat_format.get(FormatTypes.IMAGE)
+            vid_form = processed_dat_format.get(FormatTypes.VIDEO)
+            mask_form = processed_dat_format.get(FormatTypes.MASK)
+
+            metadata_form = None
+            metadata_params = None
+            if processed_dat_format.get(MetaTags.METATAG) is not None:
+                metadata_params = processed_dat_format.get(MetaTags.METATAG)
+                metadata_form = metadata_params.get(FormatTypes.METADATA)
+
+            if vid_form is not None:
+
+                # Grab our extensions, make sure to check them all.
+                all_ext = (vid_form[vid_form.rfind(".", -5, -1):],)
+                all_ext = all_ext + (mask_form[mask_form.rfind(".", -5, -1):],) if mask_form and mask_form[
+                                                                                                 mask_form.rfind(".",
+                                                                                                                 -5,
+                                                                                                                 -1):] not in all_ext else all_ext
+                all_ext = all_ext + (im_form[im_form.rfind(".", -5, -1):],) if im_form and im_form[
+                                                                                           im_form.rfind(".", -5,
+                                                                                                         -1):] not in all_ext else all_ext
+                all_ext = all_ext + (
+                    metadata_form[metadata_form.rfind(".", -5, -1):],) if metadata_form and metadata_form[
+                                                                                            metadata_form.rfind(".", -5,
+                                                                                                                -1):] not in all_ext else all_ext
+
+                # Construct the parser we'll use for each of these forms
+                parser = FormatParser(vid_form, mask_form, im_form, metadata_form)
+
+                # Parse out the locations and filenames, store them in a hash table by location.
+                searchpath = Path(pName)
+                allFiles = list()
+                for ext in all_ext:
+                    for path in searchpath.glob("*" + ext):
+                        format_type, file_info = parser.parse_file(path.name)
+                        file_info[DataTags.FORMAT_TYPE] = format_type
+                        file_info[AcquisiTags.DATA_PATH] = path
+                        file_info[AcquisiTags.BASE_PATH] = path.parent
+                        file_info[AcquisiTags.DATASET] = None
+                        entry = pd.DataFrame.from_dict([file_info])
+
+                        allFiles.append(entry)
+
+                return dat_form, pd.concat(allFiles, ignore_index=True)
+            else:
+                warning("Unable to detect \"processed\" json value!")
+                return None
+        else:
+            return None
+
+
+def initialize_and_load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None):
+
+    mask_data = None
+    metadata = dataset_metadata
+    metadata[AcquisiTags.VIDEO_PATH] = dataset_metadata[AcquisiTags.DATA_PATH]
+    metadata[AcquisiTags.MASK_PATH] = mask_path
+    metadata[AcquisiTags.META_PATH] = extra_metadata_path
+
+    if video_path.exists():
+        resource = load_video(video_path)
+        video_data = resource.data
+        if MetaTags.FRAMERATE not in metadata:
+            metadata[MetaTags.FRAMERATE] = resource.metadict.get(MetaTags.FRAMERATE)
+    else:
+        warning("Video path does not exist at: "+str(video_path))
+        return None
+
+    if mask_path:
+        if mask_path.exists():
+            mask_res = load_video(mask_path)
+            mask_data = mask_res.data / mask_res.data.max()
+            mask_data[mask_data < 0] = 0
+            mask_data[mask_data > 1] = 1
+            # Mask our video data correspondingly.
+            premask_dtype = video_data.dtype
+            video_data = (video_data * mask_data).astype(premask_dtype)
+            mask_data = mask_data.astype(premask_dtype)
+        else:
+            warning("Mask path does not exist at: "+str(mask_path))
+    else:
+        # If we don't have a mask path, then just make our mask from the video data
+        mask_data = (video_data != 0).astype(video_data.dtype)
+
+    avg_image_data = None
+    if AcquisiTags.IMAGE_PATH in metadata:
+        avg_image_data = cv2.imread(metadata.get(AcquisiTags.IMAGE_PATH), cv2.IMREAD_GRAYSCALE)
+
+    queryloc_data = None
+    if AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOC not in metadata:
+        queryloc_data = pd.read_csv(metadata.get(AcquisiTags.QUERYLOC_PATH), header=None,
+                                      encoding="utf-8-sig").to_numpy()
+    else:
+        queryloc_data = metadata.get(MetaTags.QUERY_LOC)
+
+    stamps = metadata.get(MetaTags.FRAMESTAMPS)
+    if stamps is None:
+        stamps = np.arange(video_data.shape[-1])
+
+    stimulus_sequence = None
+    if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata:
+        stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None,
+                                      encoding="utf-8-sig").to_numpy()
+    else:
+        stimulus_sequence = metadata.get(AcquisiTags.STIMSEQ_PATH)
+
+    return Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence)
+
+
+def preprocess_dataset(dataset, pipeline_params):
+    # First do custom preprocessing steps, e.g. things implemented expressly for and by the OCVL
+    # If you would like to "bake in" custom pipeline steps, please contact the OCVL using GitHub's Issues
+    # or submit a pull request.
+    custom_steps = pipeline_params.get(PipelineParams.CUSTOM)
+    if custom_steps is not None:
+        # For "baked in" dewarping- otherwise, data is expected to be dewarped already
+        pre_dewarp = custom_steps.get("dewarp")
+        match pre_dewarp:
+            case "ocvl":
+                if dataset.metadata[AcquisiTags.META_PATH] is not None:
+                    dat_metadata = pd.read_csv(dataset.metadata[AcquisiTags.META_PATH], encoding="utf-8-sig",
+                                               skipinitialspace=True)
+
+                    ncc = 1 - dat_metadata["NCC"].to_numpy(dtype=float)
+                    dataset.reference_frame_idx = min(range(len(ncc)), key=ncc.__getitem__)
+
+                    # Dewarp our data.
+                    # First find out how many strips we have.
+                    numstrips = 0
+                    for col in dat_metadata.columns.tolist():
+                        if "XShift" in col:
+                            numstrips += 1
+
+                    xshifts = np.zeros([ncc.shape[0], numstrips])
+                    yshifts = np.zeros([ncc.shape[0], numstrips])
+
+                    for col in dat_metadata.columns.tolist():
+                        shiftrow = col.strip().split("_")[0][5:]
+                        npcol = dat_metadata[col].to_numpy()
+                        if npcol.dtype == "object":
+                            npcol[npcol == " "] = np.nan
+                        if col != "XShift" and "XShift" in col:
+                            xshifts[:, int(shiftrow)] = npcol
+                        if col != "YShift" and "YShift" in col:
+                            yshifts[:, int(shiftrow)] = npcol
+
+                    # Determine the residual error in our dewarping, and obtain the maps
+                    dataset.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(dataset.video_data,
+                                                                                yshifts, xshifts)
+
+                    # Dewarp our mask too.
+                    for f in range(dataset.num_frames):
+                        # norm_frame = dataset.video_data[..., f].astype("float32") / dataset.video_data[..., f].max()
+                        # norm_frame[norm_frame == 0] = np.nan
+
+                        dataset.mask_data[..., f] = cv2.remap(dataset.mask_data[..., f],
+                                                              map_mesh_x, map_mesh_y,
+                                                              interpolation=cv2.INTER_NEAREST)
+
+    # Trim the video down to a smaller/different size, if desired.
+    trim = pipeline_params.get(PipelineParams.TRIM)
+    if trim is not None:
+        start_idx = trim.get("start_idx")
+        end_idx = trim.get("end_idx")
+        dataset.video_data = dataset.video_data[..., start_idx:end_idx]
+        dataset.mask_data = dataset.mask_data[..., start_idx:end_idx]
+        dataset.num_frames = dataset.video_data.shape[-1]
+        dataset.framestamps = dataset.framestamps[(dataset.framestamps < end_idx) & (dataset.framestamps >= start_idx)]
+
+    align_dat = dataset.video_data
+    mask_dat = dataset.mask_data
+    # Try and figure out the reference frame, if we haven't already.
+    # This is based on the simple method of determining the maximum area subtended by our mask.
+    if dataset.reference_frame_idx is None:
+        amt_data = np.zeros([dataset.num_frames])
+        for f in range(dataset.num_frames):
+            amt_data[f] = mask_dat[..., f].flatten().sum()
+
+        dataset.reference_frame_idx = amt_data.argmax()
+        del amt_data
+
+    # Flat field the video for alignment, if desired.
+    if flat_field is not None and flat_field:
+        align_dat = flat_field(align_dat)
+
+    # Gaussian blur the data first before aligning, if requested
+    gausblur = pipeline_params.get(PipelineParams.GAUSSIAN_BLUR)
+    if gausblur is not None and gausblur != 0.0:
+        align_dat = gaussian_filter(align_dat, sigma=gausblur)
+        align_dat *= mask_dat
+
+    # Then crop the data, if requested
+    mask_roi = pipeline_params.get(PipelineParams.MASK_ROI)
+    if mask_roi is not None:
+        r = mask_roi.get("r")
+        c = mask_roi.get("c")
+        width = mask_roi.get("width")
+        height = mask_roi.get("height")
+
+        # Everything outside the roi specified should be zero
+        # This approach is RAM intensive, but easy.
+        align_dat = align_dat[r:r + height, c:c + width, :]
+
+        mask_dat = mask_dat[r:r + height, c:c + width, :]
+
+    # Finally, correct for residual torsion if requested
+    correct_torsion = pipeline_params.get(PipelineParams.CORRECT_TORSION)
+    if correct_torsion is not None and correct_torsion:
+        align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, mask_dat,
+                                                                     reference_idx=dataset.reference_frame_idx,
+                                                                     dropthresh=0, justalign=True)
+
+        # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
+        og_dtype = dataset.video_data.dtype
+        for f in range(dataset.num_frames):
+            if inliers[f]:
+                norm_frame = dataset.video_data[..., f].astype("float32")
+                # Make all masked data nan so that when we transform them we don't have weird edge effects
+                norm_frame[dataset.mask_data[..., f] == 0] = np.nan
+
+                norm_frame = cv2.warpAffine(norm_frame, xforms[f],
+                                            (norm_frame.shape[1], norm_frame.shape[0]),
+                                            flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                                            borderValue=np.nan)
+
+                dataset.mask_data[..., f] = np.isfinite(norm_frame).astype(
+                    og_dtype)  # Our new mask corresponds to the real data.
+                norm_frame[np.isnan(norm_frame)] = 0  # Make anything that was nan into a 0, to be kind to non nan-types
+                dataset.video_data[..., f] = norm_frame.astype(og_dtype)
+
+        dataset.avg_image_data, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
+
+    return dataset
+
+
+class Dataset:
+    def __init__(self, video_data=None, mask_data=None, avg_image_data=None, metadata=None, query_locations=None,
+                 framestamps=None, stimseq=None, stage=PipeStages.PROCESSED):
+
+        # Paths to the data used here.
+        if metadata is None:
+            self.metadata = dict()
+        else:
+            self.metadata = metadata
+
+        # Information about the dataset
+        self.stage = stage
+        self.framerate = self.metadata.get(MetaTags.FRAMERATE)
+        self.num_frames = -1
+        self.width = -1
+        self.height = -1
+        self.framestamps = framestamps
+        self.reference_frame_idx = None
+        self.stimtrain_frame_stamps = stimseq
+
+        # The data are roughly grouped by the following:
+        # Base data
+        self.coord_data = query_locations
+        self.avg_image_data = np.empty([1])
+        # Supplied image data
+        self.video_data = video_data
+        self.mask_data = mask_data
+        self.avg_image_data = avg_image_data
+
+        if video_data is not None:
+            self.num_frames = video_data.shape[-1]
+            self.width = video_data.shape[1]
+            self.height = video_data.shape[0]
+
+        self.stimtrain_path = self.metadata.get(AcquisiTags.STIMSEQ_PATH)
+        self.video_path = self.metadata.get(AcquisiTags.VIDEO_PATH)
+        self.mask_path = self.metadata.get(AcquisiTags.MASK_PATH)
+        self.base_path = self.metadata.get(AcquisiTags.BASE_PATH)
+
+        self.prefix = self.metadata.get(AcquisiTags.PREFIX)
+
+        if self.video_path:
+            # If we don't have supplied definitions of the base path of the dataset or the filename prefix,
+            # then guess.
+            if not self.base_path:
+                self.base_path = self.video_path.parent
+            if not self.prefix:
+                self.prefix = self.video_path.with_suffix("")
+
+            self.image_path = self.metadata.get(AcquisiTags.IMAGE_PATH)
+            # If we don't have supplied definitions of the image associated with this dataset,
+            # then guess.
+            if self.image_path is None:
+                imname = None
+                if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
+                        self.prefix.with_name(self.prefix.name + ".tif").exists():
+
+                        imname = self.prefix.with_name(self.prefix.name + ".tif")
+
+                if not imname:
+                    for filename in self.base_path.glob("*_ALL_ACQ_AVG.tif"):
+                        imname = filename
+
+                if not imname and stage is PipeStages.PIPELINED:
+                    warnings.warn("Unable to detect viable average image file. Dataset functionality may be limited.")
+                    self.image_path = None
+
+            self.coord_path = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
+            # If we don't have query locations associated with this dataset, then try and find them out.
+            if not self.coord_path:
+                coordname = None
+                if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
+                        self.prefix.with_name(self.prefix.name + "_coords.csv").exists():
+
+                        coordname = self.prefix.with_name(self.prefix.name + "_coords.csv")
+
+                    # If we don't have an image specific to this dataset, search for the all acq avg
+                if not coordname:
+                    for filename in self.base_path.glob("*_ALL_ACQ_AVG_coords.csv"):
+                            coordname = filename
+
+                if not coordname and stage is PipeStages.PIPELINED:
+                    warnings.warn("Unable to detect viable coordinate file for dataset at: "+ self.video_path)
+
+
+    def clear_video_data(self):
+        del self.video_data
+        del self.mask_data
+
+    def load_data(self, force_reload=False):
+
+        # Go down the line, loading data that doesn't already exist in this dataset.
+        if (not self.video_data or force_reload) and os.path.exists(self.video_path):
+            resource = load_video(self.video_path)
+
+            self.video_data = resource.data
+            self.framerate = resource.metadict[MetaTags.FRAMERATE]
+            self.width = resource.data.shape[1]
+            self.height = resource.data.shape[0]
+            self.num_frames = resource.data.shape[-1]
+
+        if (not self.mask_data or force_reload) and os.path.exists(self.mask_path):
+            mask_res = load_video(self.mask_path)
+            self.mask_data = mask_res.data / mask_res.data.max()
+            self.mask_data[self.mask_data < 0] = 0
+            self.mask_data[self.mask_data > 1] = 1
+            # Mask our video data correspondingly.
+            self.video_data = (self.video_data * self.mask_data)
+
+        if (not self.coord_data or force_reload) and os.path.exists(self.coord_path):
+            self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
+                                          encoding="utf-8-sig").to_numpy()
+
+        if (not self.avg_image_data or force_reload) and os.path.exists(self.image_path) :
+            self.avg_image_data = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
+
+        if (not self.stimtrain_frame_stamps or force_reload) and os.path.exists(self.stimtrain_path):
+            self.stimtrain_frame_stamps = np.cumsum(np.squeeze(pd.read_csv(self.stimtrain_path, delimiter=',', header=None,
+                                                                           encoding="utf-8-sig").to_numpy()))
+        else:
+            self.stimtrain_frame_stamps = 0
+
+    def save_data(self, suffix):
+        save_video(self.video_path[0:-4]+suffix+".avi", self.video_data, self.framerate)
+

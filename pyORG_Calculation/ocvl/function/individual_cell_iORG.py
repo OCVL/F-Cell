@@ -17,7 +17,7 @@ from ocvl.function.analysis.cell_profile_extraction import extract_profiles, nor
     refine_coord, refine_coord_to_stack, exclude_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, wavelet_iORG, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.generic import PipeStages
+from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video, save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
