@@ -34,6 +34,7 @@
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
+      "flat_field": false,
       "custom": {
         "dewarp": "ocvl"
       }
