@@ -69,34 +69,53 @@ def save_tiff_stack(stack_path, stack_data, scalar_mapper=None):
     cv2.imwritemulti(str(stack_path), framelist)
 
 def save_video(video_path, video_data, framerate = 30, scalar_mapper=None):
+    # For correct display, this codec needs us to output the images in multiples of 16.
+    wmult = np.ceil(video_data.shape[1] / 16)
+    hmult = np.ceil(video_data.shape[0] / 16)
+
+    if (wmult * 16) > video_data.shape[1]:
+        wmult -= 1
+
+    if (hmult * 16) > video_data.shape[0]:
+        hmult -= 1
+
+    cropw = int(wmult * 16)
+    croph = int(hmult * 16)
+    cropx = int((video_data.shape[1]-cropw) / 2)
+    cropy = int((video_data.shape[0]-croph) / 2)
+
+    crop_vid = video_data.astype(np.uint8)
+    crop_vid = crop_vid[cropy:cropy+croph, cropx:cropx+croph, :]
+
     if scalar_mapper is None:
+
         vidout = cv2.VideoWriter(str(video_path), cv2.VideoWriter_fourcc(*"Y800"), framerate,
-                                 (video_data.shape[1], video_data.shape[0]), isColor=False )
+                                 (crop_vid.shape[1], crop_vid.shape[0]), isColor=False )
 
         if vidout.isOpened():
             i=0
             while(True):
-                vidout.write(video_data[..., i].astype("uint8"))
+                vidout.write(crop_vid[..., i])
 
                 i+=1
 
-                if i >= video_data.shape[-1]:
+                if i >= crop_vid.shape[-1]:
                     break
 
             vidout.release()
     else:
         vidout = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"FFV1"), framerate,
-                                 (video_data.shape[1], video_data.shape[0]), isColor=True)
+                                 (crop_vid.shape[1], crop_vid.shape[0]), isColor=True)
 
         if vidout.isOpened():
             i = 0
             while (True):
-                frm = scalar_mapper.to_rgba(video_data[..., i]) * 255
+                frm = scalar_mapper.to_rgba(crop_vid[..., i]) * 255
                 vidout.write(cv2.cvtColor(frm[..., 0:3].astype("uint8"), cv2.COLOR_RGB2BGR))
 
                 i += 1
 
-                if i >= video_data.shape[-1]:
+                if i >= crop_vid.shape[-1]:
                     break
 
             vidout.release()

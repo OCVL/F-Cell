@@ -60,16 +60,10 @@ if __name__ == "__main__":
 
     root.update()
 
+    # We should be 3 levels up from here. Kinda jank, will need to change eventually
     config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
 
-    config_files = [filepath.name for filepath in config_path.glob("*.json")]
-
-    # combo = ttk.Combobox(root, values=config_files)
-    # combo.current(1)
-    # combo.pack()
-    # root.mainloop()
-   # json_fName = filedialog.askopenfilename(title="Select the parameter json file.", parent=root)
-    json_fName = "C:\\Users\\cooperro\\Documents\\F-Cell\\pyORG_Calculation\\config_files\\meao.json"
+    json_fName = filedialog.askopenfilename(title="Select the parameter json file.", initialdir=config_path, parent=root)
     if not json_fName:
         quit()
 
