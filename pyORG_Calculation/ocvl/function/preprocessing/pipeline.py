@@ -295,6 +295,7 @@ if __name__ == "__main__":
                     save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_vid_fname), dataset.video_data,
                                framerate=dataset.framerate)
 
+            #group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_meta_fname), index=False)
 
 
 
