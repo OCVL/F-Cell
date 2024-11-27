@@ -187,23 +187,6 @@ if __name__ == "__main__":
                 stdize_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
                                                        dataset.stimtrain_frame_stamps[0], method="mean_sub", std_indices=prestim_ind)
 
-                # stdize_profiles, reconst_framestamps, nummissed = reconstruct_profiles(tmp_profiles,
-                #                                                                        dataset.framestamps,
-                #                                                                        method="L1",
-                #                                                                        threshold=0.3)
-
-                # plt.figure(9)
-                #
-                # for i in range(stdize_profiles.shape[0]):
-                #     if np.all(np.isfinite(stdize_profiles[i, :])):
-                #         plt.clf()
-                #         plt.plot(dataset.framestamps, tmp_profiles[i, :])
-                #         plt.plot(reconst_framestamps, stdize_profiles[i, :])
-                #         plt.show(block=False)
-                #         plt.waitforbuttonpress()
-
-                #dataset.framestamps=reconst_framestamps
-
                 tmp_iorg, tmp_incl = signal_power_iORG(stdize_profiles, dataset.framestamps, summary_method="rms",
                                                        window_size=1)
 
@@ -257,7 +240,7 @@ if __name__ == "__main__":
                              label=file.name)
 
                     plt.show(block=False)
-                    plt.xlim([0, 4])
+                    #plt.xlim([0, 4])
                     # plt.ylim([-5, 40])
                     #plt.savefig(res_dir.joinpath(file.name[0:-4] + "_pop_iORG.png"))
                     r += 1
@@ -269,7 +252,7 @@ if __name__ == "__main__":
         now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
 
         # plt.vlines(dataset.stimtrain_frame_stamps[0] / dataset.framerate, -1, 10, color="red")
-        plt.xlim([0,  4])
+        #plt.xlim([0,  4])
         # plt.ylim([-5, 60]) #was 60
         #plt.legend()
 
