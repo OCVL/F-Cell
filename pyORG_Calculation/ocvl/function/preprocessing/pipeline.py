@@ -13,6 +13,8 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+import datetime
+import json
 import os
 from enum import StrEnum
 from itertools import repeat
@@ -74,6 +76,12 @@ if __name__ == "__main__":
         processed_dat_format = dat_form.get("processed")
         pipeline_params = processed_dat_format.get("pipeline_params")
         modes_of_interest = pipeline_params.get(PipelineParams.MODALITIES)
+
+        output_folder = pipeline_params.get(PipelineParams.OUTPUT_FOLDER)
+        if output_folder is None:
+            output_folder = PurePath("Functional Pipeline")
+        else:
+            output_folder = PurePath(output_folder)
 
         metadata_params = None
         if processed_dat_format.get(MetaTags.METATAG) is not None:
@@ -231,11 +239,7 @@ if __name__ == "__main__":
 
                 # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
                 # pipeline filename structure.
-                output_folder = pipeline_params.get(PipelineParams.OUTPUT_FOLDER)
-                if output_folder is None:
-                    output_folder = PurePath("Functional Pipeline").joinpath(group)
-                else:
-                    output_folder = PurePath(output_folder).joinpath(group)
+                group_folder = output_folder.joinpath(group)
 
                 # Determine the filename for the superaverage using the central-most dataset.
                 pipelined_dat_format = dat_form.get("pipelined")
@@ -245,17 +249,17 @@ if __name__ == "__main__":
                         pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
 
                 # Make sure our output folder exists.
-                central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder).mkdir(parents=True, exist_ok=True)
-                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_im_fname),
+                central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder).mkdir(parents=True, exist_ok=True)
+                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
                             avg_avg_images)
-                save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, Path(pipe_im_fname).with_suffix(".avi")),
+                save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname).with_suffix(".avi")),
                            avg_images, 1)
 
                 print("Outputting data...")
                 for dataset, xform in zip(datasets, ref_xforms):
 
                     # Make sure our output folder exists.
-                    dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder).mkdir(parents=True, exist_ok=True)
+                    dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder).mkdir(parents=True, exist_ok=True)
 
                     (rows, cols) = dataset.video_data.shape[0:2]
 
@@ -291,11 +295,25 @@ if __name__ == "__main__":
                         dataset.mask_data[..., i] = tmp.astype(og_dtype)
 
                     out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
-                    out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_meta_fname), index=False)
-                    save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_vid_fname), dataset.video_data,
+                    out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
+                    save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
                                framerate=dataset.framerate)
 
-            #group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_meta_fname), index=False)
+                    group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, pipe_meta_fname), index=False)
+
+        dt = datetime.datetime.now()
+        now_timestamp = dt.strftime("%Y%m%d_%H_%M")
+
+        out_json = Path(json_fName).stem + "_" + now_timestamp + ".json"
+        out_json = dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, out_json)
+
+        audit_json_dict = {"version": dat_form.get("version"),
+                           "description": dat_form.get("description"),
+                           "processed" : processed_dat_format}
+
+        with open(out_json, 'w') as f:
+            json.dump(audit_json_dict, f, indent=2)
+
 
 
 
