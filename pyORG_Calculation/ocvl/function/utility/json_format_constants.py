@@ -65,3 +65,36 @@ class PipelineParams(StrEnum):
     OUTPUT_FOLDER = "output_folder"
     GROUP_BY = "group_by"
 
+class NormParams(StrEnum):
+    NAME = "normalization"
+    NORM_METHOD = "method"
+    NORM_RESCALE = "rescaled"
+    NORM_MEAN = "rescale_mean"
+    NORM_STD = "rescale_std"
+
+class SegmentParams(StrEnum):
+    NAME = "segmentation"
+    REFINE_TO_REF = "refine_to_ref"
+    REFINE_TO_VID = "refine_to_vid"
+    RADIUS = "auto"
+    SHAPE = "disk"
+    SUMMARY = "mean"
+
+class ExclusionParams(StrEnum):
+    NAME = "exclusion_criteria"
+    TYPE = "type"
+    UNITS = "units"
+    START = "start"
+    END = "end"
+    FRACTION = "fraction"
+
+class STDParams(StrEnum):
+    NAME = "standardization"
+    METHOD = "method"
+    POSITION = "position"
+
+class ORGTags(StrEnum):
+    AMPLITUDE = "Amplitude"
+    IMPLICT_TIME = "Implict_Time"
+    RECOVERY_PERCENT = "Recovery_Percent"
+    RECOVERY = "Recovery"

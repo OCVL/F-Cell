@@ -71,6 +71,7 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
             im_form = dat_format.get(FormatTypes.IMAGE)
             vid_form = dat_format.get(FormatTypes.VIDEO)
             mask_form = dat_format.get(FormatTypes.MASK)
+            query_form = dat_format.get(FormatTypes.QUERYLOC)
 
             metadata_form = None
             metadata_params = None
@@ -84,10 +85,11 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                 all_ext = (vid_form[vid_form.rfind(".", -5, -1):],)
                 all_ext = all_ext + (mask_form[mask_form.rfind(".", -5, -1):],) if mask_form and mask_form[mask_form.rfind(".",-5,-1):] not in all_ext else all_ext
                 all_ext = all_ext + (im_form[im_form.rfind(".", -5, -1):],) if im_form and im_form[ im_form.rfind(".", -5, -1):] not in all_ext else all_ext
+                all_ext = all_ext + (query_form[query_form.rfind(".", -5, -1):],) if query_form and query_form[query_form.rfind(".", -5,-1):] not in all_ext else all_ext
                 all_ext = all_ext + (metadata_form[metadata_form.rfind(".", -5, -1):],) if metadata_form and metadata_form[ metadata_form.rfind(".", -5, -1):] not in all_ext else all_ext
 
                 # Construct the parser we'll use for each of these forms
-                parser = FormatParser(vid_form, mask_form, im_form, metadata_form)
+                parser = FormatParser(vid_form, mask_form, im_form, metadata_form, query_form)
 
                 # Parse out the locations and filenames, store them in a hash table by location.
                 searchpath = Path(pName)
@@ -131,6 +133,7 @@ def initialize_and_load_dataset(acquisition, metadata_params):
     mask_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.MASK]
     metadata_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.METADATA]
     im_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.IMAGE]
+    query_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.QUERYLOC]
 
     # Read in directly-entered metatags.
     meta_fields = {}
@@ -152,6 +155,9 @@ def initialize_and_load_dataset(acquisition, metadata_params):
     # Add paths to things that we may want, depending on the stage we're at.
     if not im_info.empty:
         combined_meta_dict[AcquisiTags.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiTags.DATA_PATH]
+
+    if not query_info.empty:
+        combined_meta_dict[AcquisiTags.QUERYLOC_PATH] = query_info.at[query_info.index[0], AcquisiTags.DATA_PATH]
 
     if not mask_info.empty:
         mask_path = mask_info.at[mask_info.index[0], AcquisiTags.DATA_PATH]
@@ -374,11 +380,9 @@ class Dataset:
         self.reference_frame_idx = None
         self.stimtrain_frame_stamps = stimseq
 
-        # The data are roughly grouped by the following:
-        # Base data
+
+
         self.coord_data = query_locations
-        self.avg_image_data = np.empty([1])
-        # Supplied image data
         self.video_data = video_data
         self.mask_data = mask_data
         self.avg_image_data = avg_image_data
