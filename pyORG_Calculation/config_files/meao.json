@@ -25,14 +25,14 @@
     },
     "recursive_search": false,
     "pipeline_params": {
-      "gaus_blur": 3.0,
+      "gaus_blur": 0.0,
       "mask_roi": {
         "r": 0,
         "c": 0,
         "width": -1,
         "height": -1
       },
-      "modalities": ["Confocal"],
+      "modalities": ["760nm"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,

@@ -31,8 +31,8 @@ import pandas as pd
 
 from ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
-from ocvl.function.utility.dataset import extract_and_parse_metadata, initialize_and_load_dataset, \
-    preprocess_dataset
+from ocvl.function.utility.dataset import parse_file_metadata, load_dataset, \
+    preprocess_dataset, initialize_and_load_dataset
 
 from ocvl.function.utility.json_format_constants import FormatTypes, DataTags, MetaTags, PipelineParams, AcquisiTags
 from ocvl.function.utility.resources import save_video
@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
 
-        dat_form, allData = extract_and_parse_metadata(json_fName, pName, "processed")
+        dat_form, allData = parse_file_metadata(json_fName, pName, "processed")
 
         processed_dat_format = dat_form.get("processed")
         pipeline_params = processed_dat_format.get("pipeline_params")
@@ -108,70 +108,17 @@ if __name__ == "__main__":
                         (acquisition[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO).sum() == 1:
 
                     video_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO]
-                    mask_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.MASK]
-                    metadata_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.METADATA]
-                    im_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.IMAGE]
 
-                    # Read in directly-entered metatags.
-                    meta_fields = {}
-                    if metadata_params is not None:
-                        for metatag in MetaTags:
-                            thetag = metadata_params.get(metatag)
-                            if thetag is not None \
-                                    and thetag is not MetaTags.METATAG \
-                                    and thetag is not MetaTags.TYPE:
-                                meta_fields[metatag] = metadata_params.get(metatag)
+                    dataset = initialize_and_load_dataset(acquisition, metadata_params)
 
-                    # Load our externally sourced metadata
-                    if not metadata_info.empty and metadata_params is not None:
-                        if metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH].exists():
-                            metadata_path = metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH]
-                            metatype = metadata_params.get(MetaTags.TYPE)
-                            loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
-
-                            if metatype == "text_file":
-                                dat_metadata = pd.read_csv(metadata_info.at[metadata_info.index[0], AcquisiTags.DATA_PATH], encoding="utf-8-sig", skipinitialspace=True)
-
-                                for field, column in loadfields.items():
-                                    meta_fields[field] = dat_metadata[column].to_numpy()
-                            elif metatype == "database":
-                                pass
-                            elif metatype == "mat_file":
-                                pass
-
-                        else:
-                            metadata_path = None
-                    else:
-                        metadata_path = None
-
-                    # Take metadata gleaned from our filename, as well as our metadata files,
-                    # and combine them into a single dictionary.
-                    combined_meta_dict = video_info.squeeze().to_dict() | meta_fields
-
-                    # Add paths to things that we may want, depending on the stage we're at.
-                    if not im_info.empty:
-                        combined_meta_dict[AcquisiTags.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiTags.DATA_PATH]
-
-                    if not mask_info.empty:
-                        mask_path = mask_info.at[mask_info.index[0],AcquisiTags.DATA_PATH]
-                    else:
-                        mask_path = None
-
-
-                    if not video_info.empty:
-                        print("Initializing and loading dataset: "+ video_info.at[video_info.index[0],AcquisiTags.DATA_PATH].name)
-                        dataset = initialize_and_load_dataset(video_info.at[video_info.index[0],AcquisiTags.DATA_PATH],
-                                                              mask_path,
-                                                              metadata_path,
-                                                              combined_meta_dict)
-
+                    if dataset is not None:
                         # Run the preprocessing pipeline on this dataset, with params specified by the json.
                         # When done, put it into the database.
                         print("Preprocessing dataset...")
                         allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params)
 
                     else:
-                        warning("Unable to find a video path specified for vidnum: "+num)
+                        warning("Unable to load dataset specified for vidnum: "+num)
                 else:
                     warning("Detected more than one video or mask associated with vidnum: "+num)
 
@@ -240,7 +187,7 @@ if __name__ == "__main__":
                                                                                     (align_dat > 0),
                                                                                     dist_ref_idx,
                                                                                     determine_initial_shifts=True,
-                                                                                    dropthresh=0.0, transformtype="rigid")
+                                                                                    dropthresh=0.0, transformtype="affine")
 
                 # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
                 for f in range(avg_images.shape[-1]):

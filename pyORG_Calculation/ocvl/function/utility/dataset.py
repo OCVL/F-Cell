@@ -23,7 +23,42 @@ class PipeStages(Enum):
     PIPELINED = 2,
     ANALYSIS_READY = 3
 
-def extract_and_parse_metadata(config_json_path, pName, group="processed"):
+def load_metadata(metadata_params, ext_metadata):
+    meta_fields = {}
+    if metadata_params is not None:
+        for metatag in MetaTags:
+            thetag = metadata_params.get(metatag)
+            if thetag is not None \
+                    and thetag is not MetaTags.METATAG \
+                    and thetag is not MetaTags.TYPE:
+                meta_fields[metatag] = metadata_params.get(metatag)
+
+    # Load our externally sourced metadata
+    if not ext_metadata.empty and metadata_params is not None:
+        if ext_metadata.at[ext_metadata.index[0], AcquisiTags.DATA_PATH].exists():
+            metadata_path = ext_metadata.at[ext_metadata.index[0], AcquisiTags.DATA_PATH]
+            metatype = metadata_params.get(MetaTags.TYPE)
+            loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
+
+            if metatype == "text_file":
+                dat_metadata = pd.read_csv(ext_metadata.at[ext_metadata.index[0], AcquisiTags.DATA_PATH],
+                                           encoding="utf-8-sig", skipinitialspace=True)
+
+                for field, column in loadfields.items():
+                    meta_fields[field] = dat_metadata[column].to_numpy()
+            elif metatype == "database":
+                pass
+            elif metatype == "mat_file":
+                pass
+
+        else:
+            metadata_path = None
+    else:
+        metadata_path = None
+
+    return meta_fields, metadata_path
+
+def parse_file_metadata(config_json_path, pName, group="processed"):
     with open(config_json_path, 'r') as config_json_path:
         dat_form = json.load(config_json_path)
 
@@ -88,8 +123,52 @@ def extract_and_parse_metadata(config_json_path, pName, group="processed"):
         else:
             return None
 
+def initialize_and_load_dataset(acquisition, metadata_params):
 
-def initialize_and_load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None):
+    video_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO]
+    mask_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.MASK]
+    metadata_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.METADATA]
+    im_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.IMAGE]
+
+    # Read in directly-entered metatags.
+    meta_fields = {}
+    if metadata_params is not None:
+        for metatag in MetaTags:
+            thetag = metadata_params.get(metatag)
+            if thetag is not None \
+                    and thetag is not MetaTags.METATAG \
+                    and thetag is not MetaTags.TYPE:
+                meta_fields[metatag] = metadata_params.get(metatag)
+
+    # Load our externally sourced metadata
+    meta_fields, metadata_path = load_metadata(metadata_params, metadata_info)
+
+    # Take metadata gleaned from our filename, as well as our metadata files,
+    # and combine them into a single dictionary.
+    combined_meta_dict = video_info.squeeze().to_dict() | meta_fields
+
+    # Add paths to things that we may want, depending on the stage we're at.
+    if not im_info.empty:
+        combined_meta_dict[AcquisiTags.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiTags.DATA_PATH]
+
+    if not mask_info.empty:
+        mask_path = mask_info.at[mask_info.index[0], AcquisiTags.DATA_PATH]
+    else:
+        mask_path = None
+
+    if not video_info.empty:
+        print("Initializing and loading dataset: " + video_info.at[video_info.index[0], AcquisiTags.DATA_PATH].name)
+        dataset = load_dataset(video_info.at[video_info.index[0], AcquisiTags.DATA_PATH],
+                               mask_path,
+                               metadata_path,
+                               combined_meta_dict)
+    else:
+        dataset = None
+
+    return dataset
+
+
+def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None):
 
     mask_data = None
     metadata = dataset_metadata

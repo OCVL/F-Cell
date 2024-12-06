@@ -12,8 +12,8 @@ from ocvl.function.analysis.cell_profile_extraction import extract_profiles, nor
     refine_coord, refine_coord_to_stack, exclude_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.dataset import PipeStages, extract_and_parse_metadata
-from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, FormatTypes, DataTags
+from ocvl.function.utility.dataset import PipeStages, parse_file_metadata
+from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, FormatTypes, DataTags, AcquisiTags
 from ocvl.function.utility.meao import MEAODataset
 
 from datetime import datetime, date, time, timezone
@@ -36,16 +36,16 @@ if __name__ == "__main__":
         quit()
 
     # We should be 3 levels up from here. Kinda jank, will need to change eventually
-    config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
+    config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
 
     json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
     if not json_fName:
         quit()
 
     # Grab all the folders/data here.
-    dat_form, allData = extract_and_parse_metadata(json_fName, pName, "pipelined")
+    dat_form, allData = parse_file_metadata(json_fName, pName, "pipelined")
 
-    stimtrain_fName = filedialog.askopenfilename(title="Select the stimulus train file.", parent=root)
+    stimtrain_fName = filedialog.askopenfilename(title="Select the stimulus train file.", initialdir=pName, parent=root)
 
     if not stimtrain_fName:
         quit()
@@ -74,11 +74,9 @@ if __name__ == "__main__":
 
         piped_dat_format = dat_form.get("pipelined")
         processed_dat_format = dat_form.get("processed")
-        #pipeline_params = processed_dat_format.get("pipeline_params")
+        pipeline_params = processed_dat_format.get("pipeline_params")
         analysis_params = piped_dat_format.get("analysis_params")
         modes_of_interest = analysis_params.get(PipelineParams.MODALITIES)
-
-
 
         metadata_params = None
         if piped_dat_format.get(MetaTags.METATAG) is not None:
@@ -89,46 +87,66 @@ if __name__ == "__main__":
         if modes_of_interest is None:
             modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
 
+        grouping = pipeline_params.get(PipelineParams.GROUP_BY)
+        if grouping is not None:
+            for row in allData.itertuples():
+                print(grouping.format_map(row._asdict()))
+                allData.loc[row.Index, PipelineParams.GROUP_BY] = grouping.format_map(row._asdict())
+
+            groups = allData[PipelineParams.GROUP_BY].unique().tolist()
+        else:
+            groups = [""]  # If we don't have any groups, then just make the list an empty string.
+
         reference_coord_data = None
         maxnum_cells = None
         skipnum = 0
 
-        loc_of_interest = allData[DataTags.L]
-
-        for loc in allFiles:
-
-            output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
-            if output_folder is None:
-                output_folder = PurePath("Results")
+        for group in groups:
+            if group != "":
+                group_datasets = allData.loc[allData[PipelineParams.GROUP_BY] == group]
             else:
-                output_folder = PurePath(output_folder)
+                group_datasets = allData
 
-            output_folder.mkdir(exist_ok=True)
+            # While we're going to process by group, respect the folder structure used by the user here, and only group
+            # and analyze things from the same folder
+            folder_groups = pd.unique(group_datasets[AcquisiTags.BASE_PATH]).tolist()
 
-            this_dirname = output_folder.parent.name
+            for folder in folder_groups:
 
-            r = 0
-            pb["maximum"] = len(allFiles[loc])
-            pop_iORG = []
-            pop_iORG_implicit = np.empty((len(allFiles[loc])-skipnum+1))
-            pop_iORG_implicit[:] = np.nan
-            pop_iORG_recover = np.empty((len(allFiles[loc]) - skipnum + 1))
-            pop_iORG_recover[:] = np.nan
-            pop_iORG_amp = np.empty((len(allFiles[loc]) - skipnum + 1))
-            pop_iORG_amp[:] = np.nan
-            pop_iORG_num = []
-            framestamps = []
-            max_frmstamp = 0
-            plt.figure(0)
-            plt.clf()
+                output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
+                if output_folder is None:
+                    output_folder = PurePath("Results")
+                else:
+                    output_folder = PurePath(output_folder)
 
-            first = True
-            mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(allFiles[loc])))
-            segmentation_radius = None
+                result_folder = output_folder.joinpath(group)
 
-            for file in allFiles[loc]:
+                result_folder.mkdir(exist_ok=True)
 
-                if "ALL_ACQ_AVG" not in file.name and r >= skipnum:
+                data_paths = group_datasets[group_datasets[AcquisiTags.BASE_PATH] == folder]
+                numdata = len(data_paths)
+
+                for data in data_paths:
+
+                    r = 0
+                    pb["maximum"] = numdata
+                    pop_iORG = []
+                    pop_iORG_implicit = np.empty((numdata-skipnum+1))
+                    pop_iORG_implicit[:] = np.nan
+                    pop_iORG_recover = np.empty((numdata - skipnum + 1))
+                    pop_iORG_recover[:] = np.nan
+                    pop_iORG_amp = np.empty((numdata - skipnum + 1))
+                    pop_iORG_amp[:] = np.nan
+                    pop_iORG_num = []
+                    framestamps = []
+                    max_frmstamp = 0
+                    plt.figure(0)
+                    plt.clf()
+
+                    first = True
+                    mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", numdata))
+                    segmentation_radius = None
+
                     pb["value"] = r
                     pb_label["text"] = "Processing " + file.name + "..."
                     pb.update()
