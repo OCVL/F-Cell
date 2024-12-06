@@ -97,24 +97,26 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                     for ext in all_ext:
                         for path in searchpath.rglob("*" + ext):
                             format_type, file_info = parser.parse_file(path.name)
-                            file_info[DataTags.FORMAT_TYPE] = format_type
-                            file_info[AcquisiTags.DATA_PATH] = path
-                            file_info[AcquisiTags.BASE_PATH] = path.parent
-                            file_info[AcquisiTags.DATASET] = None
-                            entry = pd.DataFrame.from_dict([file_info])
+                            if format_type is not None:
+                                file_info[DataTags.FORMAT_TYPE] = format_type
+                                file_info[AcquisiTags.DATA_PATH] = path
+                                file_info[AcquisiTags.BASE_PATH] = path.parent
+                                file_info[AcquisiTags.DATASET] = None
+                                entry = pd.DataFrame.from_dict([file_info])
 
-                            allFiles.append(entry)
+                                allFiles.append(entry)
                 else:
                     for ext in all_ext:
                         for path in searchpath.glob("*" + ext):
                             format_type, file_info = parser.parse_file(path.name)
-                            file_info[DataTags.FORMAT_TYPE] = format_type
-                            file_info[AcquisiTags.DATA_PATH] = path
-                            file_info[AcquisiTags.BASE_PATH] = path.parent
-                            file_info[AcquisiTags.DATASET] = None
-                            entry = pd.DataFrame.from_dict([file_info])
+                            if format_type is not None:
+                                file_info[DataTags.FORMAT_TYPE] = format_type
+                                file_info[AcquisiTags.DATA_PATH] = path
+                                file_info[AcquisiTags.BASE_PATH] = path.parent
+                                file_info[AcquisiTags.DATASET] = None
+                                entry = pd.DataFrame.from_dict([file_info])
 
-                            allFiles.append(entry)
+                                allFiles.append(entry)
 
                 return dat_form, pd.concat(allFiles, ignore_index=True)
             else:
