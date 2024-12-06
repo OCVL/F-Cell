@@ -23,41 +23,33 @@ class PipeStages(Enum):
     PIPELINED = 2,
     ANALYSIS_READY = 3
 
-def extract_and_parse_metadata(config_json_path, pName):
+def extract_and_parse_metadata(config_json_path, pName, group="processed"):
     with open(config_json_path, 'r') as config_json_path:
         dat_form = json.load(config_json_path)
 
         allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, FormatTypes.FORMAT]
         allFilesColumns.extend([d.value for d in DataTags])
 
-        processed_dat_format = dat_form.get("processed")
-        if processed_dat_format is not None:
+        dat_format = dat_form.get(group)
+        if dat_format is not None:
 
-            im_form = processed_dat_format.get(FormatTypes.IMAGE)
-            vid_form = processed_dat_format.get(FormatTypes.VIDEO)
-            mask_form = processed_dat_format.get(FormatTypes.MASK)
+            im_form = dat_format.get(FormatTypes.IMAGE)
+            vid_form = dat_format.get(FormatTypes.VIDEO)
+            mask_form = dat_format.get(FormatTypes.MASK)
 
             metadata_form = None
             metadata_params = None
-            if processed_dat_format.get(MetaTags.METATAG) is not None:
-                metadata_params = processed_dat_format.get(MetaTags.METATAG)
+            if dat_format.get(MetaTags.METATAG) is not None:
+                metadata_params = dat_format.get(MetaTags.METATAG)
                 metadata_form = metadata_params.get(FormatTypes.METADATA)
 
             if vid_form is not None:
 
                 # Grab our extensions, make sure to check them all.
                 all_ext = (vid_form[vid_form.rfind(".", -5, -1):],)
-                all_ext = all_ext + (mask_form[mask_form.rfind(".", -5, -1):],) if mask_form and mask_form[
-                                                                                                 mask_form.rfind(".",
-                                                                                                                 -5,
-                                                                                                                 -1):] not in all_ext else all_ext
-                all_ext = all_ext + (im_form[im_form.rfind(".", -5, -1):],) if im_form and im_form[
-                                                                                           im_form.rfind(".", -5,
-                                                                                                         -1):] not in all_ext else all_ext
-                all_ext = all_ext + (
-                    metadata_form[metadata_form.rfind(".", -5, -1):],) if metadata_form and metadata_form[
-                                                                                            metadata_form.rfind(".", -5,
-                                                                                                                -1):] not in all_ext else all_ext
+                all_ext = all_ext + (mask_form[mask_form.rfind(".", -5, -1):],) if mask_form and mask_form[mask_form.rfind(".",-5,-1):] not in all_ext else all_ext
+                all_ext = all_ext + (im_form[im_form.rfind(".", -5, -1):],) if im_form and im_form[ im_form.rfind(".", -5, -1):] not in all_ext else all_ext
+                all_ext = all_ext + (metadata_form[metadata_form.rfind(".", -5, -1):],) if metadata_form and metadata_form[ metadata_form.rfind(".", -5, -1):] not in all_ext else all_ext
 
                 # Construct the parser we'll use for each of these forms
                 parser = FormatParser(vid_form, mask_form, im_form, metadata_form)
@@ -65,20 +57,33 @@ def extract_and_parse_metadata(config_json_path, pName):
                 # Parse out the locations and filenames, store them in a hash table by location.
                 searchpath = Path(pName)
                 allFiles = list()
-                for ext in all_ext:
-                    for path in searchpath.glob("*" + ext):
-                        format_type, file_info = parser.parse_file(path.name)
-                        file_info[DataTags.FORMAT_TYPE] = format_type
-                        file_info[AcquisiTags.DATA_PATH] = path
-                        file_info[AcquisiTags.BASE_PATH] = path.parent
-                        file_info[AcquisiTags.DATASET] = None
-                        entry = pd.DataFrame.from_dict([file_info])
+                recurse_me = dat_format.get(FormatTypes.RECURSIVE)
+                if recurse_me is not None and recurse_me:
+                    for ext in all_ext:
+                        for path in searchpath.rglob("*" + ext):
+                            format_type, file_info = parser.parse_file(path.name)
+                            file_info[DataTags.FORMAT_TYPE] = format_type
+                            file_info[AcquisiTags.DATA_PATH] = path
+                            file_info[AcquisiTags.BASE_PATH] = path.parent
+                            file_info[AcquisiTags.DATASET] = None
+                            entry = pd.DataFrame.from_dict([file_info])
 
-                        allFiles.append(entry)
+                            allFiles.append(entry)
+                else:
+                    for ext in all_ext:
+                        for path in searchpath.glob("*" + ext):
+                            format_type, file_info = parser.parse_file(path.name)
+                            file_info[DataTags.FORMAT_TYPE] = format_type
+                            file_info[AcquisiTags.DATA_PATH] = path
+                            file_info[AcquisiTags.BASE_PATH] = path.parent
+                            file_info[AcquisiTags.DATASET] = None
+                            entry = pd.DataFrame.from_dict([file_info])
+
+                            allFiles.append(entry)
 
                 return dat_form, pd.concat(allFiles, ignore_index=True)
             else:
-                warning("Unable to detect \"processed\" json value!")
+                warning("Unable to detect "+ group +" json group!")
                 return None
         else:
             return None
@@ -221,7 +226,8 @@ def preprocess_dataset(dataset, pipeline_params):
     # Gaussian blur the data first before aligning, if requested
     gausblur = pipeline_params.get(PipelineParams.GAUSSIAN_BLUR)
     if gausblur is not None and gausblur != 0.0:
-        align_dat = gaussian_filter(align_dat, sigma=gausblur)
+        for f in range(align_dat.shape[-1]):
+            align_dat[..., f] = gaussian_filter(align_dat[..., f], sigma=gausblur)
         align_dat *= mask_dat
 
     # Then crop the data, if requested
@@ -258,8 +264,7 @@ def preprocess_dataset(dataset, pipeline_params):
                                             flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
                                             borderValue=np.nan)
 
-                dataset.mask_data[..., f] = np.isfinite(norm_frame).astype(
-                    og_dtype)  # Our new mask corresponds to the real data.
+                dataset.mask_data[..., f] = np.isfinite(norm_frame).astype(og_dtype)  # Our new mask corresponds to the real data.
                 norm_frame[np.isnan(norm_frame)] = 0  # Make anything that was nan into a 0, to be kind to non nan-types
                 dataset.video_data[..., f] = norm_frame.astype(og_dtype)
 

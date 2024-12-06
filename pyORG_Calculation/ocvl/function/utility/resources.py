@@ -85,7 +85,7 @@ def save_video(video_path, video_data, framerate = 30, scalar_mapper=None):
     cropy = int((video_data.shape[0]-croph) / 2)
 
     crop_vid = video_data.astype(np.uint8)
-    crop_vid = crop_vid[cropy:cropy+croph, cropx:cropx+croph, :]
+    crop_vid = crop_vid[cropy:cropy+croph, cropx:cropx+cropw, :]
 
     if scalar_mapper is None:
 

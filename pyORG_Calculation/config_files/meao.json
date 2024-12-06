@@ -23,15 +23,16 @@
         "framestamps": "OriginalFrameNumber"
       }
     },
+    "recursive_search": false,
     "pipeline_params": {
-      "gaus_blur": 0.0,
+      "gaus_blur": 3.0,
       "mask_roi": {
         "r": 0,
         "c": 0,
         "width": -1,
         "height": -1
       },
-      "modalities": ["760nm"],
+      "modalities": ["Confocal"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
@@ -52,8 +53,10 @@
         "stim_train": "StimulusOn"
       }
     },
+    "recursive_search": true,
     "analysis_params": {
-
+      "modalities": ["760nm"],
+      "output_folder": "Results",
       "normalization": {
         "type": "score",
         "rescaled": true,
