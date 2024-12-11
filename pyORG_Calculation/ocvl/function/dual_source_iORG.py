@@ -226,7 +226,7 @@ if __name__ == "__main__":
                 dataset.coord_data = refine_coord_to_stack(dataset.video_data, ref_im, reference_coord_data)
                 dataset.ref_coord_data = refine_coord_to_stack(dataset.ref_video_data, ref_im, reference_coord_data)
 
-                # full_profiles = extract_profiles(dataset.video_data, dataset.coord_data, seg_radius=segmentation_radius+1,
+                # full_profiles = extract_profiles(dataset.video_data, dataset.query_loc, seg_radius=segmentation_radius+1,
                 #                                  summary="none", sigma=1)
 
                 norm_video_data = norm_video(dataset.video_data, norm_method="score", rescaled=True,

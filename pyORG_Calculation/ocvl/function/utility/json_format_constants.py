@@ -1,8 +1,8 @@
 from enum import StrEnum
 
 
-class FormatTypes(StrEnum):
-    FORMAT = "format"
+class DataType(StrEnum):
+    FORMAT = "Data_Type"
     IMAGE = "image_format"
     VIDEO = "video_format"
     MASK = "mask_format"
@@ -29,7 +29,7 @@ class DataTags(StrEnum):
     FOV_HEIGHT = "FOV_Height"
     FOV_DEPTH = "FOV_Depth"
     MODALITY = "Modality"
-    FORMAT_TYPE = "FormatType"
+    QUERYLOC = "QueryLoc"
 
 class MetaTags(StrEnum):
     METATAG = "metadata"

@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
 
         # TODO: Calling the coordclip fxn to return the simple_amp that corresponds to a 100 cone ROI
-        # clippedcoords = coordclip(coord_data, 10, 100, 'i')
+        # clippedcoords = coordclip(query_loc, 10, 100, 'i')
 
 
         dt = datetime.now()

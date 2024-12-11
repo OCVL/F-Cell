@@ -34,7 +34,7 @@ from ocvl.function.preprocessing.improc import weighted_z_projection, simple_ima
 from ocvl.function.utility.dataset import parse_file_metadata, load_dataset, \
     preprocess_dataset, initialize_and_load_dataset
 
-from ocvl.function.utility.json_format_constants import FormatTypes, DataTags, MetaTags, PipelineParams, AcquisiTags
+from ocvl.function.utility.json_format_constants import DataType, DataTags, MetaTags, PipelineParams, AcquisiTags
 from ocvl.function.utility.resources import save_video
 
 
@@ -85,14 +85,14 @@ if __name__ == "__main__":
         metadata_params = None
         if processed_dat_format.get(MetaTags.METATAG) is not None:
             metadata_params = processed_dat_format.get(MetaTags.METATAG)
-            metadata_form = metadata_params.get(FormatTypes.METADATA)
+            metadata_form = metadata_params.get(DataType.METADATA)
 
         acquisition = dict()
 
         # Group files together based on location, modality, and video number
         # If we've selected modalities of interest, only process those; otherwise, process them all.
         if modes_of_interest is None:
-            modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
+            modes_of_interest = allData.loc[DataTags.MODALITY].unique().tolist()
 
         for mode in modes_of_interest:
             modevids = allData.loc[allData[DataTags.MODALITY] == mode]
@@ -103,11 +103,11 @@ if __name__ == "__main__":
                 # extract the rows corresponding to this acquisition.
                 acquisition = modevids.loc[modevids[DataTags.VIDEO_ID] == num]
 
-                if (acquisition[DataTags.FORMAT_TYPE] == FormatTypes.MASK).sum() <= 1 and \
-                        (acquisition[DataTags.FORMAT_TYPE] == FormatTypes.METADATA).sum() <= 1 and \
-                        (acquisition[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO).sum() == 1:
+                if (acquisition[DataType.FORMAT] == DataType.MASK).sum() <= 1 and \
+                        (acquisition[DataType.FORMAT] == DataType.METADATA).sum() <= 1 and \
+                        (acquisition[DataType.FORMAT] == DataType.VIDEO).sum() == 1:
 
-                    video_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO]
+                    video_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.VIDEO]
 
                     dataset = initialize_and_load_dataset(acquisition, metadata_params)
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
                 # Determine the filename for the superaverage using the central-most dataset.
                 pipelined_dat_format = dat_form.get("pipelined")
                 if pipelined_dat_format is not None:
-                    pipe_im_form = pipelined_dat_format.get(FormatTypes.IMAGE)
+                    pipe_im_form = pipelined_dat_format.get(DataType.IMAGE)
                     if pipe_im_form is not None:
                         pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
 
@@ -227,8 +227,8 @@ if __name__ == "__main__":
                     (rows, cols) = dataset.video_data.shape[0:2]
 
                     if pipelined_dat_format is not None:
-                        pipe_vid_form = pipelined_dat_format.get(FormatTypes.VIDEO)
-                        pipe_mask_form = pipelined_dat_format.get(FormatTypes.MASK)
+                        pipe_vid_form = pipelined_dat_format.get(DataType.VIDEO)
+                        pipe_mask_form = pipelined_dat_format.get(DataType.MASK)
                         pipe_meta_form = pipelined_dat_format.get(MetaTags.METATAG)
 
                         if pipe_vid_form is not None:
@@ -236,7 +236,7 @@ if __name__ == "__main__":
                         if pipe_mask_form is not None:
                             pipe_mask_fname = pipe_mask_form.format_map(dataset.metadata)
                         if pipe_meta_form is not None:
-                            pipe_meta_form = pipe_meta_form.get(FormatTypes.METADATA)
+                            pipe_meta_form = pipe_meta_form.get(DataType.METADATA)
                             if pipe_meta_form is not None:
                                 pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
 

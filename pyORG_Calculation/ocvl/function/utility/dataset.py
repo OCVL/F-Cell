@@ -13,7 +13,7 @@ from scipy.ndimage import gaussian_filter
 
 from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.json_format_constants import DataTags, MetaTags, FormatTypes, AcquisiTags, PipelineParams
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataType, AcquisiTags, PipelineParams
 from ocvl.function.utility.resources import load_video, save_video
 
 
@@ -45,7 +45,9 @@ def load_metadata(metadata_params, ext_metadata):
                                            encoding="utf-8-sig", skipinitialspace=True)
 
                 for field, column in loadfields.items():
-                    meta_fields[field] = dat_metadata[column].to_numpy()
+                    met_dat = dat_metadata.get(column, pd.Series())
+                    if not met_dat.empty:
+                        meta_fields[field] = met_dat.to_numpy
             elif metatype == "database":
                 pass
             elif metatype == "mat_file":
@@ -62,22 +64,22 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
     with open(config_json_path, 'r') as config_json_path:
         dat_form = json.load(config_json_path)
 
-        allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, FormatTypes.FORMAT]
+        allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, DataType.FORMAT]
         allFilesColumns.extend([d.value for d in DataTags])
 
         dat_format = dat_form.get(group)
         if dat_format is not None:
 
-            im_form = dat_format.get(FormatTypes.IMAGE)
-            vid_form = dat_format.get(FormatTypes.VIDEO)
-            mask_form = dat_format.get(FormatTypes.MASK)
-            query_form = dat_format.get(FormatTypes.QUERYLOC)
+            im_form = dat_format.get(DataType.IMAGE)
+            vid_form = dat_format.get(DataType.VIDEO)
+            mask_form = dat_format.get(DataType.MASK)
+            query_form = dat_format.get(DataType.QUERYLOC)
 
             metadata_form = None
             metadata_params = None
             if dat_format.get(MetaTags.METATAG) is not None:
                 metadata_params = dat_format.get(MetaTags.METATAG)
-                metadata_form = metadata_params.get(FormatTypes.METADATA)
+                metadata_form = metadata_params.get(DataType.METADATA)
 
             if vid_form is not None:
 
@@ -94,13 +96,13 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                 # Parse out the locations and filenames, store them in a hash table by location.
                 searchpath = Path(pName)
                 allFiles = list()
-                recurse_me = dat_format.get(FormatTypes.RECURSIVE)
+                recurse_me = dat_format.get(DataType.RECURSIVE)
                 if recurse_me is not None and recurse_me:
                     for ext in all_ext:
                         for path in searchpath.rglob("*" + ext):
                             format_type, file_info = parser.parse_file(path.name)
                             if format_type is not None:
-                                file_info[DataTags.FORMAT_TYPE] = format_type
+                                file_info[DataType.FORMAT] = format_type
                                 file_info[AcquisiTags.DATA_PATH] = path
                                 file_info[AcquisiTags.BASE_PATH] = path.parent
                                 file_info[AcquisiTags.DATASET] = None
@@ -112,7 +114,7 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                         for path in searchpath.glob("*" + ext):
                             format_type, file_info = parser.parse_file(path.name)
                             if format_type is not None:
-                                file_info[DataTags.FORMAT_TYPE] = format_type
+                                file_info[DataType.FORMAT] = format_type
                                 file_info[AcquisiTags.DATA_PATH] = path
                                 file_info[AcquisiTags.BASE_PATH] = path.parent
                                 file_info[AcquisiTags.DATASET] = None
@@ -129,11 +131,11 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
 
 def initialize_and_load_dataset(acquisition, metadata_params):
 
-    video_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.VIDEO]
-    mask_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.MASK]
-    metadata_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.METADATA]
-    im_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.IMAGE]
-    query_info = acquisition.loc[acquisition[DataTags.FORMAT_TYPE] == FormatTypes.QUERYLOC]
+    video_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.VIDEO]
+    mask_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.MASK]
+    metadata_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.METADATA]
+    im_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.IMAGE]
+    query_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.QUERYLOC]
 
     # Read in directly-entered metatags.
     meta_fields = {}
@@ -157,7 +159,7 @@ def initialize_and_load_dataset(acquisition, metadata_params):
         combined_meta_dict[AcquisiTags.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiTags.DATA_PATH]
 
     if not query_info.empty:
-        combined_meta_dict[AcquisiTags.QUERYLOC_PATH] = query_info.at[query_info.index[0], AcquisiTags.DATA_PATH]
+        combined_meta_dict[AcquisiTags.QUERYLOC_PATH] = query_info[AcquisiTags.DATA_PATH].unique().tolist()
 
     if not mask_info.empty:
         mask_path = mask_info.at[mask_info.index[0], AcquisiTags.DATA_PATH]
@@ -213,12 +215,19 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     if AcquisiTags.IMAGE_PATH in metadata:
         avg_image_data = cv2.imread(metadata.get(AcquisiTags.IMAGE_PATH), cv2.IMREAD_GRAYSCALE)
 
-    queryloc_data = None
+    queryloc_data = []
     if AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOC not in metadata:
-        queryloc_data = pd.read_csv(metadata.get(AcquisiTags.QUERYLOC_PATH), header=None,
-                                      encoding="utf-8-sig").to_numpy()
-    else:
-        queryloc_data = metadata.get(MetaTags.QUERY_LOC)
+
+        querylocs = metadata.get(AcquisiTags.QUERYLOC_PATH)
+        for locpath in querylocs:
+            match locpath.suffix:
+                case ".csv":
+                    queryloc_data.append(pd.read_csv(locpath, header=None, encoding="utf-8-sig").to_numpy())
+                case ".txt":
+                    queryloc_data.append(pd.read_csv(locpath, sep=None, header=None, encoding="utf-8-sig").to_numpy())
+
+    elif MetaTags.QUERY_LOC in metadata:
+        queryloc_data.append(metadata.get(MetaTags.QUERY_LOC))
 
     stamps = metadata.get(MetaTags.FRAMESTAMPS)
     if stamps is None:
@@ -380,9 +389,7 @@ class Dataset:
         self.reference_frame_idx = None
         self.stimtrain_frame_stamps = stimseq
 
-
-
-        self.coord_data = query_locations
+        self.query_loc = query_locations
         self.video_data = video_data
         self.mask_data = mask_data
         self.avg_image_data = avg_image_data
@@ -425,9 +432,10 @@ class Dataset:
                     warnings.warn("Unable to detect viable average image file. Dataset functionality may be limited.")
                     self.image_path = None
 
-            self.coord_path = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
-            # If we don't have query locations associated with this dataset, then try and find them out.
-            if not self.coord_path:
+            self.query_coord_paths = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
+            # If we don't have query locations associated with this dataset, then try to guess.
+            if self.query_coord_paths is None:
+                warnings.warn("No viable query coordinate file for dataset at: " + self.video_path + ". Attempting to detect...")
                 coordname = None
                 if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
                         self.prefix.with_name(self.prefix.name + "_coords.csv").exists():
@@ -435,12 +443,20 @@ class Dataset:
                         coordname = self.prefix.with_name(self.prefix.name + "_coords.csv")
 
                     # If we don't have an image specific to this dataset, search for the all acq avg
-                if not coordname:
+                if coordname is None:
                     for filename in self.base_path.glob("*_ALL_ACQ_AVG_coords.csv"):
                             coordname = filename
 
-                if not coordname and stage is PipeStages.PIPELINED:
+                if coordname is None and stage is PipeStages.PIPELINED:
                     warnings.warn("Unable to detect viable coordinate file for dataset at: "+ self.video_path)
+                elif stage is PipeStages.PIPELINED:
+                    warnings.warn("Success! Detected "+coordname)
+                    self.query_coord_paths = coordname
+                    match self.query_coord_paths.suffix:
+                        case ".csv":
+                            self.query_loc = [pd.read_csv(self.query_coord_paths, header=None, encoding="utf-8-sig").to_numpy()]
+                        case ".txt":
+                            self.query_loc = [pd.read_csv(self.query_coord_paths, sep=None, header=None, encoding="utf-8-sig").to_numpy()]
 
 
     def clear_video_data(self):
@@ -467,9 +483,9 @@ class Dataset:
             # Mask our video data correspondingly.
             self.video_data = (self.video_data * self.mask_data)
 
-        if (not self.coord_data or force_reload) and os.path.exists(self.coord_path):
-            self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
-                                          encoding="utf-8-sig").to_numpy()
+        if (not self.query_loc or force_reload) and os.path.exists(self.query_coord_paths):
+            self.query_loc = pd.read_csv(self.query_coord_paths, delimiter=',', header=None,
+                                         encoding="utf-8-sig").to_numpy()
 
         if (not self.avg_image_data or force_reload) and os.path.exists(self.image_path) :
             self.avg_image_data = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)

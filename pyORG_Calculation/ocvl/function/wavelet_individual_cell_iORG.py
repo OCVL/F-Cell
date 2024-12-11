@@ -256,7 +256,7 @@ if __name__ == "__main__":
                     stimulus_train = dataset.stimtrain_frame_stamps
                     ref_im = dataset.reference_im
 
-                    #reference_coord_data = dataset.coord_data - 1
+                    #reference_coord_data = dataset.query_loc - 1
                     reference_coord_data = refine_coord(ref_im, dataset.coord_data)  # REINSTATE MEEEEEEEEEEEEEEEEEEEEEEE
 
                     all_scales = np.full((reference_coord_data.shape[0], 4), np.nan)
@@ -284,7 +284,7 @@ if __name__ == "__main__":
 
                 dataset.coord_data = refine_coord_to_stack(dataset.video_data, ref_im, reference_coord_data)
 
-                # full_profiles = extract_profiles(dataset.video_data, dataset.coord_data, seg_radius=segmentation_radius+1,
+                # full_profiles = extract_profiles(dataset.video_data, dataset.query_loc, seg_radius=segmentation_radius+1,
                 #                                  summary="none", sigma=1)
 
                 norm_video_data = norm_video(dataset.video_data, norm_method="score", rescaled=True,
@@ -465,7 +465,7 @@ if __name__ == "__main__":
         #     simple_amp[l, c] = poststim_amp - prestim_amp
         #
         # # TODO: Calling the coordclip fxn to return the simple_amp that corresponds to a 100 cone ROI
-        # # clippedcoords = coordclip(coord_data, 10, 100, 'i')
+        # # clippedcoords = coordclip(query_loc, 10, 100, 'i')
         #
         # # plt.figure(0)
         # # plt.clf()

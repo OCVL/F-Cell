@@ -479,7 +479,7 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
 #
 #     dataset.load_pipelined_data()
 #
-#     temp_profiles = extract_profiles(dataset.video_data, dataset.coord_data)
+#     temp_profiles = extract_profiles(dataset.video_data, dataset.query_loc)
 #     norm_temporal_profiles = norm_profiles(temp_profiles, norm_method="mean")
 #     stdize_profiles = standardize_profiles(norm_temporal_profiles, dataset.framestamps, 55, method="mean_sub")
 #     stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps)

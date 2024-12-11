@@ -1,6 +1,6 @@
 import parse
 
-from ocvl.function.utility.json_format_constants import DataTags, FormatTypes
+from ocvl.function.utility.json_format_constants import DataTags, DataType
 
 
 class FormatParser():
@@ -34,19 +34,19 @@ class FormatParser():
         filename_metadata = dict()
 
         parsed_str = self.vid_parser.parse(file_string)
-        parser_used = FormatTypes.VIDEO
+        parser_used = DataType.VIDEO
         if parsed_str is None and self.mask_parser is not None:
             parsed_str = self.mask_parser.parse(file_string)
-            parser_used = FormatTypes.MASK
+            parser_used = DataType.MASK
         if parsed_str is None and self.im_parser is not None:
             parsed_str = self.im_parser.parse(file_string)
-            parser_used = FormatTypes.IMAGE
+            parser_used = DataType.IMAGE
         if parsed_str is None and self.queryloc_parser is not None:
             parsed_str = self.queryloc_parser.parse(file_string)
-            parser_used = FormatTypes.QUERYLOC
+            parser_used = DataType.QUERYLOC
         if parsed_str is None and self.metadata_parser is not None:
             parsed_str = self.metadata_parser.parse(file_string)
-            parser_used = FormatTypes.METADATA
+            parser_used = DataType.METADATA
         if parsed_str is None:
             return None, filename_metadata
 
@@ -54,5 +54,6 @@ class FormatParser():
         for formatstr in DataTags:
             if formatstr in parsed_str.named:
                 filename_metadata[formatstr.value] = parsed_str[formatstr]
+
 
         return parser_used, filename_metadata

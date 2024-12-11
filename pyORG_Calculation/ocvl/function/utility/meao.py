@@ -415,7 +415,7 @@ class MEAODataset:
                                               encoding="utf-8-sig").to_numpy()
                 self.ref_coord_data = pd.read_csv(self.ref_coord_path, delimiter=',', header=None,
                                               encoding="utf-8-sig").to_numpy()
-                # print(self.coord_data)
+                # print(self.query_loc)
 
             if self.stimtrain_path: # [ 58 2 106 ] (176?) -> [ 58 60 176 ]
                 self.stimtrain_frame_stamps = np.cumsum(np.squeeze(pd.read_csv(self.stimtrain_path, delimiter=',', header=None,
