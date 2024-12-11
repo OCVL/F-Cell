@@ -14,7 +14,7 @@ from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataType, DataTags, AcquisiTags, \
-    SegmentParams, ExclusionParams, NormParams, STDParams
+    SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags
 
 from datetime import datetime, date, time, timezone
 
@@ -146,6 +146,12 @@ if __name__ == "__main__":
                 query_locations = (mode_data[DataType.FORMAT] == DataType.QUERYLOC)
                 numdata = len(mode_data)
 
+                # Make data storage structures for each of our query location lists- one is for results,
+                # The other for checking which query points went into our analysis.
+                pop_iORG_result_datframes = [pd.DataFrame(index=data_vidnums, columns=[ORGTags.AMPLITUDE, ORGTags.IMPLICT_TIME, ORGTags.RECOVERY_PERCENT]) for i in range(query_locations.sum())]
+
+                query_status = [pd.DataFrame(columns=data_vidnums) for i in range(query_locations.sum())]
+
                 # Load each dataset (delineated by different video numbers)
                 for vidnum in data_vidnums:
 
@@ -184,6 +190,9 @@ if __name__ == "__main__":
                         '''
                         *** This section is where we actually do dataset summary and analysis. (population iORG) ***
                         '''
+
+                        query_status[i] = query_status[i].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[i]))), fill_value="Included")
+
                         if seg_params.get(SegmentParams.REFINE_TO_REF, True):
                             reference_coord_data = refine_coord(dataset.avg_image_data, dataset.query_loc[i])
                             coorddist = pdist(reference_coord_data, "euclidean")
@@ -218,6 +227,7 @@ if __name__ == "__main__":
                             seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean")
                             temp_profiles = extract_profiles(dataset.video_data, dataset.query_loc[i], seg_radius=segmentation_radius,
                                                              seg_mask=seg_shape, summary=seg_summary)
+                            query_status[i].loc[np.all(np.isnan(temp_profiles), axis=1), vidnum] = "Removed during signal extraction"
 
                         if excl_params != {}:
 

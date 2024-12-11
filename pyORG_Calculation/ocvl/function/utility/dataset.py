@@ -370,7 +370,7 @@ def preprocess_dataset(dataset, pipeline_params):
 
 
 class Dataset:
-    def __init__(self, video_data=None, mask_data=None, avg_image_data=None, metadata=None, query_locations=None,
+    def __init__(self, video_data=None, mask_data=None, avg_image_data=None, metadata=None, query_locations=[],
                  framestamps=None, stimseq=None, stage=PipeStages.PROCESSED):
 
         # Paths to the data used here.
@@ -390,6 +390,7 @@ class Dataset:
         self.stimtrain_frame_stamps = stimseq
 
         self.query_loc = query_locations
+        self.query_status = [ np.full(q.shape[0], "Included") for q in query_locations]
         self.video_data = video_data
         self.mask_data = mask_data
         self.avg_image_data = avg_image_data
@@ -434,7 +435,7 @@ class Dataset:
 
             self.query_coord_paths = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
             # If we don't have query locations associated with this dataset, then try to guess.
-            if self.query_coord_paths is None:
+            if self.query_coord_paths is None and not self.query_loc:
                 warnings.warn("No viable query coordinate file for dataset at: " + self.video_path + ". Attempting to detect...")
                 coordname = None
                 if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
