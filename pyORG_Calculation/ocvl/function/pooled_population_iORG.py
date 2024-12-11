@@ -130,10 +130,14 @@ if __name__ == "__main__":
 
             result_folder.mkdir(exist_ok=True)
 
-            data_paths = group_datasets[group_datasets[AcquisiTags.BASE_PATH] == folder].to_list()
+            data_paths = group_datasets[group_datasets[AcquisiTags.BASE_PATH] == folder]
+            data_vidnums = data_paths[DataTags.VIDEO_ID].unique().tolist()
+            #reference_images = data_paths[data_paths[FORMAT_TYPE.TYPE] == FormatTypes.IMAGE]
             numdata = len(data_paths)
 
-            for ind, data in data_paths.iterrows():
+            for vidnum in data_vidnums:
+
+                data = data_paths[data_paths[DataTags.VIDEO_ID] == vidnum]
 
                 r = 0
                 pb["maximum"] = numdata
@@ -199,7 +203,7 @@ if __name__ == "__main__":
                                                      seg_mask=seg_shape, summary=seg_summary)
 
                 if excl_params != {}:
-                    
+
                     temp_profiles, valid_profiles = exclude_profiles(temp_profiles, dataset.framestamps,
                                                                  critical_region=np.arange(
                                                                   dataset.stimtrain_frame_stamps[0] - int(0.2 * dataset.framerate),
