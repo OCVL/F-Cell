@@ -241,7 +241,7 @@ if __name__ == "__main__":
                 temp_ref_profiles = extract_profiles(norm_ref_video_data, dataset.ref_coord_data, seg_radius=segmentation_radius,
                                                      seg_mask="disk", summary="mean")
 
-                # temp_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
+                # iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps,
                 #                                      stimulus_stamp=stimulus_train[0], method="mean_sub")
                 # temp_ref_profiles = standardize_profiles(temp_ref_profiles, dataset.framestamps,
                 #                                          stimulus_stamp=stimulus_train[0], method="mean_sub")

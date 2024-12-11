@@ -79,22 +79,24 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
 
     search_region = 2*search_radius # Include extra region for edge effects
 
+    query_status = np.full(coordinates.shape[0], "Included", dtype=object)
+
     # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded from refinement.
     pluscoord = coordinates + search_region
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
+    query_status[pluscoord[:, 0] < im_size[1]] = "Query loc refinement area outside image bounds (right side)"
+    query_status[pluscoord[:, 0] < im_size[0]] = "Query loc refinement area outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - search_region
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
+    query_status[minuscoord[:, 0] >= 0] = "Query loc refinement area outside image bounds (top side)"
+    query_status[minuscoord[:, 1] >= 0] = "Query loc refinement area outside image bounds (left side)"
     del minuscoord
 
     coordinates = np.round(coordinates).astype("int")
-
-    #search_mask = np.zeros(2*search_region)
-    #search_mask[(coord[1] - search_radius):(coord[1] + search_radius + 1),
-                #(coord[0] - search_radius):(coord[0] + search_radius + 1)]
 
     for i in range(coordinates.shape[0]):
         if includelist[i]:
@@ -110,27 +112,10 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
             match_reg = cv2.matchTemplate(stack_im, ref_template, cv2.TM_CCOEFF_NORMED)
             minV, maxV, minL, maxL = cv2.minMaxLoc(match_reg)
             maxL = np.array(maxL) - search_radius  # Make relative to the center.
-            if threshold < maxV: # If the alignment is over our threshold (empirically, 0.3 works well), then do the alignment.
-                # print(coord)
+            if threshold < maxV: # If the alignment is over our NCC threshold (empirically, 0.3 works well), then do the alignment.
                 coordinates[i, :] = coord + maxL
-                # print(" to: " +str(coordinates[i, :]))
-            # else:
-            #     print(maxV)
-            #     plt.figure(10)
-            #     plt.imshow(stack_im)
-            #     plt.figure(11)
-            #     plt.imshow(ref_template)
-            #
-            #     plt.figure(12)
-            #     stack_data = image_stack[(coordinates[i,1] - search_region):(coordinates[i,1] + search_region + 1),
-            #                  (coordinates[i,0] - search_region):(coordinates[i,0] + search_region + 1),
-            #                  :]
-            #     stack_im_realign = np.nanmean(stack_data, axis=-1).astype("uint8")
-            #     plt.imshow(stack_im_realign)
-            #     plt.show(block=False)
-            #     plt.waitforbuttonpress()
-            #print(maxL)
-    return coordinates
+
+    return coordinates, includelist, query_status
 
 
 def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None, display=False):
@@ -166,16 +151,20 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
         for f in range(im_size[-1]):
             im_stack[..., f] = cv2.GaussianBlur(im_stack[..., f], ksize=(0, 0), sigmaX=sigma)
 
-
+    query_status = np.full(coordinates.shape[0], "Included", dtype=object)
 
     pluscoord = coordinates + seg_radius
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
+    query_status[pluscoord[:, 0] < im_size[1]] = "Segmentation extended outside image bounds (right side)"
+    query_status[pluscoord[:, 1] < im_size[0]] = "Segmentation extended outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - seg_radius
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
+    query_status[minuscoord[:, 0] >= 0] = "Segmentation extended outside image bounds (top side)"
+    query_status[minuscoord[:, 1] >= 0] = "Segmentation extended outside image bounds (left side)"
     del minuscoord
 
     coordinates = np.floor(coordinates).astype("int")
@@ -258,7 +247,7 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
             plt.plot(profile_data[i, :]-profile_data[i, 0])
         plt.show()
 
-    return profile_data
+    return profile_data, query_status
 
 def exclude_profiles(temporal_profiles, framestamps,
                      critical_region=None, critical_fraction=0.5, require_full_profile=False):
@@ -275,6 +264,8 @@ def exclude_profiles(temporal_profiles, framestamps,
     :return: a NxM numpy matrix of pared-down profiles, where profiles that don't fit the criterion are dropped.
     """
 
+    query_status = np.full(temporal_profiles.shape[0], "Included", dtype=object)
+
     if critical_region is not None:
 
         crit_inds = np.where(np.isin(framestamps, critical_region))[0]
@@ -287,6 +278,7 @@ def exclude_profiles(temporal_profiles, framestamps,
                 crit_remove += 1
                 temporal_profiles[i, :] = np.nan
                 good_profiles[i] = False
+                query_status[i] = "Only had " + str(this_fraction) + " of the required data in the critical region spanning " + critical_region[0] + " to " + critical_region[-1] + "."
 
     if require_full_profile:
         for i in range(temporal_profiles.shape[0]):
@@ -294,12 +286,13 @@ def exclude_profiles(temporal_profiles, framestamps,
 
                 temporal_profiles[i, :] = np.nan
                 good_profiles[i] = False
+                query_status[i] = "Did not have a complete profile (e.g. all framestamps supplied by the function arg"
                 crit_remove += 1
 
     if critical_region is not None or require_full_profile:
-        print(str(crit_remove) + "/"+str(temporal_profiles.shape[0])+" cells were cleared due to missing data at stimulus delivery")
+        print(str(crit_remove) + "/"+str(temporal_profiles.shape[0])+" cells were cleared due to missing data at stimulus delivery.")
 
-    return temporal_profiles, good_profiles
+    return temporal_profiles, good_profiles, query_status
 
 def norm_profiles(temporal_profiles, norm_method="mean", rescaled=False, video_ref=None):
     """
@@ -479,8 +472,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
 #
 #     dataset.load_pipelined_data()
 #
-#     temp_profiles = extract_profiles(dataset.video_data, dataset.query_loc)
-#     norm_temporal_profiles = norm_profiles(temp_profiles, norm_method="mean")
+#     iORG_signals = extract_profiles(dataset.video_data, dataset.query_loc)
+#     norm_temporal_profiles = norm_profiles(iORG_signals, norm_method="mean")
 #     stdize_profiles = standardize_profiles(norm_temporal_profiles, dataset.framestamps, 55, method="mean_sub")
 #     stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps)
 #

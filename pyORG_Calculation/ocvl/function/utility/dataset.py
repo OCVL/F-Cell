@@ -390,7 +390,7 @@ class Dataset:
         self.stimtrain_frame_stamps = stimseq
 
         self.query_loc = query_locations
-        self.query_status = [ np.full(q.shape[0], "Included") for q in query_locations]
+
         self.video_data = video_data
         self.mask_data = mask_data
         self.avg_image_data = avg_image_data

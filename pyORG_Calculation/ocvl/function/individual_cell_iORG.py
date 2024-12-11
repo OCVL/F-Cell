@@ -208,7 +208,7 @@ if __name__ == "__main__":
                 if dataset.framestamps[-1] > max_frmstamp:
                     max_frmstamp = dataset.framestamps[-1]
 
-        #del dataset, temp_profiles, norm_temporal_profiles, stdize_profiles
+        #del dataset, iORG_signals, norm_temporal_profiles, stdize_profiles
         del temp_profiles,  stdize_profiles
 
 

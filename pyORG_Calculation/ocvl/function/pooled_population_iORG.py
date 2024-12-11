@@ -211,31 +211,58 @@ if __name__ == "__main__":
                         dataset.query_loc[i] = reference_coord_data
 
                         if seg_params.get(SegmentParams.REFINE_TO_VID, True):
-                            dataset.query_loc[i] = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data, reference_coord_data)
+                            dataset.query_loc[i], valid_signals, excl_reason  = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
+                                                                                                     reference_coord_data)
+                            # Update our audit path.
+                            query_status[i].loc[~valid_signals, vidnum] = excl_reason[~valid_signals]
 
-                        if norm_params != {}:
-                            method = norm_params.get(NormParams.NORM_METHOD, "score") # Default: Standardizes the video to a unit mean and stddev
-                            rescale = norm_params.get(NormParams.NORM_RESCALE, True) # Default: Rescales the data back into AU to make results easier to interpret
-                            res_mean = norm_params.get(NormParams.NORM_MEAN, 70) # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
-                            res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
 
-                            dataset.video_data = norm_video(dataset.video_data, norm_method=method, rescaled=rescale,
-                                                            rescale_mean=res_mean, rescale_std=res_stddev)
+                        # Normalize the video to reduce framewide intensity changes
+                        method = norm_params.get(NormParams.NORM_METHOD, "score") # Default: Standardizes the video to a unit mean and stddev
+                        rescale = norm_params.get(NormParams.NORM_RESCALE, True) # Default: Rescales the data back into AU to make results easier to interpret
+                        res_mean = norm_params.get(NormParams.NORM_MEAN, 70) # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+                        res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
 
-                        if seg_params != {}:
-                            seg_shape = seg_params.get(SegmentParams.SHAPE, "disk")
-                            seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean")
-                            temp_profiles = extract_profiles(dataset.video_data, dataset.query_loc[i], seg_radius=segmentation_radius,
-                                                             seg_mask=seg_shape, summary=seg_summary)
-                            query_status[i].loc[np.all(np.isnan(temp_profiles), axis=1), vidnum] = "Removed during signal extraction"
+                        dataset.video_data = norm_video(dataset.video_data, norm_method=method, rescaled=rescale,
+                                                        rescale_mean=res_mean, rescale_std=res_stddev)
 
-                        if excl_params != {}:
+                        # Extract the signals
+                        seg_shape = seg_params.get(SegmentParams.SHAPE, "disk")
+                        seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean")
+                        iORG_signals, excl_reason = extract_profiles(dataset.video_data, dataset.query_loc[i], seg_radius=segmentation_radius,
+                                                                     seg_mask=seg_shape, summary=seg_summary)
 
-                            temp_profiles, valid_profiles = exclude_profiles(temp_profiles, dataset.framestamps,
-                                                                         critical_region=np.arange(
-                                                                          dataset.stimtrain_frame_stamps[0] - int(0.2 * dataset.framerate),
-                                                                          dataset.stimtrain_frame_stamps[1] + int(0.2 * dataset.framerate)),
-                                                                         critical_fraction=0.5)
+                            # Update our audit path.
+                        to_update = np.logical_xor(np.all(np.isfinite(iORG_signals), axis=1), valid_signals)
+                        valid_signals = np.all(np.isfinite(iORG_signals), axis=1) & valid_signals
+                        query_status[i].loc[to_update, vidnum] = excl_reason[to_update]
+
+                        # Exclude signals that don't pass our criterion
+                        type = excl_params.get(ExclusionParams.TYPE)
+                        units = excl_params.get(ExclusionParams.UNITS)
+                        start = excl_params.get(ExclusionParams.START)
+                        stop = excl_params.get(ExclusionParams.END)
+                        cutoff_fraction = excl_params.get(ExclusionParams.FRACTION)
+
+                        if units == "time":
+                            start_ind = int(start * dataset.framerate)
+                            stop_ind = int(stop * dataset.framerate)
+                        else: #if units == "frames":
+                            start_ind = int(start)
+                            stop_ind = int(stop)
+
+                        if type == "relative":
+                            start_ind = dataset.stimtrain_frame_stamps[0] + start_ind
+                            stop_ind = dataset.stimtrain_frame_stamps[1] + stop_ind
+                        else: #if type == "absolute":
+                            start_ind = start_ind
+                            stop_ind = stop_ind
+
+                        excl_profiles, valid_profiles, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
+                                                                         critical_region=np.arange(start_ind, stop_ind),
+                                                                         critical_fraction=cutoff_fraction)
+                        to_update = np.logical_xor(valid_profiles, valid_signals)
+                        query_status[i].loc[to_update, vidnum] = excl_reason[to_update]
 
                         if np.sum(~valid_profiles) == len(dataset.query_loc[i]):
                             pop_iORG_amp[r] = np.NaN
@@ -248,7 +275,7 @@ if __name__ == "__main__":
                         poststim_ind = np.flatnonzero(np.logical_and(dataset.framestamps >= dataset.stimtrain_frame_stamps[1],
                                                       dataset.framestamps < (dataset.stimtrain_frame_stamps[1] + int(1 * dataset.framerate))))
 
-                        stdize_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
+                        stdize_profiles = standardize_profiles(iORG_signals, dataset.framestamps,
                                                                dataset.stimtrain_frame_stamps[0], method="mean_sub", std_indices=prestim_ind)
 
                         tmp_iorg, tmp_incl = signal_power_iORG(stdize_profiles, dataset.framestamps, summary_method="rms",
