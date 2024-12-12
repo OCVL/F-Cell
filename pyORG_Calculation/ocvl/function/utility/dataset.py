@@ -5,6 +5,7 @@ import warnings
 from enum import Enum, StrEnum
 from logging import warning
 from pathlib import Path
+from tkinter import filedialog
 
 import cv2
 import numpy as np
@@ -16,6 +17,8 @@ from ocvl.function.utility.format_parser import FormatParser
 from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataType, AcquisiTags, PipelineParams
 from ocvl.function.utility.resources import load_video, save_video
 
+
+stimseq_fName = None
 
 class PipeStages(Enum):
     RAW = 0,
@@ -47,7 +50,7 @@ def load_metadata(metadata_params, ext_metadata):
                 for field, column in loadfields.items():
                     met_dat = dat_metadata.get(column, pd.Series())
                     if not met_dat.empty:
-                        meta_fields[field] = met_dat.to_numpy
+                        meta_fields[field] = met_dat.to_numpy()
             elif metatype == "database":
                 pass
             elif metatype == "mat_file":
@@ -215,6 +218,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     if AcquisiTags.IMAGE_PATH in metadata:
         avg_image_data = cv2.imread(metadata.get(AcquisiTags.IMAGE_PATH), cv2.IMREAD_GRAYSCALE)
 
+    # For importing the query locations
     queryloc_data = []
     if AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOC not in metadata:
 
@@ -229,16 +233,24 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     elif MetaTags.QUERY_LOC in metadata:
         queryloc_data.append(metadata.get(MetaTags.QUERY_LOC))
 
+    # For importing the framestamps of the video- these are the temporal, monotonic frame indexes of the video, in case frames were dropped
+    # in the pipeline or in the processing stages
     stamps = metadata.get(MetaTags.FRAMESTAMPS)
     if stamps is None:
         stamps = np.arange(video_data.shape[-1])
 
+    # For importing metadata RE: the stimulus delivery
     stimulus_sequence = None
     if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata:
         stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None,
                                       encoding="utf-8-sig").to_numpy()
-    else:
+    elif MetaTags.STIMULUS_SEQ in metadata:
         stimulus_sequence = metadata.get(AcquisiTags.STIMSEQ_PATH)
+    else:
+        if Dataset.stimseq_fName is None:
+            Dataset.stimseq_fName = filedialog.askopenfilename(title="Select the stimulus train file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
+        stimulus_sequence = np.cumsum(pd.read_csv(Dataset.stimseq_fName, header=None,encoding="utf-8-sig").to_numpy())
+
 
     return Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence)
 
@@ -370,6 +382,10 @@ def preprocess_dataset(dataset, pipeline_params):
 
 
 class Dataset:
+    # Static var used on such occasions that a user doesn't provide an explicit method determining the stimulus sequence
+    # pattern (either via a metadata file, or via explicitly setting it in the json file)
+    stimseq_fName = None
+
     def __init__(self, video_data=None, mask_data=None, avg_image_data=None, metadata=None, query_locations=[],
                  framestamps=None, stimseq=None, stage=PipeStages.PROCESSED):
 

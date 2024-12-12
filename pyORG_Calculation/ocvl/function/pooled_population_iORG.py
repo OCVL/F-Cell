@@ -45,11 +45,6 @@ if __name__ == "__main__":
     # Grab all the folders/data here.
     dat_form, allData = parse_file_metadata(json_fName, pName, "pipelined")
 
-    stimtrain_fName = filedialog.askopenfilename(title="Select the stimulus train file.", initialdir=pName, parent=root)
-
-    if not stimtrain_fName:
-        quit()
-
     x = root.winfo_screenwidth() / 2 - 128
     y = root.winfo_screenheight() / 2 - 128
     root.geometry(
@@ -175,17 +170,21 @@ if __name__ == "__main__":
                     first = True
                     mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", numdata))
 
-                    pb["value"] = r
-                    pb_label["text"] = "Processing " + data[AcquisiTags.DATA_PATH].name + "..."
-                    pb.update()
-                    pb_label.update()
-
                     # for later: allData.loc[ind, AcquisiTags.DATASET]
                     # Actually load the dataset, and all its metadata.
                     dataset = initialize_and_load_dataset(data, metadata_params)
 
                     # Perform analyses on each query location set for each dataset.
                     for i in range(len(dataset.query_loc)):
+
+                        pb["value"] = r
+                        pb_label["text"] = "Processing query file " +str(i ) +" in dataset #" + str(vidnum) + " from the " + str(
+                            mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
+                        pb.update()
+                        pb_label.update()
+                        print("Processing query file " +str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,Path())[i].stem ) +
+                              " in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
+                              + str(group) + " and folder " + folder.stem + "...")
 
                         '''
                         *** This section is where we actually do dataset summary and analysis. (population iORG) ***
@@ -233,7 +232,8 @@ if __name__ == "__main__":
                                                                      seg_mask=seg_shape, summary=seg_summary)
 
                             # Update our audit path.
-                        to_update = np.logical_xor(np.all(np.isfinite(iORG_signals), axis=1), valid_signals)
+                        valid = np.all(np.isfinite(iORG_signals), axis=1)
+                        to_update = ~(~valid_signals | valid) # Use the inverse of implication to find which ones to update.
                         valid_signals = np.all(np.isfinite(iORG_signals), axis=1) & valid_signals
                         query_status[i].loc[to_update, vidnum] = excl_reason[to_update]
 
@@ -258,10 +258,10 @@ if __name__ == "__main__":
                             start_ind = start_ind
                             stop_ind = stop_ind
 
-                        excl_profiles, valid_profiles, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
+                        excl_profiles, valid, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
                                                                          critical_region=np.arange(start_ind, stop_ind),
                                                                          critical_fraction=cutoff_fraction)
-                        to_update = np.logical_xor(valid_profiles, valid_signals)
+                        to_update = ~(~valid_signals | valid) # Use the inverse of implication to find which ones to update.
                         query_status[i].loc[to_update, vidnum] = excl_reason[to_update]
 
                         if np.sum(~valid_profiles) == len(dataset.query_loc[i]):
