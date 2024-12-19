@@ -34,7 +34,7 @@ from ocvl.function.preprocessing.improc import weighted_z_projection, simple_ima
 from ocvl.function.utility.dataset import parse_file_metadata, load_dataset, \
     preprocess_dataset, initialize_and_load_dataset
 
-from ocvl.function.utility.json_format_constants import DataType, DataTags, MetaTags, PipelineParams, AcquisiTags
+from ocvl.function.utility.json_format_constants import DataFormatType, DataTags, MetaTags, PipelineParams, AcquisiTags
 from ocvl.function.utility.resources import save_video
 
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         metadata_params = None
         if processed_dat_format.get(MetaTags.METATAG) is not None:
             metadata_params = processed_dat_format.get(MetaTags.METATAG)
-            metadata_form = metadata_params.get(DataType.METADATA)
+            metadata_form = metadata_params.get(DataFormatType.METADATA)
 
         acquisition = dict()
 
@@ -103,11 +103,11 @@ if __name__ == "__main__":
                 # extract the rows corresponding to this acquisition.
                 acquisition = modevids.loc[modevids[DataTags.VIDEO_ID] == num]
 
-                if (acquisition[DataType.FORMAT] == DataType.MASK).sum() <= 1 and \
-                        (acquisition[DataType.FORMAT] == DataType.METADATA).sum() <= 1 and \
-                        (acquisition[DataType.FORMAT] == DataType.VIDEO).sum() == 1:
+                if (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK).sum() <= 1 and \
+                        (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA).sum() <= 1 and \
+                        (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO).sum() == 1:
 
-                    video_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.VIDEO]
+                    video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
 
                     dataset = initialize_and_load_dataset(acquisition, metadata_params)
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
                 # Determine the filename for the superaverage using the central-most dataset.
                 pipelined_dat_format = dat_form.get("pipelined")
                 if pipelined_dat_format is not None:
-                    pipe_im_form = pipelined_dat_format.get(DataType.IMAGE)
+                    pipe_im_form = pipelined_dat_format.get(DataFormatType.IMAGE)
                     if pipe_im_form is not None:
                         pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
 
@@ -227,8 +227,8 @@ if __name__ == "__main__":
                     (rows, cols) = dataset.video_data.shape[0:2]
 
                     if pipelined_dat_format is not None:
-                        pipe_vid_form = pipelined_dat_format.get(DataType.VIDEO)
-                        pipe_mask_form = pipelined_dat_format.get(DataType.MASK)
+                        pipe_vid_form = pipelined_dat_format.get(DataFormatType.VIDEO)
+                        pipe_mask_form = pipelined_dat_format.get(DataFormatType.MASK)
                         pipe_meta_form = pipelined_dat_format.get(MetaTags.METATAG)
 
                         if pipe_vid_form is not None:
@@ -236,7 +236,7 @@ if __name__ == "__main__":
                         if pipe_mask_form is not None:
                             pipe_mask_fname = pipe_mask_form.format_map(dataset.metadata)
                         if pipe_meta_form is not None:
-                            pipe_meta_form = pipe_meta_form.get(DataType.METADATA)
+                            pipe_meta_form = pipe_meta_form.get(DataFormatType.METADATA)
                             if pipe_meta_form is not None:
                                 pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
 

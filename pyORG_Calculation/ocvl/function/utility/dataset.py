@@ -14,7 +14,7 @@ from scipy.ndimage import gaussian_filter
 
 from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataType, AcquisiTags, PipelineParams
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, PipelineParams
 from ocvl.function.utility.resources import load_video, save_video
 
 
@@ -67,22 +67,22 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
     with open(config_json_path, 'r') as config_json_path:
         dat_form = json.load(config_json_path)
 
-        allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, DataType.FORMAT]
+        allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, DataFormatType.FORMAT_TYPE]
         allFilesColumns.extend([d.value for d in DataTags])
 
         dat_format = dat_form.get(group)
         if dat_format is not None:
 
-            im_form = dat_format.get(DataType.IMAGE)
-            vid_form = dat_format.get(DataType.VIDEO)
-            mask_form = dat_format.get(DataType.MASK)
-            query_form = dat_format.get(DataType.QUERYLOC)
+            im_form = dat_format.get(DataFormatType.IMAGE)
+            vid_form = dat_format.get(DataFormatType.VIDEO)
+            mask_form = dat_format.get(DataFormatType.MASK)
+            query_form = dat_format.get(DataFormatType.QUERYLOC)
 
             metadata_form = None
             metadata_params = None
             if dat_format.get(MetaTags.METATAG) is not None:
                 metadata_params = dat_format.get(MetaTags.METATAG)
-                metadata_form = metadata_params.get(DataType.METADATA)
+                metadata_form = metadata_params.get(DataFormatType.METADATA)
 
             if vid_form is not None:
 
@@ -99,13 +99,13 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                 # Parse out the locations and filenames, store them in a hash table by location.
                 searchpath = Path(pName)
                 allFiles = list()
-                recurse_me = dat_format.get(DataType.RECURSIVE)
+                recurse_me = dat_format.get(DataFormatType.RECURSIVE)
                 if recurse_me is not None and recurse_me:
                     for ext in all_ext:
                         for path in searchpath.rglob("*" + ext):
                             format_type, file_info = parser.parse_file(path.name)
                             if format_type is not None:
-                                file_info[DataType.FORMAT] = format_type
+                                file_info[DataFormatType.FORMAT_TYPE] = format_type
                                 file_info[AcquisiTags.DATA_PATH] = path
                                 file_info[AcquisiTags.BASE_PATH] = path.parent
                                 file_info[AcquisiTags.DATASET] = None
@@ -117,7 +117,7 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                         for path in searchpath.glob("*" + ext):
                             format_type, file_info = parser.parse_file(path.name)
                             if format_type is not None:
-                                file_info[DataType.FORMAT] = format_type
+                                file_info[DataFormatType.FORMAT_TYPE] = format_type
                                 file_info[AcquisiTags.DATA_PATH] = path
                                 file_info[AcquisiTags.BASE_PATH] = path.parent
                                 file_info[AcquisiTags.DATASET] = None
@@ -134,11 +134,11 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
 
 def initialize_and_load_dataset(acquisition, metadata_params):
 
-    video_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.VIDEO]
-    mask_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.MASK]
-    metadata_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.METADATA]
-    im_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.IMAGE]
-    query_info = acquisition.loc[acquisition[DataType.FORMAT] == DataType.QUERYLOC]
+    video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
+    mask_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK]
+    metadata_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA]
+    im_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE]
+    query_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC]
 
     # Read in directly-entered metatags.
     meta_fields = {}

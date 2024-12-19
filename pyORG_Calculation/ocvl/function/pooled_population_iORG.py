@@ -13,7 +13,7 @@ from ocvl.function.analysis.cell_profile_extraction import extract_profiles, nor
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
-from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataType, DataTags, AcquisiTags, \
+from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataFormatType, DataTags, AcquisiTags, \
     SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags, SummaryParams
 
 from datetime import datetime, date, time, timezone
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     metadata_params = None
     if piped_dat_format.get(MetaTags.METATAG) is not None:
         metadata_params = piped_dat_format.get(MetaTags.METATAG)
-        metadata_form = metadata_params.get(DataType.METADATA)
+        metadata_form = metadata_params.get(DataFormatType.METADATA)
 
     # If we've selected modalities of interest, only process those; otherwise, process them all.
     if modes_of_interest is None:
@@ -134,8 +134,8 @@ if __name__ == "__main__":
 
                 data_vidnums = mode_data[DataTags.VIDEO_ID].unique().tolist()
 
-                reference_images = (mode_data[DataType.FORMAT] == DataType.IMAGE)
-                query_locations = (mode_data[DataType.FORMAT] == DataType.QUERYLOC)
+                reference_images = (mode_data[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+                query_locations = (mode_data[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
 
                 # Make data storage structures for each of our query location lists- one is for results,
                 # The other for checking which query points went into our analysis.
