@@ -80,7 +80,11 @@
       },
       "standardization": {
         "method": "mean_sub",
-        "position": "prestim"
+        "region": "prestim",
+        "type": "relative",
+        "units": "time",
+        "start": -0.2,
+        "end": 0.2
       },
       "gaus_blur": 0.0,
       "mask_roi": {

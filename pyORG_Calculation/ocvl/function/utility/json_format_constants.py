@@ -85,16 +85,26 @@ class ExclusionParams(StrEnum):
     TYPE = "type"
     UNITS = "units"
     START = "start"
-    END = "end"
+    STOP = "stop"
     FRACTION = "fraction"
 
 class STDParams(StrEnum):
     NAME = "standardization"
     METHOD = "method"
-    POSITION = "position"
+    UNITS = "units"
+    START = "start"
+    STOP = "stop"
+
+class SummaryParams(StrEnum):
+    NAME = "summary"
+    METHOD = "method"
+    WINDOW_SIZE = "window_size"
+
 
 class ORGTags(StrEnum):
     AMPLITUDE = "Amplitude"
     IMPLICT_TIME = "Implict_Time"
     RECOVERY_PERCENT = "Recovery_Percent"
     RECOVERY = "Recovery"
+    SUM_SIGNAL = "Summarized_Signal"
+    IORG_SIGNAL = "IORG_Signals"

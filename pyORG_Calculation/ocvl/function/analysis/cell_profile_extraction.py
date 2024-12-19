@@ -360,30 +360,22 @@ def norm_profiles(temporal_profiles, norm_method="mean", rescaled=False, video_r
         return np.divide(temporal_profiles, framewise_norm[None, :])
 
 
-def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method="linear_std", display=False, std_indices=None):
+def standardize_profiles(temporal_profiles, framestamps, std_indices, method="linear_std", display=False):
     """
     This function standardizes each temporal profile (here, the rows of the supplied data) according to the provided
     arguments.
 
     :param temporal_profiles: A NxM numpy matrix with N cells and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
-    :param stimulus_stamp: The framestamp at which to limit the standardization. For functional studies, this is often
-                            the stimulus framestamp.
+    :param std_indices: The range of indices to use when standardizing.
     :param method: The method used to standardize. Default is "linear_std", which subtracts a linear fit to
                     each signal before stimulus_stamp, followed by a standardization based on that pre-stamp linear-fit
                     subtracted data. This was used in Cooper et al 2017/2020.
                     Current options include: "linear_std", "linear_vast", "relative_change", and "mean_sub"
-    :param std_indices: The range of indices to use when standardizing. Defaults to the full prestimulus range.
 
     :return: a NxM numpy matrix of standardized temporal profiles.
     """
-
-    if std_indices is None:
-        prestimulus_idx = np.where(framestamps <= stimulus_stamp, True, False)
-    else:
-        prestimulus_idx = std_indices
-
-    if len(prestimulus_idx) == 0:
+    if len(std_indices) == 0:
         warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
         return temporal_profiles
 
@@ -391,8 +383,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
         # Standardize using Autoscaling preceded by a linear fit to remove
         # any residual low-frequency changes
         for i in range(temporal_profiles.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[prestimulus_idx])
-            prestim_profile = np.squeeze(temporal_profiles[i, prestimulus_idx])
+            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+            prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
             if np.sum(goodind) > 5:
@@ -412,8 +404,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
         # https://www.sciencedirect.com/science/article/pii/S0003267003000941
         # this scaling is defined as autoscaling divided by the CoV.
         for i in range(temporal_profiles.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[prestimulus_idx])
-            prestim_profile = np.squeeze(temporal_profiles[i, prestimulus_idx])
+            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+            prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
             if np.sum(goodind) > 5:
@@ -432,8 +424,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
     elif method == "relative_change":
         # Make our output a representation of the relative change of the signal
         for i in range(temporal_profiles.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[prestimulus_idx])
-            prestim_profile = np.squeeze(temporal_profiles[i, prestimulus_idx])
+            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+            prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
             prestim_mean = np.nanmean(prestim_profile[goodind])
@@ -444,8 +436,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
     elif method == "mean_sub":
         # Make our output just a prestim mean-subtracted signal.
         for i in range(temporal_profiles.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[prestimulus_idx])
-            prestim_profile = np.squeeze(temporal_profiles[i, prestimulus_idx])
+            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+            prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
             if np.sum(goodind) > 5:

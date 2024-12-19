@@ -151,6 +151,8 @@ def signal_power_iORG(temporal_profiles, framestamps, summary_method="var", wind
             num_incl = num_incl[framestamps]
         else:
             raise Exception("Window size must be less than half of the number of samples")
+    else:
+        raise Exception("Invalid summary_method")
 
     if display and np.sum(np.any(np.isfinite(temporal_profiles), axis=1)) >= 1:
         mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", temporal_profiles.shape[0]))

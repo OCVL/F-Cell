@@ -405,6 +405,7 @@ class Dataset:
         self.reference_frame_idx = None
         self.stimtrain_frame_stamps = stimseq
 
+
         self.query_loc = query_locations
 
         self.video_data = video_data

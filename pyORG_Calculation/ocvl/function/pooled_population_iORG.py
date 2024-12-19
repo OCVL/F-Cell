@@ -14,7 +14,7 @@ from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataType, DataTags, AcquisiTags, \
-    SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags
+    SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags, SummaryParams
 
 from datetime import datetime, date, time, timezone
 
@@ -93,16 +93,13 @@ if __name__ == "__main__":
     else:
         groups = [""]  # If we don't have any groups, then just make the list an empty string.
 
-    reference_coord_data = None
-    maxnum_cells = None
-    skipnum = 0
-
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
     norm_params = analysis_params.get(NormParams.NAME, dict())
     excl_params = analysis_params.get(ExclusionParams.NAME, dict())
     std_params = analysis_params.get(STDParams.NAME, dict())
+    sum_params = analysis_params.get(SummaryParams.NAME, dict())
 
     # First break things down by group, defined by the user in the config file.
     # We like to use (LocX,LocY), but this is by no means the only way.
@@ -139,11 +136,10 @@ if __name__ == "__main__":
 
                 reference_images = (mode_data[DataType.FORMAT] == DataType.IMAGE)
                 query_locations = (mode_data[DataType.FORMAT] == DataType.QUERYLOC)
-                numdata = len(mode_data)
 
                 # Make data storage structures for each of our query location lists- one is for results,
                 # The other for checking which query points went into our analysis.
-                pop_iORG_result_datframes = [pd.DataFrame(index=data_vidnums, columns=[ORGTags.AMPLITUDE, ORGTags.IMPLICT_TIME, ORGTags.RECOVERY_PERCENT]) for i in range(query_locations.sum())]
+                iORG_result_datframes = [pd.DataFrame(index=data_vidnums, columns=list(ORGTags)) for i in range(query_locations.sum())]
 
                 query_status = [pd.DataFrame(columns=data_vidnums) for i in range(query_locations.sum())]
 
@@ -152,23 +148,9 @@ if __name__ == "__main__":
 
                     data = mode_data.loc[(mode_data[DataTags.VIDEO_ID] == vidnum) | reference_images | query_locations]
 
-                    r = 0
-                    pb["maximum"] = numdata
-                    pop_iORG = []
-                    pop_iORG_implicit = np.empty((numdata-skipnum+1))
-                    pop_iORG_implicit[:] = np.nan
-                    pop_iORG_recover = np.empty((numdata - skipnum + 1))
-                    pop_iORG_recover[:] = np.nan
-                    pop_iORG_amp = np.empty((numdata - skipnum + 1))
-                    pop_iORG_amp[:] = np.nan
-                    pop_iORG_num = []
-                    framestamps = []
-                    max_frmstamp = 0
-                    plt.figure(0)
-                    plt.clf()
-
-                    first = True
-                    mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", numdata))
+                    pb["maximum"] = len(data_vidnums)
+                    pb["value"] = vidnum
+                    mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(data_vidnums)))
 
                     # for later: allData.loc[ind, AcquisiTags.DATASET]
                     # Actually load the dataset, and all its metadata.
@@ -177,8 +159,7 @@ if __name__ == "__main__":
                     # Perform analyses on each query location set for each dataset.
                     for i in range(len(dataset.query_loc)):
 
-                        pb["value"] = r
-                        pb_label["text"] = "Processing query file " +str(i ) +" in dataset #" + str(vidnum) + " from the " + str(
+                        pb_label["text"] = "Processing query file " +str(i) +" in dataset #" + str(vidnum) + " from the " + str(
                             mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
                         pb.update()
                         pb_label.update()
@@ -194,10 +175,13 @@ if __name__ == "__main__":
 
                         if seg_params.get(SegmentParams.REFINE_TO_REF, True):
                             reference_coord_data = refine_coord(dataset.avg_image_data, dataset.query_loc[i])
-                            coorddist = pdist(reference_coord_data, "euclidean")
-                            coorddist = squareform(coorddist)
-                            coorddist[coorddist == 0] = np.amax(coorddist.flatten())
-                            mindist = np.amin( coorddist, axis=-1)
+                        else:
+                            reference_coord_data = dataset.query_loc[i]
+
+                        coorddist = pdist(reference_coord_data, "euclidean")
+                        coorddist = squareform(coorddist)
+                        coorddist[coorddist == 0] = np.amax(coorddist.flatten())
+                        mindist = np.amin(coorddist, axis=-1)
 
                         # If not defined, then we default to "auto" which determines it from the spacing of the query points
                         segmentation_radius = seg_params.get(SegmentParams.RADIUS, "auto")
@@ -214,6 +198,8 @@ if __name__ == "__main__":
                                                                                                      reference_coord_data)
                             # Update our audit path.
                             query_status[i].loc[~valid_signals, vidnum] = excl_reason[~valid_signals]
+                        else:
+                            valid_signals = np.full((dataset.query_loc[i].shape[0]), True)
 
 
                         # Normalize the video to reduce framewide intensity changes
@@ -230,90 +216,110 @@ if __name__ == "__main__":
                         seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean")
                         iORG_signals, excl_reason = extract_profiles(dataset.video_data, dataset.query_loc[i], seg_radius=segmentation_radius,
                                                                      seg_mask=seg_shape, summary=seg_summary)
-
-                            # Update our audit path.
+                        # Update our audit path.
                         valid = np.all(np.isfinite(iORG_signals), axis=1)
                         to_update = ~(~valid_signals | valid) # Use the inverse of implication to find which ones to update.
-                        valid_signals = np.all(np.isfinite(iORG_signals), axis=1) & valid_signals
+                        valid_signals = valid & valid_signals
                         query_status[i].loc[to_update, vidnum] = excl_reason[to_update]
 
                         # Exclude signals that don't pass our criterion
-                        type = excl_params.get(ExclusionParams.TYPE)
-                        units = excl_params.get(ExclusionParams.UNITS)
-                        start = excl_params.get(ExclusionParams.START)
-                        stop = excl_params.get(ExclusionParams.END)
-                        cutoff_fraction = excl_params.get(ExclusionParams.FRACTION)
+                        excl_type = excl_params.get(ExclusionParams.TYPE)
+                        excl_units = excl_params.get(ExclusionParams.UNITS)
+                        excl_start = excl_params.get(ExclusionParams.START)
+                        excl_stop = excl_params.get(ExclusionParams.STOP)
+                        excl_cutoff_fraction = excl_params.get(ExclusionParams.FRACTION)
 
-                        if units == "time":
-                            start_ind = int(start * dataset.framerate)
-                            stop_ind = int(stop * dataset.framerate)
+                        if excl_units == "time":
+                            excl_start_ind = int(excl_start * dataset.framerate)
+                            excl_stop_ind = int(excl_stop * dataset.framerate)
                         else: #if units == "frames":
-                            start_ind = int(start)
-                            stop_ind = int(stop)
+                            excl_start_ind = int(excl_start)
+                            excl_stop_ind = int(excl_stop)
 
-                        if type == "relative":
-                            start_ind = dataset.stimtrain_frame_stamps[0] + start_ind
-                            stop_ind = dataset.stimtrain_frame_stamps[1] + stop_ind
+                        if excl_type == "stim-relative":
+                            excl_start_ind = dataset.stimtrain_frame_stamps[0] + excl_start_ind
+                            excl_stop_ind = dataset.stimtrain_frame_stamps[1] + excl_stop_ind
                         else: #if type == "absolute":
-                            start_ind = start_ind
-                            stop_ind = stop_ind
+                            pass
+                            #excl_start_ind = excl_start_ind
+                            #excl_stop_ind = excl_stop_ind
+                        crit_region = np.arange(excl_start_ind, excl_stop_ind)
 
-                        excl_profiles, valid, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
-                                                                         critical_region=np.arange(start_ind, stop_ind),
-                                                                         critical_fraction=cutoff_fraction)
+                        iORG_signals, valid, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
+                                                                             critical_region=crit_region,
+                                                                             critical_fraction=excl_cutoff_fraction)
+                        # Update our audit path.
                         to_update = ~(~valid_signals | valid) # Use the inverse of implication to find which ones to update.
+                        valid_signals = valid & valid_signals
                         query_status[i].loc[to_update, vidnum] = excl_reason[to_update]
 
-                        if np.sum(~valid_profiles) == len(dataset.query_loc[i]):
-                            pop_iORG_amp[r] = np.NaN
-                            pop_iORG_implicit[r] = np.NaN
-                            pop_iORG_recover[r] = np.NaN
-                            print(file.name + " was dropped due to all cells being excluded.")
+                        # Standardize individual signals
+                        std_meth = std_params.get(STDParams.METHOD, "mean_sub")
+                        std_type =  std_params.get(STDParams.METHOD, "stim-relative")
+                        std_units = std_params.get(STDParams.UNITS, "time")
+                        std_start = std_params.get(STDParams.START, -1)
+                        std_stop = std_params.get(STDParams.STOP, 0)
 
-                        prestim_ind = np.flatnonzero(np.logical_and(dataset.framestamps < dataset.stimtrain_frame_stamps[0],
-                                                     dataset.framestamps >= (dataset.stimtrain_frame_stamps[0] - int(1 * dataset.framerate))))
+                        if excl_units == "time":
+                            std_start = int(std_start * dataset.framerate)
+                            std_stop = int(std_stop * dataset.framerate)
+                        else:  # if units == "frames":
+                            std_start = int(std_start)
+                            std_stop = int(std_stop)
+
+                        if excl_type == "stim-relative":
+                            std_start = dataset.stimtrain_frame_stamps[0] + std_start
+                            std_stop = dataset.stimtrain_frame_stamps[1] + std_stop
+
+                        std_ind = np.arange(std_start, std_stop)
+
+                        iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
+
+
+                        sum_method = sum_params.get(SummaryParams.METHOD, "rms")
+                        sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
+                        summarized_iORG, num_signals_per_sample = signal_power_iORG(iORG_signals, dataset.framestamps, summary_method=sum_method,
+                                                                                    window_size=sum_window)
+
+                        iORG_result_datframes[i][ORGTags.IORG_SIGNAL] = iORG_result_datframes[i][ORGTags.IORG_SIGNAL].astype(object)
+                        iORG_result_datframes[i].at[vidnum, ORGTags.IORG_SIGNAL] = iORG_signals
+                        iORG_result_datframes[i][ORGTags.SUM_SIGNAL] = iORG_result_datframes[i][ORGTags.SUM_SIGNAL].astype(object)
+                        iORG_result_datframes[i].at[vidnum, ORGTags.SUM_SIGNAL] = summarized_iORG
+
+                        #TODO: Add plotting class for the below
+                        # plt.figure(9)
+                        # plt.plot(dataset.framestamps, num_signals_per_sample)
+                        # plt.show(block=False)
+
+                        #TODO: Assess the difference this makes. This is just to make them all at the same baseline.
+                        #summarized_iORG = standardize_profiles(summarized_iORG[None, :], dataset.framestamps, std_indices=prestim_ind, method="mean_sub")
+                        #summarized_iORG = np.squeeze(summarized_iORG)
+
                         poststim_ind = np.flatnonzero(np.logical_and(dataset.framestamps >= dataset.stimtrain_frame_stamps[1],
                                                       dataset.framestamps < (dataset.stimtrain_frame_stamps[1] + int(1 * dataset.framerate))))
 
-                        stdize_profiles = standardize_profiles(iORG_signals, dataset.framestamps,
-                                                               dataset.stimtrain_frame_stamps[0], method="mean_sub", std_indices=prestim_ind)
-
-                        tmp_iorg, tmp_incl = signal_power_iORG(stdize_profiles, dataset.framestamps, summary_method="rms",
-                                                               window_size=1)
-
-                        plt.figure(9)
-                        plt.plot(dataset.framestamps, tmp_incl)
-                        plt.show(block=False)
-
-                        # This is just to make them all at the same baseline.
-                        tmp_iorg = standardize_profiles(tmp_iorg[None, :], dataset.framestamps,
-                                                        dataset.stimtrain_frame_stamps[0], method="mean_sub", std_indices=prestim_ind)
-
-                        tmp_iorg = np.squeeze(tmp_iorg)
-
                         poststim_loc = dataset.framestamps[poststim_ind]
-                        prestim_amp = np.nanmedian(tmp_iorg[prestim_ind])
-                        poststim = tmp_iorg[poststim_ind]
+                        prestim_amp = np.nanmedian(summarized_iORG[prestim_ind])
+                        poststim = summarized_iORG[poststim_ind]
 
                         if poststim.size == 0:
-                            poststim_amp = np.NaN
-                            prestim_amp = np.NaN
+
                             pop_iORG_amp[r] = np.NaN
                             pop_iORG_implicit[r] = np.NaN
                             pop_iORG_recover[r] = np.NaN
                         else:
                             poststim_amp = np.quantile(poststim, [0.95])
                             max_frmstmp = poststim_loc[np.argmax(poststim)] - dataset.stimtrain_frame_stamps[0]
-                            final_val = np.mean(tmp_iorg[-5:])
+                            final_val = np.mean(summarized_iORG[-5:])
 
                             framestamps.append(dataset.framestamps)
-                            pop_iORG.append(tmp_iorg)
-                            pop_iORG_num.append(tmp_incl)
+                            pop_iORG.append(summarized_iORG)
+                            pop_iORG_num.append(num_signals_per_sample)
 
-                            pop_iORG_amp[r], pop_iORG_implicit[r] = iORG_signal_metrics(tmp_iorg[None, :], dataset.framestamps,
-                                                                              filter_type="none", display=False,
-                                                                              prestim_idx=prestim_ind,
-                                                                              poststim_idx=poststim_ind)[1:3]
+                            pop_iORG_amp[r], pop_iORG_implicit[r] = iORG_signal_metrics(summarized_iORG[None, :], dataset.framestamps,
+                                                                                        filter_type="none", display=False,
+                                                                                        prestim_idx=prestim_ind,
+                                                                                        poststim_idx=poststim_ind)[1:3]
 
                             pop_iORG_recover[r] = 1 - ((final_val - prestim_amp) / pop_iORG_amp[r])
                             pop_iORG_implicit[r] = pop_iORG_implicit[r] / dataset.framerate
@@ -322,34 +328,29 @@ if __name__ == "__main__":
                                   " Implicit time (s): " + str(pop_iORG_implicit[r]) +
                                   " Recovery fraction: " + str(pop_iORG_recover[r]))
 
-                            plt.figure(0)
-                            # plt.subplot(2,5,r - skipnum+1)
-
-                            plt.xlabel("Time (seconds)")
-                            plt.ylabel("Response")
-                            plt.plot(dataset.framestamps/dataset.framerate, pop_iORG[r - skipnum], color=mapper.to_rgba(r - skipnum, norm=False),
-                                     label=file.name)
-
-                            plt.show(block=False)
-                            #plt.xlim([0, 4])
+                            #TODO: Add plotting class for the below
+                            # plt.figure(0)
+                            # plt.xlabel("Time (seconds)")
+                            # plt.ylabel("Response")
+                            # plt.plot(dataset.framestamps/dataset.framerate, pop_iORG[r - skipnum], color=mapper.to_rgba(r - skipnum, norm=False),
+                            #          label=file.name)
+                            # plt.show(block=False)
+                            # plt.xlim([0, 4])
                             # plt.ylim([-5, 40])
-                            #plt.savefig(output_folder.joinpath(file.name[0:-4] + "_pop_iORG.png"))
-                            r += 1
+                            # plt.savefig(output_folder.joinpath(file.name[0:-4] + "_pop_iORG.png"))
 
                         if dataset.framestamps[-1] > max_frmstamp:
                             max_frmstamp = dataset.framestamps[-1]
 
-                dt = datetime.now()
-                now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
-
+                #TODO: Add plotting class for the below
+                # dt = datetime.now()
+                # now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
                 # plt.vlines(dataset.stimtrain_frame_stamps[0] / dataset.framerate, -1, 10, color="red")
-                #plt.xlim([0,  4])
+                # plt.xlim([0,  4])
                 # plt.ylim([-5, 60]) #was 60
-                #plt.legend()
-
-                plt.savefig( output_folder.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".svg"))
-                plt.savefig( output_folder.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".png"))
-
+                # plt.legend()
+                # plt.savefig( output_folder.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".svg"))
+                # plt.savefig( output_folder.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".png"))
                 # plt.figure(14)
                 # plt.plot(np.nanmean(np.log(pop_iORG_amp), axis=-1),
                 #          np.nanstd(np.log(pop_iORG_amp), axis=-1),".")
@@ -363,8 +364,8 @@ if __name__ == "__main__":
                 # plt.title("AMP vs std dev")
                 # plt.show(block=False)
                 # plt.savefig(output_folder.joinpath(this_dirname + "_pop_iORG_amp_vs_stddev.svg"))
-                print("Pop mean iORG amplitude: " + str(np.nanmean(pop_iORG_amp, axis=-1)) +
-                      "Pop stddev iORG amplitude: " + str(np.nanmean(pop_iORG_amp, axis=-1)) )
+                # print("Pop mean iORG amplitude: " + str(np.nanmean(pop_iORG_amp, axis=-1)) +
+                #       "Pop stddev iORG amplitude: " + str(np.nanmean(pop_iORG_amp, axis=-1)) )
 
 
                 # pop_amp_dFrame = pd.DataFrame(np.concatenate((np.array(pop_iORG_amp, ndmin=2).transpose(),
