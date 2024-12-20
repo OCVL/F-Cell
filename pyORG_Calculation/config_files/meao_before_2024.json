@@ -84,8 +84,7 @@
         "start": -1
       },
       "control": {
-        "location": "folder",
-        "folder_name": "control"
+        "location": "folder"
       },
       "summary": {
         "method": "rms"

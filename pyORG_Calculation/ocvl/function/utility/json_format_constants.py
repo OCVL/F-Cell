@@ -54,6 +54,7 @@ class AcquisiTags(StrEnum):
     BASE_PATH = "Base_Path",
     MASK_PATH = "Mask_Path",
     META_PATH = "Metadata_Path",
+    STIM_PRESENT = "Stimulus_Present"
 
 class PipelineParams(StrEnum):
     GAUSSIAN_BLUR = "gaus_blur",

@@ -453,7 +453,7 @@ class Dataset:
             self.query_coord_paths = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
             # If we don't have query locations associated with this dataset, then try to guess.
             if self.query_coord_paths is None and not self.query_loc:
-                warnings.warn("No viable query coordinate file for dataset at: " + self.video_path + ". Attempting to detect...")
+                warnings.warn("No viable query coordinate file for dataset at: " + str(self.video_path) + ". Attempting to detect...")
                 coordname = None
                 if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
                         self.prefix.with_name(self.prefix.name + "_coords.csv").exists():
@@ -466,9 +466,9 @@ class Dataset:
                             coordname = filename
 
                 if coordname is None and stage is PipeStages.PIPELINED:
-                    warnings.warn("Unable to detect viable coordinate file for dataset at: "+ self.video_path)
+                    warnings.warn("Unable to detect viable coordinate file for dataset at: "+ str(self.video_path))
                 elif stage is PipeStages.PIPELINED:
-                    warnings.warn("Success! Detected "+coordname)
+                    warnings.warn("Success! Detected "+str(coordname))
                     self.query_coord_paths = coordname
                     match self.query_coord_paths.suffix:
                         case ".csv":
