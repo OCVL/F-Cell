@@ -278,7 +278,8 @@ def exclude_profiles(temporal_profiles, framestamps,
                 crit_remove += 1
                 temporal_profiles[i, :] = np.nan
                 good_profiles[i] = False
-                query_status[i] = ("Only had " + str(this_fraction) + " of the required data in the critical region spanning " +
+
+                query_status[i] = ("Only had data for " + f"{this_fraction * 100:.2f}" + "% of the required data in the critical region spanning frames " +
                                    str(critical_region[0]) + " to " + str(critical_region[-1]) + ".")
 
     if require_full_profile:

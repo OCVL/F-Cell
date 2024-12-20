@@ -107,5 +107,3 @@ class ORGTags(StrEnum):
     IMPLICT_TIME = "Implict_Time"
     RECOVERY_PERCENT = "Recovery_Percent"
     RECOVERY = "Recovery"
-    SUM_SIGNAL = "Summarized_Signal"
-    IORG_SIGNAL = "IORG_Signals"

@@ -176,6 +176,7 @@ def initialize_and_load_dataset(acquisition, metadata_params):
                                metadata_path,
                                combined_meta_dict)
     else:
+        warnings.warn("Failed to detect dataset.")
         dataset = None
 
     return dataset
@@ -407,6 +408,8 @@ class Dataset:
 
 
         self.query_loc = query_locations
+        self.iORG_signals = [None] * len(query_locations)
+        self.summarized_iORGs = [None] * len(query_locations)
 
         self.video_data = video_data
         self.mask_data = mask_data
