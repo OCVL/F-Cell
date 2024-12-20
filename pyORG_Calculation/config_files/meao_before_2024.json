@@ -84,11 +84,12 @@
         "start": -1
       },
       "control": {
-        "location": "folder"
+        "location": "folder",
+        "folder_name": "control"
       },
       "summary": {
-        "method": "rms"
-
+        "method": "rms",
+        "control": "subtract"
       },
       "gaus_blur": 0.0,
       "mask_roi": {

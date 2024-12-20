@@ -92,6 +92,7 @@ class ExclusionParams(StrEnum):
 class STDParams(StrEnum):
     NAME = "standardization"
     METHOD = "method"
+    TYPE = "type"
     UNITS = "units"
     START = "start"
     STOP = "stop"
@@ -100,7 +101,12 @@ class SummaryParams(StrEnum):
     NAME = "summary"
     METHOD = "method"
     WINDOW_SIZE = "window_size"
+    CONTROL = "control"
 
+class ControlParams(StrEnum):
+    NAME = "control"
+    LOCATION = "location"
+    FOLDER_NAME = "folder_name"
 
 class ORGTags(StrEnum):
     AMPLITUDE = "Amplitude"

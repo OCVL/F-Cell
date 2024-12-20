@@ -14,7 +14,7 @@ from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataFormatType, DataTags, AcquisiTags, \
-    SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags, SummaryParams
+    SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags, SummaryParams, ControlParams
 
 from datetime import datetime, date, time, timezone
 
@@ -96,10 +96,39 @@ if __name__ == "__main__":
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
+    seg_shape = seg_params.get(SegmentParams.SHAPE, "disk") # Default: A disk shaped mask over each query coordinate
+    seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean") # Default the average of the intensity of the query coordinate
+
     norm_params = analysis_params.get(NormParams.NAME, dict())
+    method = norm_params.get(NormParams.NORM_METHOD,"score")  # Default: Standardizes the video to a unit mean and stddev
+    rescale = norm_params.get(NormParams.NORM_RESCALE,True)  # Default: Rescales the data back into AU to make results easier to interpret
+    res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
+
     excl_params = analysis_params.get(ExclusionParams.NAME, dict())
+    excl_type = excl_params.get(ExclusionParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
+    excl_units = excl_params.get(ExclusionParams.UNITS, "time")
+    excl_start = excl_params.get(ExclusionParams.START, -0.2)
+    excl_stop = excl_params.get(ExclusionParams.STOP, 0.2)
+    excl_cutoff_fraction = excl_params.get(ExclusionParams.FRACTION, 0.5)
+
     std_params = analysis_params.get(STDParams.NAME, dict())
+    std_meth = std_params.get(STDParams.METHOD, "mean_sub") # Default: Subtracts the mean from each iORG signal
+    std_type = std_params.get(STDParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
+    std_units = std_params.get(STDParams.UNITS, "time")
+    std_start = std_params.get(STDParams.START, -1)
+    std_stop = std_params.get(STDParams.STOP, 0)
+
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
+    sum_method = sum_params.get(SummaryParams.METHOD, "rms")
+    sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
+    sum_control = sum_params.get(SummaryParams.CONTROL, "subtract")
+
+    control_params = analysis_params.get(ControlParams.NAME, dict())
+    control_loc = control_params.get(ControlParams.LOCATION, "implicit")
+    control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
+
+
     output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
     if output_folder is None:
         output_folder = PurePath("Results")
@@ -150,14 +179,14 @@ if __name__ == "__main__":
 
                 pb["maximum"] = len(data_vidnums)
                 # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
-                for vidnum in data_vidnums:
+                for v, vidnum in enumerate(data_vidnums):
 
                     this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
 
                     slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
 
-                    pb["value"] = vidnum
+                    pb["value"] = v
                     mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(data_vidnums)))
 
                     # for later: allData.loc[ind, AcquisiTags.DATASET]
@@ -166,7 +195,12 @@ if __name__ == "__main__":
 
                     if dataset is not None:
                         group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
-                        group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
+
+                        if control_loc == "folder" and folder.stem == control_folder:
+                            # If we're in the control folder, then we're a control video.
+                            group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = False
+                        else:
+                            group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
                     else:
                         for q in range(len(query_status)):
                             query_status[q].loc[:, vidnum] = "Dataset Failed To Load"
@@ -219,17 +253,10 @@ if __name__ == "__main__":
 
 
                         # Normalize the video to reduce framewide intensity changes
-                        method = norm_params.get(NormParams.NORM_METHOD, "score") # Default: Standardizes the video to a unit mean and stddev
-                        rescale = norm_params.get(NormParams.NORM_RESCALE, True) # Default: Rescales the data back into AU to make results easier to interpret
-                        res_mean = norm_params.get(NormParams.NORM_MEAN, 70) # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
-                        res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
-
                         dataset.video_data = norm_video(dataset.video_data, norm_method=method, rescaled=rescale,
                                                         rescale_mean=res_mean, rescale_std=res_stddev)
 
                         # Extract the signals
-                        seg_shape = seg_params.get(SegmentParams.SHAPE, "disk")
-                        seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean")
                         iORG_signals, excl_reason = extract_profiles(dataset.video_data, dataset.query_loc[q], seg_radius=segmentation_radius,
                                                                      seg_mask=seg_shape, summary=seg_summary)
                         # Update our audit path.
@@ -243,12 +270,6 @@ if __name__ == "__main__":
                         if group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT].values[0]:
 
                             # Exclude signals that don't pass our criterion
-                            excl_type = excl_params.get(ExclusionParams.TYPE)
-                            excl_units = excl_params.get(ExclusionParams.UNITS)
-                            excl_start = excl_params.get(ExclusionParams.START)
-                            excl_stop = excl_params.get(ExclusionParams.STOP)
-                            excl_cutoff_fraction = excl_params.get(ExclusionParams.FRACTION)
-
                             if excl_units == "time":
                                 excl_start_ind = int(excl_start * dataset.framerate)
                                 excl_stop_ind = int(excl_stop * dataset.framerate)
@@ -274,29 +295,21 @@ if __name__ == "__main__":
                             query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
 
                             # Standardize individual signals
-                            std_meth = std_params.get(STDParams.METHOD, "mean_sub")
-                            std_type =  std_params.get(STDParams.METHOD, "stim-relative")
-                            std_units = std_params.get(STDParams.UNITS, "time")
-                            std_start = std_params.get(STDParams.START, -1)
-                            std_stop = std_params.get(STDParams.STOP, 0)
-
-                            if excl_units == "time":
-                                std_start = int(std_start * dataset.framerate)
-                                std_stop = int(std_stop * dataset.framerate)
+                            if std_units == "time":
+                                std_start_ind = int(std_start * dataset.framerate)
+                                std_stop_ind = int(std_stop * dataset.framerate)
                             else:  # if units == "frames":
-                                std_start = int(std_start)
-                                std_stop = int(std_stop)
+                                std_start_ind = int(std_start)
+                                std_stop_ind = int(std_stop)
 
-                            if excl_type == "stim-relative":
-                                std_start = dataset.stimtrain_frame_stamps[0] + std_start
-                                std_stop = dataset.stimtrain_frame_stamps[1] + std_stop
+                            if std_type == "stim-relative":
+                                std_start_ind = dataset.stimtrain_frame_stamps[0] + std_start_ind
+                                std_stop_ind = dataset.stimtrain_frame_stamps[1] + std_stop_ind
 
-                            std_ind = np.arange(std_start, std_stop)
+                            std_ind = np.arange(std_start_ind, std_stop_ind)
 
                             iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
 
-                            sum_method = sum_params.get(SummaryParams.METHOD, "rms")
-                            sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
                             summarized_iORG, num_signals_per_sample = signal_power_iORG(iORG_signals, dataset.framestamps, summary_method=sum_method,
                                                                                         window_size=sum_window)
 
@@ -312,7 +325,6 @@ if __name__ == "__main__":
 
         # If desired, make the summarized iORG relative to controls in some way.
         # Control data is expected to be applied to the WHOLE group.
-        # Respect the users' folder structure. If things are in different folders, analyze them separately.
         for folder in folder_groups:
 
             result_folder = folder.joinpath(output_folder)
@@ -325,67 +337,92 @@ if __name__ == "__main__":
             # Load each modality
             for mode in modes_of_interest:
                 this_mode = (group_datasets[DataTags.MODALITY] == mode)
-
-                stimless = ~(group_datasets[AcquisiTags.STIM_PRESENT])
-
                 slice_of_life = folder_mask & this_mode
 
-                data_vidnums = group_datasets[DataTags.VIDEO_ID].unique().tolist()
+                has_stim = (group_datasets[AcquisiTags.STIM_PRESENT])
+
+                stim_data_vidnums = group_datasets.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique().tolist()
+                control_data_vidnums = group_datasets.loc[this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique().tolist()
 
                 # Make data storage structures for each of our query location lists- one is for results,
                 # The other for checking which query points went into our analysis.
-                iORG_result_datframes.append([pd.DataFrame(index=data_vidnums, columns=list(ORGTags)) for i in range(query_locations.sum())])
+                iORG_result_datframes.append([pd.DataFrame(index=stim_data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
 
-                # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
-                for vidnum in data_vidnums:
+                pb["maximum"] = len(stim_data_vidnums)
+                # Load each dataset (delineated by different video numbers), and process it relative to the control data.
+                for v, stim_vidnum in enumerate(stim_data_vidnums):
 
-                    this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
+                    this_vid = (group_datasets[DataTags.VIDEO_ID] == stim_vidnum)
 
                     slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
-                    pb["maximum"] = len(data_vidnums)
-                    pb["value"] = vidnum
-                    mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(data_vidnums)))
+                    stim_dataset = group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET].values[0]
 
-                    # for later: allData.loc[ind, AcquisiTags.DATASET]
-                    # Actually load the dataset, and all its metadata.
-                    group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET]
+                    for vc, control_vidnum in enumerate(control_data_vidnums):
+                        this_vid = (group_datasets[DataTags.VIDEO_ID] == control_vidnum)
+
+                        slice_of_life = (this_mode & this_vid & only_vids)
+
+                        control_dataset = group_datasets.loc[slice_of_life, AcquisiTags.DATASET].values[0]
+
+                        for q in range(len(control_dataset.query_loc)):
+
+                            # Exclude signals that don't pass our criterion
+                            if excl_units == "time":
+                                excl_start_ind = int(excl_start * control_dataset.framerate)
+                                excl_stop_ind = int(excl_stop * control_dataset.framerate)
+                            else:  # if units == "frames":
+                                excl_start_ind = int(excl_start)
+                                excl_stop_ind = int(excl_stop)
+
+                            if excl_type == "stim-relative":
+                                excl_start_ind = stim_dataset.stimtrain_frame_stamps[0] + excl_start_ind
+                                excl_stop_ind = stim_dataset.stimtrain_frame_stamps[1] + excl_stop_ind
+                            else:  # if type == "absolute":
+                                pass
+                                # excl_start_ind = excl_start_ind
+                                # excl_stop_ind = excl_stop_ind
+                            crit_region = np.arange(excl_start_ind, excl_stop_ind)
+
+                            iORG_signals, valid, excl_reason = exclude_profiles(iORG_signals, control_dataset.framestamps,
+                                                                                critical_region=crit_region,
+                                                                                critical_fraction=excl_cutoff_fraction)
+                            # Update our audit path.
+                            to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+                            valid_signals = valid & valid_signals
+                            query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
+
+                            # Standardize individual signals
+                            if std_units == "time":
+                                std_start_ind = int(std_start * control_dataset.framerate)
+                                std_stop_ind = int(std_stop * control_dataset.framerate)
+                            else:  # if units == "frames":
+                                std_start_ind = int(std_start)
+                                std_stop_ind = int(std_stop)
+
+                            if excl_type == "stim-relative":
+                                std_start_ind = stim_dataset.stimtrain_frame_stamps[0] + std_start_ind
+                                std_stop_ind = stim_dataset.stimtrain_frame_stamps[1] + std_stop_ind
+
+                            std_ind = np.arange(std_start_ind, std_stop_ind)
+
+                            iORG_signals = standardize_profiles(iORG_signals, control_dataset.framestamps, std_indices=std_ind,
+                                                                method=std_meth)
+
+                            summarized_iORG, num_signals_per_sample = signal_power_iORG(iORG_signals, control_dataset.framestamps,
+                                                                                        summary_method=sum_method,
+                                                                                        window_size=sum_window)
+
+                            control_dataset.iORG_signals[q] = iORG_signals
+                            control_dataset.summarized_iORGs[q] = summarized_iORG
 
 
 
-        for folder in folder_groups:
-
-            output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
-            if output_folder is None:
-                output_folder = PurePath("Results")
-            else:
-                output_folder = PurePath(output_folder)
-
-            result_folder = folder.joinpath(output_folder)
-
-            result_folder.mkdir(exist_ok=True)
-
-            data_in_folder = group_datasets.loc[group_datasets[AcquisiTags.BASE_PATH] == folder]
-
-            # Load each modality
-            for m, mode in enumerate(modes_of_interest):
-                mode_data = data_in_folder.loc[data_in_folder[DataTags.MODALITY] == mode]
-
-                control = mode_data.loc[(mode_data[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO) & ~(mode_data[AcquisiTags.STIM_PRESENT])]
-
-                iORG_result_datframes
-
-                for vidnum in data_vidnums:
-
-                    data = mode_data.loc[mode_data[DataTags.VIDEO_ID] == vidnum]
-
-                    pb["maximum"] = len(data_vidnums)
-                    pb["value"] = vidnum
-                    mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(data_vidnums)))
 
 
-                    # Perform analyses on each query location set for each dataset.
-                    for q in range(len(dataset.query_loc)):
+
+
+
 
 
                         #TODO: Add plotting class for the below
