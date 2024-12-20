@@ -109,25 +109,29 @@ if __name__ == "__main__":
         else:
             group_datasets = allData
 
+        group_datasets[AcquisiTags.STIM_PRESENT] = False
+        reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+        query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+        only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+
         # While we're going to process by group, respect the folder structure used by the user here, and only group
         # and analyze things from the same folder
         folder_groups = pd.unique(group_datasets[AcquisiTags.BASE_PATH]).tolist()
 
         # Respect the users' folder structure. If things are in different folders, analyze them separately.
         for folder in folder_groups:
+            folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
-            data_in_folder = group_datasets.loc[group_datasets[AcquisiTags.BASE_PATH] == folder]
+            data_in_folder = group_datasets.loc[folder_mask]
             iORG_result_datframes = []
 
             # Load each modality
             for mode in modes_of_interest:
-                this_mode = (data_in_folder[DataTags.MODALITY] == mode)
-                mode_data = data_in_folder.loc[this_mode]
+                this_mode = (group_datasets[DataTags.MODALITY] == mode)
+                slice_of_life = folder_mask & this_mode
+                mode_data = group_datasets.loc[slice_of_life]
 
-                data_vidnums = data_in_folder[DataTags.VIDEO_ID].unique().tolist()
-
-                reference_images = (data_in_folder[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
-                query_locations = (data_in_folder[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+                data_vidnums = group_datasets[DataTags.VIDEO_ID].unique().tolist()
 
                 # Make data storage structures for each of our query location lists- one is for results,
                 # The other for checking which query points went into our analysis.
@@ -138,9 +142,10 @@ if __name__ == "__main__":
                 # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
                 for vidnum in data_vidnums:
 
-                    this_vid = (data_in_folder[DataTags.VIDEO_ID] == vidnum)
+                    this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
 
-                    data = data_in_folder.loc[this_mode & this_vid | (reference_images | query_locations)]
+                    slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+                    data = group_datasets.loc[slice_of_life]
 
                     pb["maximum"] = len(data_vidnums)
                     pb["value"] = vidnum
@@ -148,10 +153,9 @@ if __name__ == "__main__":
 
                     # for later: allData.loc[ind, AcquisiTags.DATASET]
                     # Actually load the dataset, and all its metadata.
-                    dataset = initialize_and_load_dataset(data, metadata_params)
-                    data.loc[data[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO, AcquisiTags.DATASET] = dataset
-                    data.loc[:, AcquisiTags.STIM_PRESENT] = False
-                    data.at[data[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
+                    dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params)
+                    group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
+                    group_datasets.at[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
 
 
                     # Perform analyses on each query location set for each dataset.
