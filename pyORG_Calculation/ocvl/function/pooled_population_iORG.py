@@ -240,7 +240,7 @@ if __name__ == "__main__":
                 # The other for checking which query points went into our analysis.
                 iORG_result_datframes.append([pd.DataFrame(index=stim_data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
 
-                control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & query_locations).sum())]
+                control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & ~has_stim & query_locations).sum())]
 
                 pb["maximum"] = len(stim_data_vidnums)
 
@@ -262,21 +262,37 @@ if __name__ == "__main__":
                     for vc, control_vidnum in enumerate(control_data_vidnums):
                         this_vid = (group_datasets[DataTags.VIDEO_ID] == control_vidnum)
 
-                        slice_of_life = (this_mode & this_vid & only_vids)
+                        slice_of_control_life = (this_mode & this_vid & only_vids)
 
                         # Grab the control dataset associated with this video number.
-                        control_dataset = group_datasets.loc[slice_of_life, AcquisiTags.DATASET].values[0]
+                        control_dataset = group_datasets.loc[slice_of_control_life, AcquisiTags.DATASET].values[0]
+                        control_dataset.query_loc = [None] * len(stim_dataset.query_loc)
+                        control_dataset.iORG_signals = [None] * len(stim_dataset.query_loc)
+                        control_dataset.summarized_iORGs = [None] * len(stim_dataset.query_loc)
 
-                        for q in range(len(control_dataset.query_loc)):
-
+                        for q in range(len(stim_dataset.query_loc)):
+                            pb_label["text"] = "Processing query file for CONTROL " + str(q) + " in dataset #" + str(control_vidnum) + " from the " + str(mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
+                            pb.update()
+                            pb_label.update()
+                            print("Processing query file on CONTROL data using " + str(stim_dataset.metadata.get(AcquisiTags.QUERYLOC_PATH, Path())[q].stem) +
+                                  " in dataset #" + str(control_vidnum) + " from the " + str(mode) + " modality in group "
+                                  + str(group) + " and folder " + folder.stem + "...")
                             # Use the control data, but the query locations and stimulus info from the stimulus data.
-                            (dataset.iORG_signals[q],
-                             dataset.summarized_iORGs[q],
-                             control_query_status[q].loc[:, stim_vidnum],
-                             dataset.query_loc[q]) = extract_n_refine_iorg_signals(control_dataset, analysis_params,
+                            (control_dataset.iORG_signals[q],
+                             control_dataset.summarized_iORGs[q],
+                             control_query_status[q].loc[:, control_vidnum],
+                             control_dataset.query_loc[q]) = extract_n_refine_iorg_signals(control_dataset, analysis_params,
                                                                                    query_loc=stim_dataset.query_loc[q],
                                                                                    stimtrain_frame_stamps=stim_dataset.stimtrain_frame_stamps)
 
+
+                    query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
+                    for q in range(len(control_query_status)):
+                        control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
+                                                       "_" + query_paths[q].stem + "_controldata.csv"))
+
+                    # After we've processed all the control data with the parameters of the stimulus data, combine it,
+                    # do whatever against stimulus data, and analyze it
 
 
 
