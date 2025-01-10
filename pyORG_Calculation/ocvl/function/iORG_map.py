@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles
+from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
 from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset

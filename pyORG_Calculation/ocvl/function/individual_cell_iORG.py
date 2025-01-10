@@ -13,7 +13,7 @@ from matplotlib import patches as ptch
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from scipy.spatial.distance import pdist, squareform
 
-from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles, \
+from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
     refine_coord, refine_coord_to_stack, exclude_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, wavelet_iORG, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video

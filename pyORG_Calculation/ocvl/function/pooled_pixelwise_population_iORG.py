@@ -11,7 +11,7 @@ import re
 from matplotlib import pyplot as plt
 from matplotlib.colors import Normalize
 
-from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles
+from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages

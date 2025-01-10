@@ -6,12 +6,156 @@ from matplotlib import pyplot as plt
 from numpy.polynomial import Polynomial
 
 from skimage.morphology import disk
-from skimage.morphology.footprints import ellipse, octagon
 
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
-from ocvl.function.utility.dataset import PipeStages
-from ocvl.function.utility.meao import MEAODataset
-from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
+from ocvl.function.preprocessing.improc import norm_video
+from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
+    SummaryParams
+from scipy.spatial.distance import pdist, squareform
+
+def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stimtrain_frame_stamps=None):
+
+    if query_loc is None:
+        query_loc= dataset.query_loc[0]
+
+    if stimtrain_frame_stamps is None:
+        stimtrain_frame_stamps = dataset.stimtrain_frame_stamps
+
+    # Snag all of our parameter dictionaries that we'll use here.
+    # Default to an empty dictionary so that we can query against it with fewer if statements.
+    seg_params = analysis_params.get(SegmentParams.NAME, dict())
+    seg_shape = seg_params.get(SegmentParams.SHAPE, "disk") # Default: A disk shaped mask over each query coordinate
+    seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean") # Default the average of the intensity of the query coordinate
+
+    norm_params = analysis_params.get(NormParams.NAME, dict())
+    method = norm_params.get(NormParams.NORM_METHOD,"score")  # Default: Standardizes the video to a unit mean and stddev
+    rescale = norm_params.get(NormParams.NORM_RESCALE,True)  # Default: Rescales the data back into AU to make results easier to interpret
+    res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
+
+    excl_params = analysis_params.get(ExclusionParams.NAME, dict())
+    excl_type = excl_params.get(ExclusionParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
+    excl_units = excl_params.get(ExclusionParams.UNITS, "time")
+    excl_start = excl_params.get(ExclusionParams.START, -0.2)
+    excl_stop = excl_params.get(ExclusionParams.STOP, 0.2)
+    excl_cutoff_fraction = excl_params.get(ExclusionParams.FRACTION, 0.5)
+
+    std_params = analysis_params.get(STDParams.NAME, dict())
+    std_meth = std_params.get(STDParams.METHOD, "mean_sub") # Default: Subtracts the mean from each iORG signal
+    std_type = std_params.get(STDParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
+    std_units = std_params.get(STDParams.UNITS, "time")
+    std_start = std_params.get(STDParams.START, -1)
+    std_stop = std_params.get(STDParams.STOP, 0)
+
+    sum_params = analysis_params.get(SummaryParams.NAME, dict())
+    sum_method = sum_params.get(SummaryParams.METHOD, "rms")
+    sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
+    sum_control = sum_params.get(SummaryParams.CONTROL, "subtract")
+
+    query_status = np.full(query_loc.shape[0], "Included", dtype=object)
+    valid_signals = np.full((query_loc.shape[0]), True)
+
+    if seg_params.get(SegmentParams.REFINE_TO_REF, True):
+        query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc)
+    else:
+        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
+        valid = np.full((query_loc.shape[0]), True)
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    coorddist = pdist(query_loc, "euclidean")
+    coorddist = squareform(coorddist)
+    coorddist[coorddist == 0] = np.amax(coorddist.flatten())
+    mindist = np.amin(coorddist, axis=-1)
+
+    # If not defined, then we default to "auto" which determines it from the spacing of the query points
+    segmentation_radius = seg_params.get(SegmentParams.RADIUS, "auto")
+    if segmentation_radius == "auto":
+        segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
+
+        segmentation_radius = int(segmentation_radius)
+        print("Detected segmentation radius: " + str(segmentation_radius))
+
+    if seg_params.get(SegmentParams.REFINE_TO_VID, True):
+        query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
+                                                                         query_loc)
+    else:
+        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
+        valid = np.full((query_loc.shape[0]), True)
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    # Normalize the video to reduce framewide intensity changes
+    dataset.video_data = norm_video(dataset.video_data, norm_method=method, rescaled=rescale,
+                                    rescale_mean=res_mean, rescale_std=res_stddev)
+
+    # Extract the signals
+    iORG_signals, excl_reason = extract_profiles(dataset.video_data, query_loc,
+                                                 seg_radius=segmentation_radius,
+                                                 seg_mask=seg_shape, summary=seg_summary)
+    # Update our audit path.
+    valid = np.all(np.isfinite(iORG_signals), axis=1)
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    # Should only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
+    # will be used for, or what critical region/standardization indicies it'll need.
+
+    # Exclude signals that don't pass our criterion
+    if excl_units == "time":
+        excl_start_ind = int(excl_start * dataset.framerate)
+        excl_stop_ind = int(excl_stop * dataset.framerate)
+    else:  # if units == "frames":
+        excl_start_ind = int(excl_start)
+        excl_stop_ind = int(excl_stop)
+
+    if excl_type == "stim-relative":
+        excl_start_ind = stimtrain_frame_stamps[0] + excl_start_ind
+        excl_stop_ind = stimtrain_frame_stamps[1] + excl_stop_ind
+    else:  # if type == "absolute":
+        pass
+        # excl_start_ind = excl_start_ind
+        # excl_stop_ind = excl_stop_ind
+    crit_region = np.arange(excl_start_ind, excl_stop_ind)
+
+    iORG_signals, valid, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
+                                                        critical_region=crit_region,
+                                                        critical_fraction=excl_cutoff_fraction)
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    # Standardize individual signals
+    if std_units == "time":
+        std_start_ind = int(std_start * dataset.framerate)
+        std_stop_ind = int(std_stop * dataset.framerate)
+    else:  # if units == "frames":
+        std_start_ind = int(std_start)
+        std_stop_ind = int(std_stop)
+
+    if std_type == "stim-relative":
+        std_start_ind = stimtrain_frame_stamps[0] + std_start_ind
+        std_stop_ind = stimtrain_frame_stamps[1] + std_stop_ind
+
+    std_ind = np.arange(std_start_ind, std_stop_ind)
+
+    iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
+
+    summarized_iORG, num_signals_per_sample = signal_power_iORG(iORG_signals, dataset.framestamps,
+                                                                summary_method=sum_method,
+                                                                window_size=sum_window)
+
+    return iORG_signals, summarized_iORG, query_status, query_loc
+
+
 
 def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
 

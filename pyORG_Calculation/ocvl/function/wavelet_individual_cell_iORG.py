@@ -13,7 +13,7 @@ from scipy.spatial.distance import pdist, squareform
 from skimage.feature import peak_local_max
 from ssqueezepy.experimental import scale_to_freq
 
-from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles, \
+from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
     refine_coord, refine_coord_to_stack, exclude_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, wavelet_iORG
 from ocvl.function.preprocessing.improc import norm_video
