@@ -155,6 +155,9 @@ if __name__ == "__main__":
         # Respect the users' folder structure. If things are in different folders, analyze them separately.
         for folder in folder_groups:
 
+            if folder.stem == output_folder.stem:
+                continue
+
             result_folder = folder.joinpath(output_folder)
             result_folder.mkdir(exist_ok=True)
 
@@ -218,17 +221,25 @@ if __name__ == "__main__":
                               + str(group) + " and folder " + folder.stem + "...")
 
                         '''
-                        *** This section is where we actually do dataset summary and analysis. (population iORG) ***
+                        *** This section is where we do dataset summary. ***
                         '''
-
+                        valid_signals = np.full((dataset.query_loc[q].shape[0]), True)
+                        # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
                         query_status[q] = query_status[q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
 
                         if seg_params.get(SegmentParams.REFINE_TO_REF, True):
-                            reference_coord_data = refine_coord(dataset.avg_image_data, dataset.query_loc[q])
+                            dataset.query_loc[q], valid, excl_reason = refine_coord(dataset.avg_image_data, dataset.query_loc[q])
                         else:
                             reference_coord_data = dataset.query_loc[q]
+                            valid = np.full((dataset.query_loc[q].shape[0]), True)
 
-                        coorddist = pdist(reference_coord_data, "euclidean")
+                        # Update our audit path.
+                        to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+                        valid_signals = valid & valid_signals
+                        query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
+
+
+                        coorddist = pdist(dataset.query_loc[q], "euclidean")
                         coorddist = squareform(coorddist)
                         coorddist[coorddist == 0] = np.amax(coorddist.flatten())
                         mindist = np.amin(coorddist, axis=-1)
@@ -241,15 +252,16 @@ if __name__ == "__main__":
                             segmentation_radius = int(segmentation_radius)
                             print("Detected segmentation radius: " + str(segmentation_radius))
 
-                        dataset.query_loc[q] = reference_coord_data
-
                         if seg_params.get(SegmentParams.REFINE_TO_VID, True):
-                            dataset.query_loc[q], valid_signals, excl_reason  = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
-                                                                                                      reference_coord_data)
-                            # Update our audit path.
-                            query_status[q].loc[~valid_signals, vidnum] = excl_reason[~valid_signals]
+                            dataset.query_loc[q], valid, excl_reason  = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
+                                                                                                      dataset.query_loc[q])
                         else:
-                            valid_signals = np.full((dataset.query_loc[q].shape[0]), True)
+                            valid = np.full((dataset.query_loc[q].shape[0]), True)
+
+                        # Update our audit path.
+                        to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+                        valid_signals = valid & valid_signals
+                        query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
 
 
                         # Normalize the video to reduce framewide intensity changes
@@ -319,8 +331,13 @@ if __name__ == "__main__":
                         else:
                             dataset.iORG_signals[q] = iORG_signals
 
+                    # Once we've extracted the iORG signals, remove the video and mask data as its likely to have a large memory footprint.
+                    dataset.clear_video_data()
+
+                query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
                 for q in range(len(query_status)):
-                    query_status[q].to_csv(result_folder.joinpath("query_loc_status_"+str(folder.stem) + "_"+ str(mode) +"_"+dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,Path())[q].stem +".csv"))
+                    query_status[q].to_csv(result_folder.joinpath("query_loc_status_"+str(folder.stem) + "_"+ str(mode) +
+                                                                  "_"+query_paths[q].stem +".csv"))
 
 
         # If desired, make the summarized iORG relative to controls in some way.
@@ -341,14 +358,15 @@ if __name__ == "__main__":
 
                 has_stim = (group_datasets[AcquisiTags.STIM_PRESENT])
 
-                stim_data_vidnums = group_datasets.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique().tolist()
-                control_data_vidnums = group_datasets.loc[this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique().tolist()
+                stim_data_vidnums = np.sort(group_datasets.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique()).tolist()
+                control_data_vidnums = np.sort(group_datasets.loc[this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
 
                 # Make data storage structures for each of our query location lists- one is for results,
                 # The other for checking which query points went into our analysis.
                 iORG_result_datframes.append([pd.DataFrame(index=stim_data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
 
                 pb["maximum"] = len(stim_data_vidnums)
+
                 # Load each dataset (delineated by different video numbers), and process it relative to the control data.
                 for v, stim_vidnum in enumerate(stim_data_vidnums):
 
@@ -356,16 +374,22 @@ if __name__ == "__main__":
 
                     slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
+                    # Grab the stim dataset associated with this video number.
                     stim_dataset = group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET].values[0]
 
+                    # Process all control datasets in accordance with the stimulus datasets' parameters,
+                    # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
                     for vc, control_vidnum in enumerate(control_data_vidnums):
                         this_vid = (group_datasets[DataTags.VIDEO_ID] == control_vidnum)
 
                         slice_of_life = (this_mode & this_vid & only_vids)
 
+                        # Grab the control dataset associated with this video number.
                         control_dataset = group_datasets.loc[slice_of_life, AcquisiTags.DATASET].values[0]
 
                         for q in range(len(control_dataset.query_loc)):
+
+                            iORG_signals = control_dataset.iORG_signals[q]
 
                             # Exclude signals that don't pass our criterion
                             if excl_units == "time":
@@ -415,6 +439,7 @@ if __name__ == "__main__":
 
                             control_dataset.iORG_signals[q] = iORG_signals
                             control_dataset.summarized_iORGs[q] = summarized_iORG
+
 
 
 
