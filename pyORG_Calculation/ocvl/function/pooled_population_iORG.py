@@ -99,6 +99,9 @@ if __name__ == "__main__":
     control_loc = control_params.get(ControlParams.LOCATION, "implicit")
     control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
 
+    sum_params = analysis_params.get(SummaryParams.NAME, dict())
+    sum_method = sum_params.get(SummaryParams.METHOD, "rms")
+    sum_control = sum_params.get(SummaryParams.CONTROL, "none")
 
     output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
     if output_folder is None:
@@ -293,8 +296,24 @@ if __name__ == "__main__":
 
                     # After we've processed all the control data with the parameters of the stimulus data, combine it,
                     # do whatever against stimulus data, and analyze it
+                    for q in range(len(stim_dataset.query_loc)):
+                        max_frmstamp = 0
 
+                        control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].values
+                        for control_data in control_datasets:
+                            max_frmstamp = np.maximum(max_frmstamp, np.amax(control_data.framestamps))
 
+                        control_iORG_summaries = np.full((len(control_datasets), max_frmstamp+1), np.nan)
+                        control_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+
+                        for c, control_data in enumerate(control_datasets):
+                            control_iORG_N[c, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
+                            control_iORG_summaries[c, control_data.framestamps] = control_data.summarized_iORGs[q]
+
+                        control_iORG_summary = np.nansum(control_iORG_N * control_iORG_summaries, axis=0) / np.nansum(control_iORG_N, axis=0)
+
+                        if sum_control == "subtract":
+                            pass
 
 
 
