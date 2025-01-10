@@ -186,8 +186,8 @@ if __name__ == "__main__":
 
                     this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
 
+                    # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
                     slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
-
 
                     pb["value"] = v
                     mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(data_vidnums)))
@@ -202,6 +202,7 @@ if __name__ == "__main__":
                         if control_loc == "folder" and folder.stem == control_folder:
                             # If we're in the control folder, then we're a control video.
                             group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = False
+                            continue
                         else:
                             group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
                     else:
@@ -209,8 +210,9 @@ if __name__ == "__main__":
                             query_status[q].loc[:, vidnum] = "Dataset Failed To Load"
                         continue
 
-                    # Perform analyses on each query location set for each dataset.
+                    # Perform analyses on each query location set for each stimulus dataset.
                     for q in range(len(dataset.query_loc)):
+
 
                         pb_label["text"] = "Processing query file " + str(q) + " in dataset #" + str(vidnum) + " from the " + str(
                             mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
@@ -238,7 +240,6 @@ if __name__ == "__main__":
                         valid_signals = valid & valid_signals
                         query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
 
-
                         coorddist = pdist(dataset.query_loc[q], "euclidean")
                         coorddist = squareform(coorddist)
                         coorddist[coorddist == 0] = np.amax(coorddist.flatten())
@@ -263,7 +264,6 @@ if __name__ == "__main__":
                         valid_signals = valid & valid_signals
                         query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
 
-
                         # Normalize the video to reduce framewide intensity changes
                         dataset.video_data = norm_video(dataset.video_data, norm_method=method, rescaled=rescale,
                                                         rescale_mean=res_mean, rescale_std=res_stddev)
@@ -277,59 +277,55 @@ if __name__ == "__main__":
                         valid_signals = valid & valid_signals
                         query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
 
-                        # Only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
+                        # Should only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
                         # will be used for, or what critical region/standardization indicies it'll need.
-                        if group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT].values[0]:
 
-                            # Exclude signals that don't pass our criterion
-                            if excl_units == "time":
-                                excl_start_ind = int(excl_start * dataset.framerate)
-                                excl_stop_ind = int(excl_stop * dataset.framerate)
-                            else: #if units == "frames":
-                                excl_start_ind = int(excl_start)
-                                excl_stop_ind = int(excl_stop)
+                        # Exclude signals that don't pass our criterion
+                        if excl_units == "time":
+                            excl_start_ind = int(excl_start * dataset.framerate)
+                            excl_stop_ind = int(excl_stop * dataset.framerate)
+                        else: #if units == "frames":
+                            excl_start_ind = int(excl_start)
+                            excl_stop_ind = int(excl_stop)
 
-                            if excl_type == "stim-relative":
-                                excl_start_ind = dataset.stimtrain_frame_stamps[0] + excl_start_ind
-                                excl_stop_ind = dataset.stimtrain_frame_stamps[1] + excl_stop_ind
-                            else: #if type == "absolute":
-                                pass
-                                #excl_start_ind = excl_start_ind
-                                #excl_stop_ind = excl_stop_ind
-                            crit_region = np.arange(excl_start_ind, excl_stop_ind)
+                        if excl_type == "stim-relative":
+                            excl_start_ind = dataset.stimtrain_frame_stamps[0] + excl_start_ind
+                            excl_stop_ind = dataset.stimtrain_frame_stamps[1] + excl_stop_ind
+                        else: #if type == "absolute":
+                            pass
+                            #excl_start_ind = excl_start_ind
+                            #excl_stop_ind = excl_stop_ind
+                        crit_region = np.arange(excl_start_ind, excl_stop_ind)
 
-                            iORG_signals, valid, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
-                                                                                 critical_region=crit_region,
-                                                                                 critical_fraction=excl_cutoff_fraction)
-                            # Update our audit path.
-                            to_update = ~(~valid_signals | valid) # Use the inverse of implication to find which ones to update.
-                            valid_signals = valid & valid_signals
-                            query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
+                        iORG_signals, valid, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
+                                                                             critical_region=crit_region,
+                                                                             critical_fraction=excl_cutoff_fraction)
+                        # Update our audit path.
+                        to_update = ~(~valid_signals | valid) # Use the inverse of implication to find which ones to update.
+                        valid_signals = valid & valid_signals
+                        query_status[q].loc[to_update, vidnum] = excl_reason[to_update]
 
-                            # Standardize individual signals
-                            if std_units == "time":
-                                std_start_ind = int(std_start * dataset.framerate)
-                                std_stop_ind = int(std_stop * dataset.framerate)
-                            else:  # if units == "frames":
-                                std_start_ind = int(std_start)
-                                std_stop_ind = int(std_stop)
+                        # Standardize individual signals
+                        if std_units == "time":
+                            std_start_ind = int(std_start * dataset.framerate)
+                            std_stop_ind = int(std_stop * dataset.framerate)
+                        else:  # if units == "frames":
+                            std_start_ind = int(std_start)
+                            std_stop_ind = int(std_stop)
 
-                            if std_type == "stim-relative":
-                                std_start_ind = dataset.stimtrain_frame_stamps[0] + std_start_ind
-                                std_stop_ind = dataset.stimtrain_frame_stamps[1] + std_stop_ind
+                        if std_type == "stim-relative":
+                            std_start_ind = dataset.stimtrain_frame_stamps[0] + std_start_ind
+                            std_stop_ind = dataset.stimtrain_frame_stamps[1] + std_stop_ind
 
-                            std_ind = np.arange(std_start_ind, std_stop_ind)
+                        std_ind = np.arange(std_start_ind, std_stop_ind)
 
-                            iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
+                        iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
 
-                            summarized_iORG, num_signals_per_sample = signal_power_iORG(iORG_signals, dataset.framestamps, summary_method=sum_method,
-                                                                                        window_size=sum_window)
+                        summarized_iORG, num_signals_per_sample = signal_power_iORG(iORG_signals, dataset.framestamps, summary_method=sum_method,
+                                                                                    window_size=sum_window)
 
-                            dataset.iORG_signals[q] = iORG_signals
-                            dataset.summarized_iORGs[q] = summarized_iORG
-
-                        else:
-                            dataset.iORG_signals[q] = iORG_signals
+                        dataset.iORG_signals[q] = iORG_signals
+                        dataset.summarized_iORGs[q] = summarized_iORG
 
                     # Once we've extracted the iORG signals, remove the video and mask data as its likely to have a large memory footprint.
                     dataset.clear_video_data()
@@ -376,6 +372,9 @@ if __name__ == "__main__":
 
                     # Grab the stim dataset associated with this video number.
                     stim_dataset = group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET].values[0]
+
+                    # Make a temp storage for the signals and summary data we'll need from the control data.
+                    [None] * len(control_data_vidnums)
 
                     # Process all control datasets in accordance with the stimulus datasets' parameters,
                     # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
