@@ -17,18 +17,25 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
 
     im_size = ref_image.shape
 
+
+    query_status = np.full(coordinates.shape[0], "Included", dtype=object)
+
     # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded before analysis.
     pluscoord = coordinates + search_radius*2*numiter # Include extra region to avoid edge effects
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
+    query_status[pluscoord[:, 0] < im_size[1]] = "Refinement area outside image bounds (right side)"
+    query_status[pluscoord[:, 0] < im_size[0]] = "Refinement area outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - search_radius*2*numiter # Include extra region to avoid edge effects
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
+    query_status[minuscoord[:, 0] >= 0] = "Refinement area outside image bounds (top side)"
+    query_status[minuscoord[:, 1] >= 0] = "Refinement area outside image bounds (left side)"
     del minuscoord
 
-    coordinates = np.round(coordinates[includelist, :]).astype("int")
+    coordinates = np.round(coordinates).astype("int")
 
     for i in range(coordinates.shape[0]):
         if includelist[i]:
@@ -41,33 +48,13 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
                 minV, maxV, minL, maxL = cv2.minMaxLoc(ref_template)
 
                 maxL = np.array(maxL)-search_radius # Make relative to the center.
-                # print(coord)
                 coordinates[i, :] = coord + maxL
-                # print(" to: " + str(coordinates[i, :]))
-
-                # plt.figure(11)
-                # plt.clf()
-                # plt.imshow(ref_template)
-                # plt.plot(maxL[0]+search_radius,maxL[1]+search_radius,"r*")
-                # plt.show(block=False)
-                # plt.waitforbuttonpress()
 
                 if np.all(maxL == 0):
                     # print("Unchanged. Breaking...")
                     break
 
-            # plt.figure(12)
-            # plt.clf()
-            # plt.imshow(ref_image)
-            # plt.plot(coordinates[i, 0],coordinates[i, 1],"r*")
-            # plt.imshow( ref_image[(coordinates[i, 1] - 5):(coordinates[i, 1] + 5 + 1),
-            #             (coordinates[i, 0] - 5):(coordinates[i, 0] + 5 + 1)])
-            #
-            # plt.waitforbuttonpress()
-
-
-
-    return coordinates
+    return coordinates, includelist, query_status
 
 
 def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, threshold=0.3):
@@ -85,15 +72,15 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
     pluscoord = coordinates + search_region
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
-    query_status[pluscoord[:, 0] < im_size[1]] = "Query loc refinement area outside image bounds (right side)"
-    query_status[pluscoord[:, 0] < im_size[0]] = "Query loc refinement area outside image bounds (bottom side)"
+    query_status[pluscoord[:, 0] < im_size[1]] = "Stack refinement area outside image bounds (right side)"
+    query_status[pluscoord[:, 0] < im_size[0]] = "Stack refinement area outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - search_region
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
-    query_status[minuscoord[:, 0] >= 0] = "Query loc refinement area outside image bounds (top side)"
-    query_status[minuscoord[:, 1] >= 0] = "Query loc refinement area outside image bounds (left side)"
+    query_status[minuscoord[:, 0] >= 0] = "Stack refinement area outside image bounds (top side)"
+    query_status[minuscoord[:, 1] >= 0] = "Stack refinement area outside image bounds (left side)"
     del minuscoord
 
     coordinates = np.round(coordinates).astype("int")
@@ -156,15 +143,15 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
     pluscoord = coordinates + seg_radius
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
-    query_status[pluscoord[:, 0] < im_size[1]] = "Segmentation extended outside image bounds (right side)"
-    query_status[pluscoord[:, 1] < im_size[0]] = "Segmentation extended outside image bounds (bottom side)"
+    query_status[pluscoord[:, 0] < im_size[1]] = "Segmentation outside image bounds (right side)"
+    query_status[pluscoord[:, 1] < im_size[0]] = "Segmentation outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - seg_radius
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
-    query_status[minuscoord[:, 0] >= 0] = "Segmentation extended outside image bounds (top side)"
-    query_status[minuscoord[:, 1] >= 0] = "Segmentation extended outside image bounds (left side)"
+    query_status[minuscoord[:, 0] >= 0] = "Segmentation outside image bounds (top side)"
+    query_status[minuscoord[:, 1] >= 0] = "Segmentation outside image bounds (left side)"
     del minuscoord
 
     coordinates = np.floor(coordinates).astype("int")
@@ -279,8 +266,8 @@ def exclude_profiles(temporal_profiles, framestamps,
                 temporal_profiles[i, :] = np.nan
                 good_profiles[i] = False
 
-                query_status[i] = ("Only had data for " + f"{this_fraction * 100:.2f}" + "% of the required data in the critical region spanning frames " +
-                                   str(critical_region[0]) + " to " + str(critical_region[-1]) + ".")
+                query_status[i] = ("Only had data for " + f"{this_fraction * 100:.2f}" + "% of the req'd data in the crit region (frames " +
+                                   str(critical_region[0]) + " - " + str(critical_region[-1]) + ").")
 
     if require_full_profile:
         for i in range(temporal_profiles.shape[0]):
@@ -288,7 +275,7 @@ def exclude_profiles(temporal_profiles, framestamps,
 
                 temporal_profiles[i, :] = np.nan
                 good_profiles[i] = False
-                query_status[i] = "Did not have a complete profile (e.g. all framestamps supplied by the function arg"
+                query_status[i] = "Incomplete profile, and the function req. full profiles."
                 crit_remove += 1
 
     if critical_region is not None or require_full_profile:
