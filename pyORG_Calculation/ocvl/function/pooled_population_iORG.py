@@ -174,9 +174,9 @@ if __name__ == "__main__":
                                                                  critical_fraction=0.5)
 
                 if np.sum(~valid_profiles) == len(dataset.coord_data):
-                    pop_iORG_amp[r] = np.NaN
-                    pop_iORG_implicit[r] = np.NaN
-                    pop_iORG_recover[r] = np.NaN
+                    pop_iORG_amp[r] = np.nan
+                    pop_iORG_implicit[r] = np.nan
+                    pop_iORG_recover[r] = np.nan
                     print(file.name + " was dropped due to all cells being excluded.")
 
                 prestim_ind = np.flatnonzero(np.logical_and(dataset.framestamps < dataset.stimtrain_frame_stamps[0],
@@ -222,11 +222,11 @@ if __name__ == "__main__":
                 poststim = tmp_iorg[poststim_ind]
 
                 if poststim.size == 0:
-                    poststim_amp = np.NaN
-                    prestim_amp = np.NaN
-                    pop_iORG_amp[r] = np.NaN
-                    pop_iORG_implicit[r] = np.NaN
-                    pop_iORG_recover[r] = np.NaN
+                    poststim_amp = np.nan
+                    prestim_amp = np.nan
+                    pop_iORG_amp[r] = np.nan
+                    pop_iORG_implicit[r] = np.nan
+                    pop_iORG_recover[r] = np.nan
                 else:
                     poststim_amp = np.quantile(poststim, [0.95])
                     max_frmstmp = poststim_loc[np.argmax(poststim)] - dataset.stimtrain_frame_stamps[0]
@@ -331,11 +331,11 @@ if __name__ == "__main__":
         poststim = pooled_iORG[poststim_ind]
 
         if poststim.size == 0:
-            poststim_amp = np.NaN
-            prestim_amp = np.NaN
-            pop_iORG_amp[r] = np.NaN
-            pop_iORG_implicit[r] = np.NaN
-            pop_iORG_recover[r] = np.NaN
+            poststim_amp = np.nan
+            prestim_amp = np.nan
+            pop_iORG_amp[r] = np.nan
+            pop_iORG_implicit[r] = np.nan
+            pop_iORG_recover[r] = np.nan
         else:
             _, pop_iORG_amp[r], pop_iORG_implicit[r], _, pop_iORG_recover[r] = iORG_signal_metrics(pooled_iORG[None, :],
                                                                                                 dataset.framestamps,

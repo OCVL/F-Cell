@@ -254,8 +254,8 @@ if __name__ == "__main__":
             poststim = cell_power_iORG[c, poststim_ind]
 
             if poststim.size == 0 or avg_numdata < (all_cell_iORG.shape[0]/2):
-                poststim_amp = np.NaN
-                prestim_amp = np.NaN
+                poststim_amp = np.nan
+                prestim_amp = np.nan
 
             else:
                 thispower = cell_power_iORG[c, :]
