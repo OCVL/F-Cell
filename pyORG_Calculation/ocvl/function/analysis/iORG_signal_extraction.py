@@ -597,7 +597,7 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
 #
 #     dataset.load_pipelined_data()
 #
-#     iORG_signals = extract_profiles(dataset.video_data, dataset.query_loc)
+#     iORG_signals = extract_profiles(dataset.video_data, dataset.query_locs)
 #     norm_temporal_profiles = norm_profiles(iORG_signals, norm_method="mean")
 #     stdize_profiles = standardize_profiles(norm_temporal_profiles, dataset.framestamps, 55, method="mean_sub")
 #     stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps)
