@@ -102,6 +102,7 @@ class SummaryParams(StrEnum):
     METHOD = "method"
     WINDOW_SIZE = "window_size"
     CONTROL = "control"
+    METRICS = "metrics"
 
 class ControlParams(StrEnum):
     NAME = "control"
@@ -113,3 +114,9 @@ class ORGTags(StrEnum):
     IMPLICT_TIME = "Implict_Time"
     RECOVERY_PERCENT = "Recovery_Percent"
     RECOVERY = "Recovery"
+
+class DisplayParams(StrEnum):
+    NAME = "display_params"
+    POP_SUMMARY_OVERLAY = "pop_summary_overlap"
+    POP_SUMMARY_SEQ = "pop_summary_seq"
+    POP_SUMMARY_METRICS = "pop_summary_metrics"

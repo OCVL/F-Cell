@@ -266,9 +266,12 @@ def preprocess_dataset(dataset, pipeline_params):
         pre_dewarp = custom_steps.get("dewarp")
         match pre_dewarp:
             case "ocvl":
+                # Framestamps from the MEAO AOSLO  start at 1, instead of 0- shift to fix.
+                dataset.framestamps = dataset.framestamps-1
+
                 if dataset.metadata[AcquisiTags.META_PATH] is not None:
                     dat_metadata = pd.read_csv(dataset.metadata[AcquisiTags.META_PATH], encoding="utf-8-sig",
-                                               skipinitialspace=True)
+                                               skipinitWialspace=True)
 
                     ncc = 1 - dat_metadata["NCC"].to_numpy(dtype=float)
                     dataset.reference_frame_idx = min(range(len(ncc)), key=ncc.__getitem__)
