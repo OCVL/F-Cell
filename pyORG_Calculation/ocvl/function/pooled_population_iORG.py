@@ -1,5 +1,6 @@
 import os
 import multiprocessing as mp
+import warnings
 from itertools import repeat
 from pathlib import Path, PurePath
 from tkinter import Tk, filedialog, ttk, HORIZONTAL, simpledialog
@@ -15,7 +16,7 @@ from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataFormatType, DataTags, AcquisiTags, \
-    SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags, SummaryParams, ControlParams
+    SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags, SummaryParams, ControlParams, DisplayParams
 
 from datetime import datetime, date, time, timezone
 
@@ -83,188 +84,190 @@ if __name__ == "__main__":
     root.geometry('%dx%d+%d+%d' % (w, h, x, y))
     root.update()
 
-    with mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool:
 
-        piped_dat_format = dat_form.get("pipelined")
-        processed_dat_format = dat_form.get("processed")
-        pipeline_params = processed_dat_format.get("pipeline_params")
-        analysis_params = piped_dat_format.get("analysis_params")
-        display_params = piped_dat_format.get("display_params")
-        modes_of_interest = analysis_params.get(PipelineParams.MODALITIES)
 
-        metadata_params = None
-        if piped_dat_format.get(MetaTags.METATAG) is not None:
-            metadata_params = piped_dat_format.get(MetaTags.METATAG)
-            metadata_form = metadata_params.get(DataFormatType.METADATA)
+    piped_dat_format = dat_form.get("pipelined")
+    processed_dat_format = dat_form.get("processed")
+    pipeline_params = processed_dat_format.get("pipeline_params")
+    analysis_params = piped_dat_format.get("analysis_params")
+    display_params = piped_dat_format.get("display_params")
+    modes_of_interest = analysis_params.get(PipelineParams.MODALITIES)
 
-        # If we've selected modalities of interest, only process those; otherwise, process them all.
-        if modes_of_interest is None:
-            modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
-            print("NO MODALITIES SELECTED! Processing them all....")
+    metadata_params = None
+    if piped_dat_format.get(MetaTags.METATAG) is not None:
+        metadata_params = piped_dat_format.get(MetaTags.METATAG)
+        metadata_form = metadata_params.get(DataFormatType.METADATA)
 
-        grouping = pipeline_params.get(PipelineParams.GROUP_BY)
-        if grouping is not None:
-            for row in allData.itertuples():
-                #print(grouping.format_map(row._asdict()))
-                allData.loc[row.Index, PipelineParams.GROUP_BY] = grouping.format_map(row._asdict())
+    # If we've selected modalities of interest, only process those; otherwise, process them all.
+    if modes_of_interest is None:
+        modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
+        print("NO MODALITIES SELECTED! Processing them all....")
 
-            groups = allData[PipelineParams.GROUP_BY].unique().tolist()
+    grouping = pipeline_params.get(PipelineParams.GROUP_BY)
+    if grouping is not None:
+        for row in allData.itertuples():
+            #print(grouping.format_map(row._asdict()))
+            allData.loc[row.Index, PipelineParams.GROUP_BY] = grouping.format_map(row._asdict())
+
+        groups = allData[PipelineParams.GROUP_BY].unique().tolist()
+    else:
+        groups = [""]  # If we don't have any groups, then just make the list an empty string.
+
+    # Snag all of our parameter dictionaries that we'll use here.
+    # Default to an empty dictionary so that we can query against it with fewer if statements.
+    control_params = analysis_params.get(ControlParams.NAME, dict())
+    control_loc = control_params.get(ControlParams.LOCATION, "implicit")
+    control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
+
+    sum_params = analysis_params.get(SummaryParams.NAME, dict())
+    sum_method = sum_params.get(SummaryParams.METHOD, "rms")
+    sum_control = sum_params.get(SummaryParams.CONTROL, "none")
+
+    output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
+    if output_folder is None:
+        output_folder = PurePath("Results")
+    else:
+        output_folder = PurePath(output_folder)
+
+    # First break things down by group, defined by the user in the config file.
+    # We like to use (LocX,LocY), but this is by no means the only way.
+    for group in groups:
+        if group != "":
+            group_datasets = allData.loc[allData[PipelineParams.GROUP_BY] == group]
         else:
-            groups = [""]  # If we don't have any groups, then just make the list an empty string.
+            group_datasets = allData
 
-        # Snag all of our parameter dictionaries that we'll use here.
-        # Default to an empty dictionary so that we can query against it with fewer if statements.
-        control_params = analysis_params.get(ControlParams.NAME, dict())
-        control_loc = control_params.get(ControlParams.LOCATION, "implicit")
-        control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
+        group_datasets[AcquisiTags.STIM_PRESENT] = False
+        reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+        query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+        only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
 
-        sum_params = analysis_params.get(SummaryParams.NAME, dict())
-        sum_method = sum_params.get(SummaryParams.METHOD, "rms")
-        sum_control = sum_params.get(SummaryParams.CONTROL, "none")
+        # While we're going to process by group, respect the folder structure used by the user here, and only group
+        # and analyze things from the same folder
+        folder_groups = pd.unique(group_datasets[AcquisiTags.BASE_PATH]).tolist()
 
-        output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
-        if output_folder is None:
-            output_folder = PurePath("Results")
-        else:
-            output_folder = PurePath(output_folder)
+        # Respect the users' folder structure. If things are in different folders, analyze them separately.
+        for folder in folder_groups:
 
-        # First break things down by group, defined by the user in the config file.
-        # We like to use (LocX,LocY), but this is by no means the only way.
-        for group in groups:
-            if group != "":
-                group_datasets = allData.loc[allData[PipelineParams.GROUP_BY] == group]
-            else:
-                group_datasets = allData
+            if folder.stem == output_folder.stem:
+                continue
 
-            group_datasets[AcquisiTags.STIM_PRESENT] = False
-            reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
-            query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
-            only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+            result_folder = folder.joinpath(output_folder)
+            result_folder.mkdir(exist_ok=True)
 
-            # While we're going to process by group, respect the folder structure used by the user here, and only group
-            # and analyze things from the same folder
-            folder_groups = pd.unique(group_datasets[AcquisiTags.BASE_PATH]).tolist()
+            folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
-            # Respect the users' folder structure. If things are in different folders, analyze them separately.
-            for folder in folder_groups:
+            data_in_folder = group_datasets.loc[folder_mask]
+            iORG_result_datframes = []
 
-                if folder.stem == output_folder.stem:
-                    continue
+            # Load each modality
+            for mode in modes_of_interest:
+                this_mode = (group_datasets[DataTags.MODALITY] == mode)
+                slice_of_life = folder_mask & this_mode
 
-                result_folder = folder.joinpath(output_folder)
-                result_folder.mkdir(exist_ok=True)
+                data_vidnums = group_datasets.loc[slice_of_life & only_vids, DataTags.VIDEO_ID].unique().tolist()
+                #data_vidnums = group_datasets.loc[slice_of_life, DataTags.VIDEO_ID].unique().tolist()
 
-                folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
+                # Make data storage structures for each of our query location lists- one is for results,
+                # The other for checking which query points went into our analysis.
+                iORG_result_datframes.append([pd.DataFrame(index=data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
 
-                data_in_folder = group_datasets.loc[folder_mask]
-                iORG_result_datframes = []
+                query_status = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & query_locations).sum())]
 
-                # Load each modality
-                for mode in modes_of_interest:
-                    this_mode = (group_datasets[DataTags.MODALITY] == mode)
-                    slice_of_life = folder_mask & this_mode
+                pb["maximum"] = len(data_vidnums)
+                # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
+                for v, vidnum in enumerate(data_vidnums):
 
-                    data_vidnums = group_datasets.loc[slice_of_life & only_vids, DataTags.VIDEO_ID].unique().tolist()
-                    #data_vidnums = group_datasets.loc[slice_of_life, DataTags.VIDEO_ID].unique().tolist()
+                    this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
 
-                    # Make data storage structures for each of our query location lists- one is for results,
-                    # The other for checking which query points went into our analysis.
-                    iORG_result_datframes.append([pd.DataFrame(index=data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
+                    # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
+                    slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
-                    query_status = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & query_locations).sum())]
+                    pb["value"] = v
+                    mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(data_vidnums)))
 
-                    pb["maximum"] = len(data_vidnums)
-                    # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
-                    for v, vidnum in enumerate(data_vidnums):
+                    # for later: allData.loc[ind, AcquisiTags.DATASET]
+                    # Actually load the dataset, and all its metadata.
+                    dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params)
 
-                        this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
+                    if dataset is not None:
+                        group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
 
-                        # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
-                        slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
-
-                        pb["value"] = v
-                        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(data_vidnums)))
-
-                        # for later: allData.loc[ind, AcquisiTags.DATASET]
-                        # Actually load the dataset, and all its metadata.
-                        dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params)
-
-                        if dataset is not None:
-                            group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
-
-                            if control_loc == "folder" and folder.stem == control_folder:
-                                # If we're in the control folder, then we're a control video.
-                                group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = False
-                                continue
-                            else:
-                                group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
-                        else:
-                            for q in range(len(query_status)):
-                                query_status[q].loc[:, vidnum] = "Dataset Failed To Load"
+                        if control_loc == "folder" and folder.stem == control_folder:
+                            # If we're in the control folder, then we're a control video.
+                            group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = False
                             continue
+                        else:
+                            group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
+                    else:
+                        for q in range(len(query_status)):
+                            query_status[q].loc[:, vidnum] = "Dataset Failed To Load"
+                        continue
 
-                        # Perform analyses on each query location set for each stimulus dataset.
-                        for q in range(len(dataset.query_loc)):
-
-
-                            pb_label["text"] = "Processing query file " + str(q) + " in dataset #" + str(vidnum) + " from the " + str(
-                                mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
-                            pb.update()
-                            pb_label.update()
-                            print("Processing query file " + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,Path())[q].stem) +
-                                  " in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
-                                  + str(group) + " and folder " + folder.stem + "...")
-
-                            '''
-                            *** This section is where we do dataset summary. ***
-                            '''
-                            valid_signals = np.full((dataset.query_loc[q].shape[0]), True)
-                            # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
-                            query_status[q] = query_status[q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
-
-                            (dataset.iORG_signals[q],
-                             dataset.summarized_iORGs[q],
-                             query_status[q].loc[:,vidnum],
-                             dataset.query_loc[q]) = extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=dataset.query_loc[q])
+                    # Perform analyses on each query location set for each stimulus dataset.
+                    for q in range(len(dataset.query_loc)):
 
 
-                        # Once we've extracted the iORG signals, remove the video and mask data as its likely to have a large memory footprint.
-                        dataset.clear_video_data()
+                        pb_label["text"] = "Processing query file " + str(q) + " in dataset #" + str(vidnum) + " from the " + str(
+                            mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
+                        pb.update()
+                        pb_label.update()
+                        print("Processing query file " + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,Path())[q].stem) +
+                              " in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
+                              + str(group) + " and folder " + folder.stem + "...")
 
-                    query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
-                    for q in range(len(query_status)):
-                        query_status[q].to_csv(result_folder.joinpath("query_loc_status_"+str(folder.stem) + "_"+ str(mode) +
-                                                                      "_"+query_paths[q].stem +".csv"))
+                        '''
+                        *** This section is where we do dataset summary. ***
+                        '''
+                        valid_signals = np.full((dataset.query_loc[q].shape[0]), True)
+                        # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
+                        query_status[q] = query_status[q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
+
+                        (dataset.iORG_signals[q],
+                         dataset.summarized_iORGs[q],
+                         query_status[q].loc[:,vidnum],
+                         dataset.query_loc[q]) = extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=dataset.query_loc[q])
 
 
-            # If desired, make the summarized iORG relative to controls in some way.
-            # Control data is expected to be applied to the WHOLE group.
-            for folder in folder_groups:
+                    # Once we've extracted the iORG signals, remove the video and mask data as its likely to have a large memory footprint.
+                    dataset.clear_video_data()
 
-                result_folder = folder.joinpath(output_folder)
+                query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
+                for q in range(len(query_status)):
+                    query_status[q].to_csv(result_folder.joinpath("query_loc_status_"+str(folder.stem) + "_"+ str(mode) +
+                                                                  "_"+query_paths[q].stem +".csv"))
 
-                folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
-                data_in_folder = group_datasets.loc[folder_mask]
-                iORG_result_datframes = []
+        # If desired, make the summarized iORG relative to controls in some way.
+        # Control data is expected to be applied to the WHOLE group.
+        for folder in folder_groups:
 
-                # Load each modality
-                for mode in modes_of_interest:
-                    this_mode = (group_datasets[DataTags.MODALITY] == mode)
-                    slice_of_life = folder_mask & this_mode
+            result_folder = folder.joinpath(output_folder)
 
-                    has_stim = (group_datasets[AcquisiTags.STIM_PRESENT])
+            folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
-                    stim_data_vidnums = np.sort(group_datasets.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique()).tolist()
-                    control_data_vidnums = np.sort(group_datasets.loc[this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
+            data_in_folder = group_datasets.loc[folder_mask]
+            iORG_result_datframes = []
 
-                    # Make data storage structures for each of our query location lists- one is for results,
-                    # The other for checking which query points went into our analysis.
-                    iORG_result_datframes.append([pd.DataFrame(index=stim_data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
+            # Load each modality
+            for mode in modes_of_interest:
+                this_mode = (group_datasets[DataTags.MODALITY] == mode)
+                slice_of_life = folder_mask & this_mode
 
-                    control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & ~has_stim & query_locations).sum())]
+                has_stim = (group_datasets[AcquisiTags.STIM_PRESENT])
 
-                    pb["maximum"] = len(stim_data_vidnums)
+                stim_data_vidnums = np.sort(group_datasets.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique()).tolist()
+                control_data_vidnums = np.sort(group_datasets.loc[this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
+
+                # Make data storage structures for each of our query location lists- one is for results,
+                # The other for checking which query points went into our analysis.
+                iORG_result_datframes.append([pd.DataFrame(index=stim_data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
+
+                control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & ~has_stim & query_locations).sum())]
+
+                pb["maximum"] = len(stim_data_vidnums)
+
+                with mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool:
 
                     # Load each dataset (delineated by different video numbers), and process it relative to the control data.
                     for v, stim_vidnum in enumerate(stim_data_vidnums):
@@ -300,10 +303,16 @@ if __name__ == "__main__":
                         control_vidnums, control_datasets, control_query_statuses = map(list, zip(*res))
 
 
-                        query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
                         for control_query in control_query_statuses:
-                            control_query_status[q] = pd.merge(control_query_status[q], control_query)
+                            for q in range(len(control_query)):
+                                filled_dat = control_query[q].dropna(axis=1, how="all")
 
+                                if len(filled_dat.columns) == 1:
+                                    control_query_status[q][filled_dat.columns[0]] = filled_dat.iloc[:,0]
+                                else:
+                                    warnings.warn("More than one column filled during control iORG summary; results may be inaccurate.")
+
+                        query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
                         for q in range(len(control_query_status)):
                             control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
                                                            "_" + query_paths[q].stem + "_controldata.csv"))
@@ -338,6 +347,7 @@ if __name__ == "__main__":
                             elif sum_control == "none":
                                 stim_dataset.summarized_iORGs[q] = stim_iORG_summary
 
+                            display_params.get(DisplayParams.POP_SUMMARY_OVERLAP)
                             plt.figure(q)
                             plt.plot(stim_dataset.framestamps, stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
                             plt.plot(control_framestamps, control_iORG_summary[control_framestamps])

@@ -117,6 +117,6 @@ class ORGTags(StrEnum):
 
 class DisplayParams(StrEnum):
     NAME = "display_params"
-    POP_SUMMARY_OVERLAY = "pop_summary_overlap"
+    POP_SUMMARY_OVERLAP = "pop_summary_overlap"
     POP_SUMMARY_SEQ = "pop_summary_seq"
     POP_SUMMARY_METRICS = "pop_summary_metrics"
