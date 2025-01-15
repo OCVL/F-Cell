@@ -123,6 +123,12 @@ if __name__ == "__main__":
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
     sum_control = sum_params.get(SummaryParams.CONTROL, "none")
+    metrics = sum_params.get(SummaryParams.METRICS, dict())
+    metrics_type = metrics.get(SummaryParams.TYPE, ["auc", "amplitude", "imp_type", "rec_amp"])
+    metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
+    metrics_units = metrics.get(SummaryParams.UNITS, "time")
+    metrics_start = metrics.get(SummaryParams.START, -1)
+    metrics_stop = metrics.get(SummaryParams.STOP, 1)
 
     output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
     if output_folder is None:
@@ -459,9 +465,29 @@ if __name__ == "__main__":
 
                                 plt.show(block=False)
 
+                        metrics_type = metrics.get(SummaryParams.TYPE, ["auc", "amplitude", "imp_type", "rec_amp"])
+                        metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
+                        metrics_units = metrics.get(SummaryParams.UNITS, "time")
+                        metrics_start = metrics.get(SummaryParams.START, -1)
+                        metrics_stop = metrics.get(SummaryParams.STOP, 1)
+
+                        if metrics_units == "time":
+                            std_start_ind = int(metrics_start * dataset.framerate)
+                            std_stop_ind = int(metrics_stop * dataset.framerate)
+                        else:  # if units == "frames":
+                            std_start_ind = int(metrics_start)
+                            std_stop_ind = int(metrics_stop)
+
+                        if metrics_measured_to == "stim-relative":
+                            std_start_inds = stim_dataset.stimtrain_frame_stamps[0] + std_start_ind
+                            std_stop_inds = stim_dataset.stimtrain_frame_stamps[1] + std_stop_ind
+
+                        iORG_signal_metrics(stim_dataset.summarized_iORGs[q], stim_dataset.framestamps, stim_dataset.framerate,
+                                            , stim_dataset.stimtrain_frame_stamps[2])
+
                         stim_dataset.framestamps = np.arange(max_frmstamp + 1)
 
-                        #display_params
+
 
 
 

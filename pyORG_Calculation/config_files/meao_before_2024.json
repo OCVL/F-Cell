@@ -90,7 +90,13 @@
       "summary": {
         "method": "rms",
         "control": "subtraction",
-        "metrics": ["auc", "amplitude", "imp_time", "rec_amp"]
+        "metrics": {
+          "type": ["auc", "amplitude", "imp_time", "rec_amp"],
+          "measured": "stim-relative",
+          "units": "time",
+          "start": -1,
+          "stop": 1
+        }
       },
       "gaus_blur": 0.0,
       "mask_roi": {

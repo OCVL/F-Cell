@@ -103,6 +103,11 @@ class SummaryParams(StrEnum):
     WINDOW_SIZE = "window_size"
     CONTROL = "control"
     METRICS = "metrics"
+    TYPE = "type"
+    MEASURED_TO = "measured"
+    UNITS = "units"
+    START = "start"
+    STOP = "stop"
 
 class ControlParams(StrEnum):
     NAME = "control"
