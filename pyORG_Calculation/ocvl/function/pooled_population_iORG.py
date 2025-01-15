@@ -257,8 +257,11 @@ if __name__ == "__main__":
                 has_stim = (group_datasets[AcquisiTags.STIM_PRESENT])
 
                 stim_data_vidnums = np.sort(group_datasets.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique()).tolist()
-                stim_datasets = group_datasets.loc[this_mode & only_vids & has_stim, AcquisiTags.DATASET].tolist()
+                stim_datasets = group_datasets.loc[slice_of_life & only_vids & has_stim, AcquisiTags.DATASET].tolist()
                 control_data_vidnums = np.sort(group_datasets.loc[this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
+
+                if not stim_datasets:
+                    continue
 
                 # Make data storage structures for each of our query location lists- one is for results,
                 # The other for checking which query points went into our analysis.
@@ -266,11 +269,40 @@ if __name__ == "__main__":
 
                 pb["maximum"] = len(stim_data_vidnums)
 
-                with mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool:
+                with (mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool):
 
-                    # Determine if all stimulus data in this folder and mode has the same form; if so, we can just process the control data one
-                    # time, saving a lot of time.
-                    # for v, stim_vidnum in enumerate(stim_data_vidnums):
+                    # Determine if all stimulus data in this folder and mode has the same form and contents;
+                    # if so, we can just process the control data *one* time, saving a lot of time.
+                    all_locs = None
+                    all_timestamps = None
+                    first_run = True
+                    fast_control_processing = True
+                    for d, dataset in enumerate(stim_datasets):
+                        locs = dataset.query_loc
+                        the_timestamps = dataset.stimtrain_frame_stamps
+
+                        if d != 0:
+                            if np.all(all_timestamps.shape != the_timestamps.shape) and np.all(all_timestamps != the_timestamps):
+                                warnings.warn("Does not qualify for fast control processing: The stimulus timestamps do not match.")
+                                fast_control_processing = False
+                                break
+
+                            if len(locs) == len(all_locs):
+                                for l, the_locs in enumerate(locs):
+                                    if np.all(the_locs.shape != all_locs[l].shape) and np.all(the_locs != all_locs[l]):
+                                        warnings.warn("Does not qualify for fast control processing: The query locations do not match.")
+                                        fast_control_processing = False
+                                        break
+                            else:
+                                warnings.warn("Does not qualify for fast control processing: The number of query locations do not match.")
+                                fast_control_processing = False
+                                break
+                        else:
+                            all_locs = locs
+                            all_timestamps = the_timestamps
+
+                    control_iORG_summary = [None] * len(all_locs)
+                    control_framestamps = [None] * len(all_locs)
 
                     # Load each dataset (delineated by different video numbers), and process it relative to the control data.
                     for v, stim_vidnum in enumerate(stim_data_vidnums):
@@ -286,66 +318,63 @@ if __name__ == "__main__":
                         stim_dataset = group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET].values[0]
                         query_loc_names = stim_dataset.metadata.get(DataTags.QUERYLOC)
 
-                        # Make a temp storage for the signals and summary data we'll need from the control data.
-                        [None] * len(control_data_vidnums)
 
                         # Process all control datasets in accordance with the stimulus datasets' parameters,
                         # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
+                        if not fast_control_processing or first_run:
+                            first_run = False
+                            control_iORG_summary = [None] * len(stim_dataset.query_loc)
+                            control_framestamps = [None] * len(stim_dataset.query_loc)
 
-                        pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
-                            stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
-                            group) + " and folder " + folder.stem + "..."
-                        pb.update()
-                        pb_label.update()
-                        print("Processing query files in control datasets for stim video" + str(
-                            stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
-                            group) + " and folder " + folder.stem + "...")
+                            pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
+                                stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
+                                group) + " and folder " + folder.stem + "..."
+                            pb.update()
+                            pb_label.update()
+                            print("Processing query files in control datasets for stim video" + str(
+                                stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
+                                group) + " and folder " + folder.stem + "...")
 
-                        res = pool.map(extract_control_iORG_summaries, zip(control_data_vidnums, group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist(), repeat(control_query_status),
-                                                                               repeat(analysis_params), repeat(stim_dataset.query_loc), repeat(stim_dataset.stimtrain_frame_stamps)))
+                            res = pool.map(extract_control_iORG_summaries, zip(control_data_vidnums, group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist(), repeat(control_query_status),
+                                                                                   repeat(analysis_params), repeat(stim_dataset.query_loc), repeat(stim_dataset.stimtrain_frame_stamps)))
 
-                        print("...Done.")
+                            print("...Done.")
 
-                        # Take all of the results, and collate them for summary iORGs.
-                        control_vidnums, control_datasets, control_query_status_res = map(list, zip(*res))
+                            # Take all of the results, and collate them for summary iORGs.
+                            control_vidnums, control_datasets, control_query_status_res = map(list, zip(*res))
 
-                        for control_query in control_query_status_res:
-                            for q in range(len(control_query)):
-                                filled_dat = control_query[q].dropna(axis=1, how="all")
+                            for control_query in control_query_status_res:
+                                for q in range(len(control_query)):
+                                    filled_dat = control_query[q].dropna(axis=1, how="all")
 
-                                if len(filled_dat.columns) == 1:
-                                    control_query_status[q][filled_dat.columns[0]] = filled_dat.iloc[:,0]
-                                elif len(filled_dat.columns) > 1:
-                                    warnings.warn("More than one column filled during control iORG summary; results may be inaccurate.")
-                                else:
-                                    warnings.warn("Column missing from control iORG summary.")
+                                    if len(filled_dat.columns) == 1:
+                                        control_query_status[q][filled_dat.columns[0]] = filled_dat.iloc[:,0]
+                                    elif len(filled_dat.columns) > 1:
+                                        warnings.warn("More than one column filled during control iORG summary; results may be inaccurate.")
+                                    else:
+                                        warnings.warn("Column missing from control iORG summary.")
 
-                        # After we've processed all the control data with the parameters of the stimulus data, combine it
-                        max_frmstamp = stim_dataset.framestamps[-1]
-                        for control_data in control_datasets:
-                            max_frmstamp = np.maximum(max_frmstamp, np.amax(control_data.framestamps))
+                            # After we've processed all the control data with the parameters of the stimulus data, combine it
+                            max_frmstamp = stim_dataset.framestamps[-1]
+                            for control_data in control_datasets:
+                                max_frmstamp = np.maximum(max_frmstamp, np.amax(control_data.framestamps))
 
-                        control_iORG_summary = [None] * len(control_data_vidnums)
-                        control_framestamps = [None] * len(control_data_vidnums)
+                            query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
+                            for q in range(len(control_query_status)):
+                                # First write the control data to a file.
+                                control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
+                                                               "_" + query_paths[q].stem + "_controldata.csv"))
 
-                        query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
-                        for q in range(len(control_query_status)):
-                            # First write the control data to a file.
-                            control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
-                                                           "_" + query_paths[q].stem + "_controldata.csv"))
+                                control_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                control_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
 
-                            control_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                            control_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                for c, control_data in enumerate(control_datasets):
+                                    control_iORG_N[c, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
+                                    control_iORG_summaries[c, control_data.framestamps] = control_data.summarized_iORGs[q]
 
-                            for c, control_data in enumerate(control_datasets):
-                                control_iORG_N[c, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
-                                control_iORG_summaries[c, control_data.framestamps] = control_data.summarized_iORGs[q]
-
-                            control_iORG_summary[q] = np.nansum(control_iORG_N * control_iORG_summaries,
-                                                             axis=0) / np.nansum(control_iORG_N, axis=0)
-                            control_framestamps[q] = np.flatnonzero(np.isfinite(control_iORG_summary))
-
-
+                                control_iORG_summary[q] = np.nansum(control_iORG_N * control_iORG_summaries,
+                                                                 axis=0) / np.nansum(control_iORG_N, axis=0)
+                                control_framestamps[q] = np.flatnonzero(np.isfinite(control_iORG_summary[q]))
 
 
                         for q in range(len(stim_dataset.query_loc)):
@@ -495,6 +524,9 @@ if __name__ == "__main__":
 
                             # if dataset.framestamps[-1] > max_frmstamp:
                             #     max_frmstamp = dataset.framestamps[-1]
+
+                    plt.waitforbuttonpress()
+
 
                     #TODO: Add plotting class for the below
                     # dt = datetime.now()
