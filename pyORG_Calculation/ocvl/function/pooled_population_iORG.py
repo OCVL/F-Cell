@@ -23,6 +23,7 @@ from datetime import datetime, date, time, timezone
 def extract_control_iORG_summaries(params):
     control_vidnum, control_dataset, control_query_status, analysis_params, query_locs, stimtrain_frame_stamps = params
 
+    control_query_stat = control_query_status.copy()
     control_dataset.query_loc = [None] * len(query_locs)
     control_dataset.iORG_signals = [None] * len(query_locs)
     control_dataset.summarized_iORGs = [None] * len(query_locs)
@@ -31,11 +32,11 @@ def extract_control_iORG_summaries(params):
         # Use the control data, but the query locations and stimulus info from the stimulus data.
         (control_dataset.iORG_signals[q],
          control_dataset.summarized_iORGs[q],
-         control_query_status[q].loc[:, control_vidnum],
+         control_query_stat[q].loc[:, control_vidnum],
          control_dataset.query_loc[q]) = extract_n_refine_iorg_signals(control_dataset, analysis_params,
                                                                        query_loc=query_locs[q],
                                                                        stimtrain_frame_stamps=stimtrain_frame_stamps)
-    return control_vidnum, control_dataset, control_query_status
+    return control_vidnum, control_dataset, control_query_stat
 
 
 if __name__ == "__main__":
@@ -166,7 +167,6 @@ if __name__ == "__main__":
                 slice_of_life = folder_mask & this_mode
 
                 data_vidnums = group_datasets.loc[slice_of_life & only_vids, DataTags.VIDEO_ID].unique().tolist()
-                #data_vidnums = group_datasets.loc[slice_of_life, DataTags.VIDEO_ID].unique().tolist()
 
                 # Make data storage structures for each of our query location lists- one is for results,
                 # The other for checking which query points went into our analysis.
@@ -257,20 +257,26 @@ if __name__ == "__main__":
                 has_stim = (group_datasets[AcquisiTags.STIM_PRESENT])
 
                 stim_data_vidnums = np.sort(group_datasets.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique()).tolist()
+                stim_datasets = group_datasets.loc[this_mode & only_vids & has_stim, AcquisiTags.DATASET].tolist()
                 control_data_vidnums = np.sort(group_datasets.loc[this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
 
                 # Make data storage structures for each of our query location lists- one is for results,
                 # The other for checking which query points went into our analysis.
                 iORG_result_datframes.append([pd.DataFrame(index=stim_data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
 
-                control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & ~has_stim & query_locations).sum())]
-
                 pb["maximum"] = len(stim_data_vidnums)
 
                 with mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool:
 
+                    # Determine if all stimulus data in this folder and mode has the same form; if so, we can just process the control data one
+                    # time, saving a lot of time.
+                    # for v, stim_vidnum in enumerate(stim_data_vidnums):
+
                     # Load each dataset (delineated by different video numbers), and process it relative to the control data.
                     for v, stim_vidnum in enumerate(stim_data_vidnums):
+
+                        control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in
+                                                range((slice_of_life & ~has_stim & query_locations).sum())]
 
                         this_vid = (group_datasets[DataTags.VIDEO_ID] == stim_vidnum)
 
@@ -278,6 +284,7 @@ if __name__ == "__main__":
 
                         # Grab the stim dataset associated with this video number.
                         stim_dataset = group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET].values[0]
+                        query_loc_names = stim_dataset.metadata.get(DataTags.QUERYLOC)
 
                         # Make a temp storage for the signals and summary data we'll need from the control data.
                         [None] * len(control_data_vidnums)
@@ -300,32 +307,32 @@ if __name__ == "__main__":
                         print("...Done.")
 
                         # Take all of the results, and collate them for summary iORGs.
-                        control_vidnums, control_datasets, control_query_statuses = map(list, zip(*res))
+                        control_vidnums, control_datasets, control_query_status_res = map(list, zip(*res))
 
-
-                        for control_query in control_query_statuses:
+                        for control_query in control_query_status_res:
                             for q in range(len(control_query)):
                                 filled_dat = control_query[q].dropna(axis=1, how="all")
 
                                 if len(filled_dat.columns) == 1:
                                     control_query_status[q][filled_dat.columns[0]] = filled_dat.iloc[:,0]
-                                else:
+                                elif len(filled_dat.columns) > 1:
                                     warnings.warn("More than one column filled during control iORG summary; results may be inaccurate.")
+                                else:
+                                    warnings.warn("Column missing from control iORG summary.")
 
-                        query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
-                        for q in range(len(control_query_status)):
-                            control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
-                                                           "_" + query_paths[q].stem + "_controldata.csv"))
-
-                        # After we've processed all the control data with the parameters of the stimulus data, combine it,
-                        # do whatever against stimulus data, and analyze it
+                        # After we've processed all the control data with the parameters of the stimulus data, combine it
                         max_frmstamp = stim_dataset.framestamps[-1]
-
                         for control_data in control_datasets:
                             max_frmstamp = np.maximum(max_frmstamp, np.amax(control_data.framestamps))
 
+                        control_iORG_summary = [None] * len(control_data_vidnums)
+                        control_framestamps = [None] * len(control_data_vidnums)
 
-                        for q in range(len(stim_dataset.query_loc)):
+                        query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
+                        for q in range(len(control_query_status)):
+                            # First write the control data to a file.
+                            control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
+                                                           "_" + query_paths[q].stem + "_controldata.csv"))
 
                             control_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
                             control_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
@@ -334,24 +341,94 @@ if __name__ == "__main__":
                                 control_iORG_N[c, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
                                 control_iORG_summaries[c, control_data.framestamps] = control_data.summarized_iORGs[q]
 
-                            control_iORG_summary = np.nansum(control_iORG_N * control_iORG_summaries, axis=0) / np.nansum(control_iORG_N, axis=0)
-                            control_framestamps = np.flatnonzero(np.isfinite(control_iORG_summary))
+                            control_iORG_summary[q] = np.nansum(control_iORG_N * control_iORG_summaries,
+                                                             axis=0) / np.nansum(control_iORG_N, axis=0)
+                            control_framestamps[q] = np.flatnonzero(np.isfinite(control_iORG_summary))
+
+
+
+
+                        for q in range(len(stim_dataset.query_loc)):
 
                             stim_iORG_summary = np.full((max_frmstamp + 1,), np.nan)
                             stim_iORG_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
 
-                            if sum_control == "subtract":
-                                stim_dataset.summarized_iORGs[q] = stim_iORG_summary - control_iORG_summary
-                            elif sum_control == "divide":
-                                stim_dataset.summarized_iORGs[q] = stim_iORG_summary / control_iORG_summary
+                            if sum_control == "subtraction":
+                                stim_dataset.summarized_iORGs[q] = stim_iORG_summary - control_iORG_summary[q]
+                            elif sum_control == "division":
+                                stim_dataset.summarized_iORGs[q] = stim_iORG_summary / control_iORG_summary[q]
                             elif sum_control == "none":
                                 stim_dataset.summarized_iORGs[q] = stim_iORG_summary
 
-                            display_params.get(DisplayParams.POP_SUMMARY_OVERLAP)
-                            plt.figure(q)
-                            plt.plot(stim_dataset.framestamps, stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
-                            plt.plot(control_framestamps, control_iORG_summary[control_framestamps])
-                            plt.show(block=False)
+                            ''' This section is for display of the above iORG summaries, as specified by the user. '''
+                            # This shows all summaries overlapping.
+                            if display_params.get(DisplayParams.POP_SUMMARY_OVERLAP, None) is not None:
+                                overlap_params = display_params.get(DisplayParams.POP_SUMMARY_OVERLAP)
+
+                                disp_stim = overlap_params.get(DisplayParams.DISP_STIMULUS, True)
+                                disp_cont = overlap_params.get(DisplayParams.DISP_CONTROL, True)
+                                disp_rel = overlap_params.get(DisplayParams.DISP_RELATIVE, True)
+                                how_many = disp_stim + disp_cont + disp_rel
+
+                                plt.figure("Query location " + query_loc_names[q] + ": summarized using "+ sum_method+ " of " +mode +" iORGs in "+folder.stem )
+                                ind = 1
+                                if how_many > 1 and disp_stim:
+                                    plt.subplot(1, how_many, ind)
+                                    ind += 1
+                                if disp_stim:
+                                    plt.title("Stimulus iORG")
+                                    plt.plot(stim_dataset.framestamps, stim_iORG_summary[stim_dataset.framestamps])
+                                    plt.xlabel("Time (s)")
+                                    plt.ylabel(sum_method)
+                                if how_many > 1 and disp_cont:
+                                    plt.subplot(1, how_many, ind)
+                                    ind += 1
+                                if disp_cont:
+                                    plt.title("Control iORG")
+                                    plt.plot(control_framestamps[q], control_iORG_summary[q][control_framestamps[q]])
+                                    plt.xlabel("Time (s)")
+                                    plt.ylabel(sum_method)
+                                if how_many > 1 and disp_rel:
+                                    plt.subplot(1, how_many, ind)
+                                    ind += 1
+                                if disp_rel:
+                                    plt.title("Stimulus relative to control iORG via " + sum_control)
+                                    plt.plot(stim_dataset.framestamps, stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
+                                    plt.xlabel("Time (s)")
+                                    plt.ylabel(sum_method)
+
+                                plt.show(block=False)
+
+                            # This shows all summaries in temporal sequence.
+                            if display_params.get(DisplayParams.POP_SUMMARY_SEQ, None) is not None:
+                                seq_params = display_params.get(DisplayParams.POP_SUMMARY_SEQ)
+                                num_in_seq = seq_params.get(DisplayParams.NUM_IN_SEQ, 0)
+
+                                vidnum_seq = np.array(stim_data_vidnums).astype(np.int32)
+                                vidnum_seq -= vidnum_seq[0]
+                                # Go through all our video numbers until they're in a sequence we can work with.
+                                while np.any(vidnum_seq>num_in_seq):
+                                    vidnum_seq[vidnum_seq>num_in_seq] -= np.amin(vidnum_seq[vidnum_seq>num_in_seq])
+
+                                seq_row = int(np.ceil(num_in_seq/5))
+
+                                if seq_params.get(DisplayParams.DISP_STIMULUS, True):
+                                    plt.figure("Query location " + query_loc_names[q] + ": Stimulus iORG temporal sequence of " +mode +" iORGs in "+folder.stem)
+                                    plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
+                                    plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
+                                    plt.plot(stim_dataset.framestamps, stim_iORG_summary[stim_dataset.framestamps])
+                                    plt.xlabel("Time (s)")
+                                    plt.ylabel(sum_method)
+
+                                if seq_params.get(DisplayParams.DISP_RELATIVE, True):
+                                    plt.figure("Query location " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence")
+                                    plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
+                                    plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
+                                    plt.plot(stim_dataset.framestamps,stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
+                                    plt.xlabel("Time (s)")
+                                    plt.ylabel(sum_method)
+
+                                plt.show(block=False)
 
                         stim_dataset.framestamps = np.arange(max_frmstamp + 1)
 

@@ -39,7 +39,7 @@ class MetaTags(StrEnum):
     FRAMESTAMPS = "framestamps"
     STIMULUS_SEQ = "stimulus_sequence"
     FRAMERATE = "framerate"
-    QUERY_LOC = "query_locations"
+    QUERY_LOCATIONS = "query_locations"
 
 class AcquisiTags(StrEnum):
     DATASET = "Dataset"
@@ -120,3 +120,7 @@ class DisplayParams(StrEnum):
     POP_SUMMARY_OVERLAP = "pop_summary_overlap"
     POP_SUMMARY_SEQ = "pop_summary_seq"
     POP_SUMMARY_METRICS = "pop_summary_metrics"
+    DISP_STIMULUS = "stimulus"
+    DISP_CONTROL = "control"
+    DISP_RELATIVE = "relative"
+    NUM_IN_SEQ = "num_in_seq"

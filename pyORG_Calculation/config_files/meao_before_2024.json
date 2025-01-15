@@ -89,7 +89,7 @@
       },
       "summary": {
         "method": "rms",
-        "control": "subtract",
+        "control": "subtraction",
         "metrics": ["auc", "amplitude", "imp_time", "rec_amp"]
       },
       "gaus_blur": 0.0,
@@ -104,12 +104,12 @@
       "pop_summary_overlap": {
         "stimulus": true,
         "control": true,
-        "relative": false
+        "relative": true
       },
       "pop_summary_seq": {
         "stimulus": true,
-        "control": true,
-        "relative": false
+        "relative": true,
+        "num_in_seq": 8
       },
       "pop_summary_metrics": {
 

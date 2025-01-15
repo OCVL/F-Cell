@@ -162,7 +162,9 @@ def initialize_and_load_dataset(acquisition, metadata_params):
         combined_meta_dict[AcquisiTags.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiTags.DATA_PATH]
 
     if not query_info.empty:
+        combined_meta_dict[DataTags.QUERYLOC] = query_info[DataTags.QUERYLOC].unique().tolist()
         combined_meta_dict[AcquisiTags.QUERYLOC_PATH] = query_info[AcquisiTags.DATA_PATH].unique().tolist()
+
 
     if not mask_info.empty:
         mask_path = mask_info.at[mask_info.index[0], AcquisiTags.DATA_PATH]
@@ -221,7 +223,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
     # For importing the query locations
     queryloc_data = []
-    if AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOC not in metadata:
+    if AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS not in metadata:
 
         querylocs = metadata.get(AcquisiTags.QUERYLOC_PATH)
         for locpath in querylocs:
@@ -231,8 +233,8 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
                 case ".txt":
                     queryloc_data.append(pd.read_csv(locpath, sep=None, header=None, encoding="utf-8-sig").to_numpy())
 
-    elif MetaTags.QUERY_LOC in metadata:
-        queryloc_data.append(metadata.get(MetaTags.QUERY_LOC))
+    elif MetaTags.QUERY_LOCATIONS in metadata:
+        queryloc_data.append(metadata.get(MetaTags.QUERY_LOCATIONS))
 
     # For importing the framestamps of the video- these are the temporal, monotonic frame indexes of the video, in case frames were dropped
     # in the pipeline or in the processing stages
@@ -249,7 +251,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
         stimulus_sequence = metadata.get(MetaTags.STIMULUS_SEQ)
     else:
         if Dataset.stimseq_fName is None:
-            Dataset.stimseq_fName = filedialog.askopenfilename(title="Select the stimulus train file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
+            Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
         stimulus_sequence = np.cumsum(pd.read_csv(Dataset.stimseq_fName, header=None,encoding="utf-8-sig").to_numpy())
 
 
