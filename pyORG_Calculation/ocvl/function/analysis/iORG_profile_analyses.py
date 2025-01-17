@@ -440,29 +440,32 @@ def extract_texture_profiles(full_profiles, summary_methods=("all"), numlevels=3
     #         # glcmmean[f] = np.sqrt(np.sum(com[f]**2))
 
 
-def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
-                        prestim_idx=None, poststim_idx=None):
+def iORG_signal_metrics(temporal_profiles, framerate=1,
+                        prestim_window_idx=None, poststim_window_idx=None):
+
+    if temporal_profiles.ndim == 1:
+        temporal_profiles = temporal_profiles[None, :]
 
     finite_data = np.isfinite(temporal_profiles)
 
-    if np.all(~finite_data) or len(prestim_idx) == 0 or len(poststim_idx)==0:
+    if np.all(~finite_data) or len(prestim_window_idx) == 0 or len(poststim_window_idx)==0:
         return np.full((temporal_profiles.shape[0]), np.nan), np.full((temporal_profiles.shape[0]), np.nan), \
                np.full((temporal_profiles.shape[0]), np.nan), np.full(temporal_profiles.shape, np.nan)
 
-    if prestim_idx is None:
-        prestim_idx = np.zeros((1,))
+    if prestim_window_idx is None:
+        prestim_window_idx = np.zeros((1,))
 
-    if poststim_idx is None:
-        poststim_idx = np.arange(1,temporal_profiles.shape[1])
+    if poststim_window_idx is None:
+        poststim_window_idx = np.arange(1, temporal_profiles.shape[1])
 
     grad_profiles = np.sqrt( (1/(framerate**2)) + (np.gradient(temporal_profiles, axis=1)**2)) # Don't need to factor in the dx, because it gets removed anyway in the next step.
 
-    pre_abs_diff_profiles = np.abs(grad_profiles[:, prestim_idx])
+    pre_abs_diff_profiles = np.abs(grad_profiles[:, prestim_window_idx])
     if np.size(pre_abs_diff_profiles) <=1:
         pre_abs_diff_profiles = np.zeros((1,1))
     cum_pre_abs_diff_profiles = np.nancumsum(pre_abs_diff_profiles, axis=1)
 
-    post_abs_diff_profiles = np.abs(grad_profiles[:, poststim_idx])
+    post_abs_diff_profiles = np.abs(grad_profiles[:, poststim_window_idx])
     cum_post_abs_diff_profiles = np.nancumsum(post_abs_diff_profiles, axis=1)
 
     cum_pre_abs_diff_profiles[cum_pre_abs_diff_profiles == 0] = np.nan
@@ -470,8 +473,8 @@ def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
     prefad = np.amax(cum_pre_abs_diff_profiles, axis=1)
     postfad = np.amax(cum_post_abs_diff_profiles, axis=1)
 
-    prestim = temporal_profiles[:, prestim_idx]
-    poststim = np.abs(temporal_profiles[:, poststim_idx])
+    prestim = temporal_profiles[:, prestim_window_idx]
+    poststim = temporal_profiles[:, poststim_window_idx]
 
     prestim_val = np.nanmedian(prestim, axis=1)
     poststim_val = np.nanquantile(poststim, [0.99], axis=1).flatten()
@@ -480,7 +483,11 @@ def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
     amplitude = np.abs(poststim_val - prestim_val)
 
     # ** Area Under the Curve (est. by trapezoidal rule) **
-    auc = np.trapezoid(temporal_profiles[:, poststim_idx], x=framestamps/framerate)
+    auc = np.full((temporal_profiles.shape[0], ), np.nan)
+    for c in range(temporal_profiles.shape[0]):
+        auc[c] = np.trapezoid(poststim[c, np.isfinite(poststim[c,:])], x=poststim_window_idx[np.isfinite(poststim[c,:])] / framerate)
+
+
 
     final_val = np.nanmean(temporal_profiles[:,-5:], axis=1)
 
@@ -489,11 +496,11 @@ def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
 
     # ** Implicit time **
     implicit_time = np.full_like(amplitude, np.nan)
-    for i in range(temporal_profiles.shape[0]):
-        whereabove = np.flatnonzero(poststim[i, :] > poststim_val[i])
+    for c in range(temporal_profiles.shape[0]):
+        whereabove = np.flatnonzero(poststim[c, :] > poststim_val[c])
 
         if np.any(whereabove) and np.any(np.isfinite(whereabove)):
-            implicit_time[i] = (whereabove[0] + poststim_idx[0]-prestim_idx[-1])/framerate
+            implicit_time[c] = (whereabove[0] + poststim_window_idx[0] - prestim_window_idx[-1]) / framerate
 
     return amplitude, implicit_time, auc, recovery
 

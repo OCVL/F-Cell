@@ -106,18 +106,20 @@ class SummaryParams(StrEnum):
     TYPE = "type"
     MEASURED_TO = "measured"
     UNITS = "units"
-    START = "start"
-    STOP = "stop"
+    PRESTIM = "prestim"
+    POSTSTIM = "poststim"
+
 
 class ControlParams(StrEnum):
     NAME = "control"
     LOCATION = "location"
     FOLDER_NAME = "folder_name"
 
-class ORGTags(StrEnum):
+class MetricTags(StrEnum):
+    AUC = "Area Under Curve"
     AMPLITUDE = "Amplitude"
-    IMPLICT_TIME = "Implict_Time"
-    RECOVERY_PERCENT = "Recovery_Percent"
+    IMPLICT_TIME = "Implict Time"
+    RECOVERY_PERCENT = "Recovery Percent"
     RECOVERY = "Recovery"
 
 class DisplayParams(StrEnum):
@@ -128,4 +130,20 @@ class DisplayParams(StrEnum):
     DISP_STIMULUS = "stimulus"
     DISP_CONTROL = "control"
     DISP_RELATIVE = "relative"
+    SAVEAS = "saveas"
+    PAUSE_PER_FOLDER = "pause_per_folder"
     NUM_IN_SEQ = "num_in_seq"
+
+    # "pop_summary_overlap": {
+    #     "stimulus": true,
+    #     "control": true,
+    #     "relative": true
+    # },
+    # "pop_summary_seq": {
+    #     "stimulus": true,
+    #     "relative": true,
+    #     "num_in_seq": 8
+    # },
+    # "pop_summary_metrics": {
+    #
+    # }

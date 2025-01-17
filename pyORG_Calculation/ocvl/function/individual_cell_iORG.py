@@ -261,9 +261,9 @@ if __name__ == "__main__":
                 thispower = cell_power_iORG[c, :]
 
                 indiv_iORG_amp[c], indiv_iORG_implicit[c] = iORG_signal_metrics(thispower[None, :], dataset.framestamps,
-                                                                        filter_type="none", display=False,
-                                                                        prestim_idx=prestim_ind,
-                                                                        poststim_idx=poststim_ind)[1:3]
+                                                                                filter_type="none", display=False,
+                                                                                prestim_window_idx=prestim_ind,
+                                                                                poststim_window_idx=poststim_ind)[1:3]
             
 
         log_indiv_iORG_amp = np.log(indiv_iORG_amp)

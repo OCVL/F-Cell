@@ -3,7 +3,7 @@ import multiprocessing as mp
 import warnings
 from itertools import repeat
 from pathlib import Path, PurePath
-from tkinter import Tk, filedialog, ttk, HORIZONTAL, simpledialog
+from tkinter import Tk, filedialog, ttk, HORIZONTAL, simpledialog, messagebox
 
 import numpy as np
 import pandas as pd
@@ -16,7 +16,8 @@ from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataFormatType, DataTags, AcquisiTags, \
-    SegmentParams, ExclusionParams, NormParams, STDParams, ORGTags, SummaryParams, ControlParams, DisplayParams
+    SegmentParams, ExclusionParams, NormParams, STDParams, MetricTags, SummaryParams, ControlParams, DisplayParams, \
+    MetricTags
 
 from datetime import datetime, date, time, timezone
 
@@ -123,12 +124,19 @@ if __name__ == "__main__":
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
     sum_control = sum_params.get(SummaryParams.CONTROL, "none")
+
     metrics = sum_params.get(SummaryParams.METRICS, dict())
     metrics_type = metrics.get(SummaryParams.TYPE, ["auc", "amplitude", "imp_type", "rec_amp"])
     metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
     metrics_units = metrics.get(SummaryParams.UNITS, "time")
-    metrics_start = metrics.get(SummaryParams.START, -1)
-    metrics_stop = metrics.get(SummaryParams.STOP, 1)
+    metrics_prestim = metrics.get(SummaryParams.PRESTIM, -1)
+    metrics_poststim = metrics.get(SummaryParams.POSTSTIM, 1)
+
+
+    pop_overlap_params = display_params.get(DisplayParams.POP_SUMMARY_OVERLAP, dict())
+    pop_seq_params = display_params.get(DisplayParams.POP_SUMMARY_SEQ, dict())
+    saveas_ext = display_params.get(DisplayParams.SAVEAS, "png")
+
 
     output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
     if output_folder is None:
@@ -165,7 +173,6 @@ if __name__ == "__main__":
             folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
             data_in_folder = group_datasets.loc[folder_mask]
-            iORG_result_datframes = []
 
             # Load each modality
             for mode in modes_of_interest:
@@ -174,10 +181,8 @@ if __name__ == "__main__":
 
                 data_vidnums = group_datasets.loc[slice_of_life & only_vids, DataTags.VIDEO_ID].unique().tolist()
 
-                # Make data storage structures for each of our query location lists- one is for results,
-                # The other for checking which query points went into our analysis.
-                iORG_result_datframes.append([pd.DataFrame(index=data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
-
+                # Make data storage structures for each of our query location lists for checking which query points went into our analysis.
+                query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
                 query_status = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & query_locations).sum())]
 
                 pb["maximum"] = len(data_vidnums)
@@ -214,7 +219,7 @@ if __name__ == "__main__":
                     for q in range(len(dataset.query_loc)):
 
 
-                        pb_label["text"] = "Processing query file " + str(q) + " in dataset #" + str(vidnum) + " from the " + str(
+                        pb_label["text"] = "Processing query file " + query_loc_names[q] + " in dataset #" + str(vidnum) + " from the " + str(
                             mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
                         pb.update()
                         pb_label.update()
@@ -238,10 +243,9 @@ if __name__ == "__main__":
                     # Once we've extracted the iORG signals, remove the video and mask data as its likely to have a large memory footprint.
                     dataset.clear_video_data()
 
-                query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
                 for q in range(len(query_status)):
                     query_status[q].to_csv(result_folder.joinpath("query_loc_status_"+str(folder.stem) + "_"+ str(mode) +
-                                                                  "_"+query_paths[q].stem +".csv"))
+                                                                  "_"+query_loc_names[q] +"coords.csv"))
 
 
         # If desired, make the summarized iORG relative to controls in some way.
@@ -269,11 +273,13 @@ if __name__ == "__main__":
                 if not stim_datasets:
                     continue
 
-                # Make data storage structures for each of our query location lists- one is for results,
-                # The other for checking which query points went into our analysis.
-                iORG_result_datframes.append([pd.DataFrame(index=stim_data_vidnums, columns=list(ORGTags)) for i in range((slice_of_life & query_locations).sum())])
+                # Make data storage structures for our results
+                query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
+                result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
+                iORG_result_datframes = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
                 pb["maximum"] = len(stim_data_vidnums)
+                display_dict = {} # A dictionary to store our figure labels and associated filenames for easy saving later.
 
                 with (mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool):
 
@@ -322,8 +328,6 @@ if __name__ == "__main__":
 
                         # Grab the stim dataset associated with this video number.
                         stim_dataset = group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET].values[0]
-                        query_loc_names = stim_dataset.metadata.get(DataTags.QUERYLOC)
-
 
                         # Process all control datasets in accordance with the stimulus datasets' parameters,
                         # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
@@ -365,11 +369,10 @@ if __name__ == "__main__":
                             for control_data in control_datasets:
                                 max_frmstamp = np.maximum(max_frmstamp, np.amax(control_data.framestamps))
 
-                            query_paths = group_datasets.loc[slice_of_life & query_locations, AcquisiTags.DATA_PATH].tolist()
                             for q in range(len(control_query_status)):
                                 # First write the control data to a file.
                                 control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
-                                                               "_" + query_paths[q].stem + "_controldata.csv"))
+                                                               "_" + query_loc_names[q] + "coords_controldata.csv"))
 
                                 control_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
                                 control_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
@@ -383,6 +386,7 @@ if __name__ == "__main__":
                                 control_framestamps[q] = np.flatnonzero(np.isfinite(control_iORG_summary[q]))
 
 
+                        ''' Population iORG analyses start here '''
                         for q in range(len(stim_dataset.query_loc)):
 
                             stim_iORG_summary = np.full((max_frmstamp + 1,), np.nan)
@@ -397,22 +401,23 @@ if __name__ == "__main__":
 
                             ''' This section is for display of the above iORG summaries, as specified by the user. '''
                             # This shows all summaries overlapping.
-                            if display_params.get(DisplayParams.POP_SUMMARY_OVERLAP, None) is not None:
-                                overlap_params = display_params.get(DisplayParams.POP_SUMMARY_OVERLAP)
+                            if pop_overlap_params:
 
-                                disp_stim = overlap_params.get(DisplayParams.DISP_STIMULUS, True)
-                                disp_cont = overlap_params.get(DisplayParams.DISP_CONTROL, True)
-                                disp_rel = overlap_params.get(DisplayParams.DISP_RELATIVE, True)
+                                disp_stim = pop_overlap_params.get(DisplayParams.DISP_STIMULUS, True)
+                                disp_cont = pop_overlap_params.get(DisplayParams.DISP_CONTROL, True)
+                                disp_rel = pop_overlap_params.get(DisplayParams.DISP_RELATIVE, True)
                                 how_many = disp_stim + disp_cont + disp_rel
 
-                                plt.figure("Query location " + query_loc_names[q] + ": summarized using "+ sum_method+ " of " +mode +" iORGs in "+folder.stem )
+                                overlap_label = "Query file " + query_loc_names[q] + ": summarized using "+ sum_method+ " of " +mode +" iORGs in "+folder.stem
+                                plt.figure( overlap_label )
+                                display_dict[mode+"_pop_iORG_"+ sum_method +"_overlapping_"+query_loc_names[q]+"coords_"+folder.stem] = overlap_label
                                 ind = 1
                                 if how_many > 1 and disp_stim:
                                     plt.subplot(1, how_many, ind)
                                     ind += 1
                                 if disp_stim:
                                     plt.title("Stimulus iORG")
-                                    plt.plot(stim_dataset.framestamps, stim_iORG_summary[stim_dataset.framestamps])
+                                    plt.plot(stim_dataset.framestamps/stim_dataset.framerate, stim_iORG_summary[stim_dataset.framestamps])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
                                 if how_many > 1 and disp_cont:
@@ -420,7 +425,7 @@ if __name__ == "__main__":
                                     ind += 1
                                 if disp_cont:
                                     plt.title("Control iORG")
-                                    plt.plot(control_framestamps[q], control_iORG_summary[q][control_framestamps[q]])
+                                    plt.plot(control_framestamps[q]/stim_dataset.framerate, control_iORG_summary[q][control_framestamps[q]])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
                                 if how_many > 1 and disp_rel:
@@ -428,16 +433,15 @@ if __name__ == "__main__":
                                     ind += 1
                                 if disp_rel:
                                     plt.title("Stimulus relative to control iORG via " + sum_control)
-                                    plt.plot(stim_dataset.framestamps, stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
+                                    plt.plot(stim_dataset.framestamps/stim_dataset.framerate, stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
 
                                 plt.show(block=False)
 
                             # This shows all summaries in temporal sequence.
-                            if display_params.get(DisplayParams.POP_SUMMARY_SEQ, None) is not None:
-                                seq_params = display_params.get(DisplayParams.POP_SUMMARY_SEQ)
-                                num_in_seq = seq_params.get(DisplayParams.NUM_IN_SEQ, 0)
+                            if pop_seq_params:
+                                num_in_seq = pop_seq_params.get(DisplayParams.NUM_IN_SEQ, 0)
 
                                 vidnum_seq = np.array(stim_data_vidnums).astype(np.int32)
                                 vidnum_seq -= vidnum_seq[0]
@@ -447,211 +451,87 @@ if __name__ == "__main__":
 
                                 seq_row = int(np.ceil(num_in_seq/5))
 
-                                if seq_params.get(DisplayParams.DISP_STIMULUS, True):
-                                    plt.figure("Query location " + query_loc_names[q] + ": Stimulus iORG temporal sequence of " +mode +" iORGs in "+folder.stem)
+                                if pop_seq_params.get(DisplayParams.DISP_STIMULUS, True):
+                                    seq_stim_label = "Query file " + query_loc_names[q] + ": Stimulus iORG temporal sequence of " +mode +" iORGs in "+folder.stem
+                                    plt.figure(seq_stim_label)
+                                    display_dict[mode + "_pop_iORG_" + sum_method + "_sequential_stim_only_" + query_loc_names[q] + "coords_" + folder.stem] = seq_stim_label
+
                                     plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
                                     plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
-                                    plt.plot(stim_dataset.framestamps, stim_iORG_summary[stim_dataset.framestamps])
+                                    plt.plot(stim_dataset.framestamps/stim_dataset.framerate, stim_iORG_summary[stim_dataset.framestamps])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
 
-                                if seq_params.get(DisplayParams.DISP_RELATIVE, True):
-                                    plt.figure("Query location " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence")
+                                if pop_seq_params.get(DisplayParams.DISP_RELATIVE, True):
+                                    seq_rel_label = "Query file " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence"
+                                    plt.figure(seq_rel_label)
+                                    display_dict[mode + "_pop_iORG_" + sum_method + "_sequential_relative_" + query_loc_names[q] + "coords_" + folder.stem] = seq_rel_label
+
                                     plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
                                     plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
-                                    plt.plot(stim_dataset.framestamps,stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
+                                    plt.plot(stim_dataset.framestamps/stim_dataset.framerate,stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
 
                                 plt.show(block=False)
 
-                        metrics_type = metrics.get(SummaryParams.TYPE, ["auc", "amplitude", "imp_type", "rec_amp"])
-                        metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
-                        metrics_units = metrics.get(SummaryParams.UNITS, "time")
-                        metrics_start = metrics.get(SummaryParams.START, -1)
-                        metrics_stop = metrics.get(SummaryParams.STOP, 1)
+                            metrics_type = metrics.get(SummaryParams.TYPE, ["auc", "amplitude", "imp_time", "rec_amp"])
+                            metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
+                            metrics_units = metrics.get(SummaryParams.UNITS, "time")
+                            metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
+                            metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
 
-                        if metrics_units == "time":
-                            std_start_ind = int(metrics_start * dataset.framerate)
-                            std_stop_ind = int(metrics_stop * dataset.framerate)
-                        else:  # if units == "frames":
-                            std_start_ind = int(metrics_start)
-                            std_stop_ind = int(metrics_stop)
+                            if metrics_units == "time":
+                                metrics_prestim = np.round(metrics_prestim * dataset.framerate)
+                                metrics_poststim = np.round(metrics_poststim * dataset.framerate)
+                            else:  # if units == "frames":
+                                metrics_prestim = np.round(metrics_prestim)
+                                metrics_poststim = np.round(metrics_poststim)
 
-                        if metrics_measured_to == "stim-relative":
-                            std_start_inds = stim_dataset.stimtrain_frame_stamps[0] + std_start_ind
-                            std_stop_inds = stim_dataset.stimtrain_frame_stamps[1] + std_stop_ind
+                            if metrics_measured_to == "stim-relative":
+                                metrics_prestim = stim_dataset.stimtrain_frame_stamps[0] + metrics_prestim
+                                metrics_poststim = stim_dataset.stimtrain_frame_stamps[1] + metrics_poststim
 
-                        iORG_signal_metrics(stim_dataset.summarized_iORGs[q], stim_dataset.framestamps, stim_dataset.framerate,
-                                            , stim_dataset.stimtrain_frame_stamps[2])
+                            # Make the list of indices that should correspond to pre and post stimulus
+                            metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1)
+                            metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1)
+                            # Make sure to only include framestamps we have
+                            metrics_prestim = np.flatnonzero(np.isin(stim_dataset.framestamps, metrics_prestim))
+                            metrics_poststim = np.flatnonzero(np.isin(stim_dataset.framestamps, metrics_poststim))
 
+                            amplitude, implicit_time, auc, recovery = iORG_signal_metrics(stim_dataset.summarized_iORGs[q], stim_dataset.framerate,
+                                                                                          metrics_prestim, metrics_poststim)
+
+                            for metric in metrics_type:
+                                if metric == "auc":
+                                    iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q], MetricTags.AUC)] = auc
+                                elif metric == "amplitude":
+                                    iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.AMPLITUDE)] = amplitude
+                                elif metric == "imp_time":
+                                    iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.IMPLICT_TIME)] = implicit_time
+                                elif metric == "rec_amp":
+                                    iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.RECOVERY_PERCENT)] = recovery
+
+                        # When done analyzing the population-level stuff for both query points, update the framestamps
+                        # for the dataset so that we can combine everything in the next step.
                         stim_dataset.framestamps = np.arange(max_frmstamp + 1)
 
+                    respath = result_folder.joinpath("pop_summary_metrics_" + str(folder.stem) + "_" + str(mode) + ".csv")
+                    tryagain = True
+                    while tryagain:
+                        try:
+                            iORG_result_datframes.to_csv(respath)
+                            tryagain = False
+                        except PermissionError:
+                            tryagain=messagebox.askyesno(title="File: " + str(respath) + " is unable to be written.",
+                                                          message="The result file may be open. Close the file, then try to write again?")
 
+                    # Save the figures to the result folder, if requested.
+                    for fname, figname in display_dict.items():
+                        plt.figure(figname)
+                        plt.gcf().set_size_inches(10, 4)
+                        for ext in saveas_ext:
+                            plt.savefig(result_folder.joinpath(fname+"."+ext), dpi=300)
 
-
-
-
-
-
-
-                            #TODO: Add plotting class for the below
-                            # plt.figure(9)
-                            # plt.plot(dataset.framestamps, num_signals_per_sample)
-                            # plt.show(block=False)
-
-                            #TODO: Assess the difference this makes. This is just to make them all at the same baseline.
-                            #summarized_iORG = standardize_profiles(summarized_iORG[None, :], dataset.framestamps, std_indices=prestim_ind, method="mean_sub")
-                            #summarized_iORG = np.squeeze(summarized_iORG)
-
-                            # poststim_ind = np.flatnonzero(np.logical_and(dataset.framestamps >= dataset.stimtrain_frame_stamps[1],
-                            #                               dataset.framestamps < (dataset.stimtrain_frame_stamps[1] + int(1 * dataset.framerate))))
-                            #
-                            # poststim_loc = dataset.framestamps[poststim_ind]
-                            # prestim_amp = np.nanmedian(summarized_iORG[prestim_ind])
-                            # poststim = summarized_iORG[poststim_ind]
-                            #
-                            # if poststim.size == 0:
-                            #
-                            #     pop_iORG_amp[r] = np.NaN
-                            #     pop_iORG_implicit[r] = np.NaN
-                            #     pop_iORG_recover[r] = np.NaN
-                            # else:
-                            #     poststim_amp = np.quantile(poststim, [0.95])
-                            #     max_frmstmp = poststim_loc[np.argmax(poststim)] - dataset.stimtrain_frame_stamps[0]
-                            #     final_val = np.mean(summarized_iORG[-5:])
-                            #
-                            #     framestamps.append(dataset.framestamps)
-                            #     pop_iORG.append(summarized_iORG)
-                            #     pop_iORG_num.append(num_signals_per_sample)
-                            #
-                            #     pop_iORG_amp[r], pop_iORG_implicit[r] = iORG_signal_metrics(summarized_iORG[None, :], dataset.framestamps,
-                            #                                                                 filter_type="none", display=False,
-                            #                                                                 prestim_idx=prestim_ind,
-                            #                                                                 poststim_idx=poststim_ind)[1:3]
-                            #
-                            #     pop_iORG_recover[r] = 1 - ((final_val - prestim_amp) / pop_iORG_amp[r])
-                            #     pop_iORG_implicit[r] = pop_iORG_implicit[r] / dataset.framerate
-                            #
-                            #     print("Signal metrics based iORG Amplitude: " + str(pop_iORG_amp[r]) +
-                            #           " Implicit time (s): " + str(pop_iORG_implicit[r]) +
-                            #           " Recovery fraction: " + str(pop_iORG_recover[r]))
-
-                                #TODO: Add plotting class for the below
-                                # plt.figure(0)
-                                # plt.xlabel("Time (seconds)")
-                                # plt.ylabel("Response")
-                                # plt.plot(dataset.framestamps/dataset.framerate, pop_iORG[r - skipnum], color=mapper.to_rgba(r - skipnum, norm=False),
-                                #          label=file.name)
-                                # plt.show(block=False)
-                                # plt.xlim([0, 4])
-                                # plt.ylim([-5, 40])
-                                # plt.savefig(output_folder.joinpath(file.name[0:-4] + "_pop_iORG.png"))
-
-                            # if dataset.framestamps[-1] > max_frmstamp:
-                            #     max_frmstamp = dataset.framestamps[-1]
-
-                    plt.waitforbuttonpress()
-
-
-                    #TODO: Add plotting class for the below
-                    # dt = datetime.now()
-                    # now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
-                    # plt.vlines(dataset.stimtrain_frame_stamps[0] / dataset.framerate, -1, 10, color="red")
-                    # plt.xlim([0,  4])
-                    # plt.ylim([-5, 60]) #was 60
-                    # plt.legend()
-                    # plt.savefig( output_folder.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".svg"))
-                    # plt.savefig( output_folder.joinpath(this_dirname + "_pop_iORG_" + now_timestamp + ".png"))
-                    # plt.figure(14)
-                    # plt.plot(np.nanmean(np.log(pop_iORG_amp), axis=-1),
-                    #          np.nanstd(np.log(pop_iORG_amp), axis=-1),".")
-                    # plt.title("logAMP mean vs logAMP std dev")
-                    # plt.show(block=False)
-                    # plt.savefig(output_folder.joinpath(this_dirname + "_pop_iORG_logamp_vs_stddev.svg"))
-                    #
-                    # plt.figure(15)
-                    # plt.plot(np.nanmean(pop_iORG_amp, axis=-1),
-                    #          np.nanstd(pop_iORG_amp, axis=-1),".")
-                    # plt.title("AMP vs std dev")
-                    # plt.show(block=False)
-                    # plt.savefig(output_folder.joinpath(this_dirname + "_pop_iORG_amp_vs_stddev.svg"))
-                    # print("Pop mean iORG amplitude: " + str(np.nanmean(pop_iORG_amp, axis=-1)) +
-                    #       "Pop stddev iORG amplitude: " + str(np.nanmean(pop_iORG_amp, axis=-1)) )
-
-
-                    # pop_amp_dFrame = pd.DataFrame(np.concatenate((np.array(pop_iORG_amp, ndmin=2).transpose(),
-                    #                                               np.array(pop_iORG_implicit, ndmin=2).transpose(),
-                    #                                               np.array(pop_iORG_recover, ndmin=2).transpose()), axis=1),
-                    #                               columns=["Amplitude", "Implicit time", "Recovery %"])
-                    # pop_amp_dFrame.to_csv(output_folder.joinpath(this_dirname + "_pop_iORG_stats_" + now_timestamp + ".csv"))
-
-                    # Grab all of the
-                    # all_iORG = np.empty((len(pop_iORG), max_frmstamp+1))
-                    # all_iORG[:] = np.nan
-                    # all_incl = np.empty((len(pop_iORG), max_frmstamp + 1))
-                    # all_incl[:] = np.nan
-                    # for q, iorg in enumerate(pop_iORG):
-                    #     all_incl[q, framestamps[q]] = pop_iORG_num[q]
-                    #     all_iORG[q, framestamps[q]] = iorg
-                    #
-                #
-                # # Pooled variance calc
-                # pooled_iORG = np.nansum( all_incl*all_iORG, axis=0 ) / np.nansum(all_incl, axis=0)
-                # #pooled_stddev_iORG = np.sqrt(pooled_var_iORG)
-                # all_frmstamps = np.arange(max_frmstamp+1)
-                #
-                # pop_data_dFrame = pd.DataFrame(np.concatenate((np.array(all_iORG, ndmin=2).transpose(),
-                #                                               np.array(pooled_iORG, ndmin=2).transpose()), axis=1))
-                # pop_data_dFrame.to_csv(output_folder.joinpath(this_dirname + "_pop_iORG_signals_" + now_timestamp + ".csv"))
-                #
-                # plt.figure(9)
-                # plt.plot(all_frmstamps, np.nansum(all_incl, axis=0))
-                # plt.show(block=False)
-                #
-                # prestim_ind = np.logical_and(all_frmstamps < dataset.stimtrain_frame_stamps[0],
-                #                              all_frmstamps >= (dataset.stimtrain_frame_stamps[0] - int(1 * dataset.framerate)))
-                # poststim_ind = np.logical_and(all_frmstamps >= dataset.stimtrain_frame_stamps[1],
-                #                               all_frmstamps < (dataset.stimtrain_frame_stamps[1] + int(1 * dataset.framerate)))
-                # poststim_loc = all_frmstamps[poststim_ind]
-                # prestim_amp = np.nanmedian(pooled_iORG[prestim_ind])
-                # poststim = pooled_iORG[poststim_ind]
-                #
-                # if poststim.size == 0:
-                #     poststim_amp = np.NaN
-                #     prestim_amp = np.NaN
-                #     pop_iORG_amp[r] = np.NaN
-                #     pop_iORG_implicit[r] = np.NaN
-                #     pop_iORG_recover[r] = np.NaN
-                # else:
-                #     _, pop_iORG_amp[r], pop_iORG_implicit[r], _, pop_iORG_recover[r] = iORG_signal_metrics(pooled_iORG[None, :],
-                #                                                                                         dataset.framestamps,
-                #                                                                                         filter_type="none", display=False,
-                #                                                                                         prestim_idx=prestim_ind,
-                #                                                                                         poststim_idx=poststim_ind)
-                #     pop_iORG_implicit[r] /= dataset.framerate
-                #
-                # print("Pooled iORG Avg Amplitude: " + str(pop_iORG_amp[r]) + " Implicit time (s): " + str(pop_iORG_implicit[r]) +
-                #       " Recovery fraction: " + str(pop_iORG_recover[r]))
-                #
-                # pop_amp_dFrame = pd.DataFrame(np.concatenate((np.array(pop_iORG_amp, ndmin=2).transpose(),
-                #                                               np.array(pop_iORG_implicit, ndmin=2).transpose(),
-                #                                               np.array(pop_iORG_recover, ndmin=2).transpose()), axis=1),
-                #                               columns=["Amplitude", "Implicit time", "Recovery %"])
-                # pop_amp_dFrame = pop_amp_dFrame.dropna(how="all") # Drop rows with all nans- no point in taking up space.
-                # pop_amp_dFrame.to_csv(output_folder.joinpath(this_dirname + "_pop_iORG_stats_" + now_timestamp + ".csv"))
-                #
-                # plt.figure(10)
-                #
-                # plt.plot(all_frmstamps / dataset.framerate, pooled_iORG)
-                # plt.vlines(dataset.stimtrain_frame_stamps[0] / dataset.framerate, -1, 10, color="red")
-                # plt.xlim([0, 6])
-                # # plt.ylim([-5, 60]) #was 1, 60
-                # plt.xlabel("Time (seconds)")
-                # plt.ylabel("Response")
-                # plt.show(block=False)
-                # plt.savefig(output_folder.joinpath(this_dirname + "_pooled_pop_iORG_" + now_timestamp + ".png"))
-                # plt.savefig(output_folder.joinpath(this_dirname + "_pooled_pop_iORG_" + now_timestamp + ".svg"))
-                # print("Done!")
-                # plt.waitforbuttonpress()
-
+                    if display_params.get(DisplayParams.PAUSE_PER_FOLDER, False):
+                        plt.waitforbuttonpress()

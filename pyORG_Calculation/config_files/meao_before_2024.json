@@ -94,8 +94,8 @@
           "type": ["auc", "amplitude", "imp_time", "rec_amp"],
           "measured": "stim-relative",
           "units": "time",
-          "start": -1,
-          "stop": 1
+          "prestim": [-1, 0],
+          "poststim": [0, 1]
         }
       },
       "gaus_blur": 0.0,
@@ -112,14 +112,8 @@
         "control": true,
         "relative": true
       },
-      "pop_summary_seq": {
-        "stimulus": true,
-        "relative": true,
-        "num_in_seq": 8
-      },
-      "pop_summary_metrics": {
-
-      }
+      "saveas": ["png", "svg"],
+      "pause_per_folder": false
     }
   }
 

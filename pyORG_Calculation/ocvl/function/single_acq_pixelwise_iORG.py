@@ -229,8 +229,8 @@ if __name__ == "__main__":
 
             # What about a temporal histogram?
             indiv_fad[c, :], _, _, indiv_mad = iORG_signal_metrics(all_cell_iORG[:, :], full_framestamp_range,
-                                                            filter_type="MS", notch_filter=None, display=False, fwhm_size=11,
-                                                            prestim_idx=prestim_ind, poststim_idx=poststim_ind-3)
+                                                                   filter_type="MS", notch_filter=None, display=False, fwhm_size=11,
+                                                                   prestim_window_idx=prestim_ind, poststim_window_idx=poststim_ind - 3)
 
             prestim_deriv= np.gradient(np.nanmean(indiv_mad[:, 0:prestim_ind[-1]], axis=0))
 

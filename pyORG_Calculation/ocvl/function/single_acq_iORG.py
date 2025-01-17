@@ -53,9 +53,9 @@ def fast_rms_avg(all_iORG, framestamp_range, stiminds):
                                                           summary_method="rms", window_size=1)[0]
 
                 cell_rms_amp[cellind, ind] = iORG_signal_metrics(cell_rms_iORG[ind, :].reshape((1, cell_rms_iORG.shape[1])),
-                                                              framestamp_range,
-                                                              filter_type="none", notch_filter=None, display=False,
-                                                              prestim_idx=stiminds[0], poststim_idx=stiminds[1])[0]
+                                                                 framestamp_range,
+                                                                 filter_type="none", notch_filter=None, display=False,
+                                                                 prestim_window_idx=stiminds[0], poststim_window_idx=stiminds[1])[0]
     return cell_rms_amp
 
 
@@ -316,8 +316,8 @@ if __name__ == "__main__":
                 todisp = False
 
                 indiv_fad[c, :], _, _, fad_profiles, _ = iORG_signal_metrics(all_cell_iORG[:, :, c], full_framestamp_range,
-                                                            framerate, filter_type="MS1", notch_filter=None, display=todisp, fwhm_size=18,
-                                                            prestim_idx=prestim_ind, poststim_idx=poststim_ind-3)
+                                                                             framerate, filter_type="MS1", notch_filter=None, display=todisp, fwhm_size=18,
+                                                                             prestim_window_idx=prestim_ind, poststim_window_idx=poststim_ind - 3)
                 # Have used 1-2 before.
                 indiv_fad[indiv_fad == 0] = np.nan
                 fad_profiles[fad_profiles == 0] = np.nan
@@ -336,9 +336,9 @@ if __name__ == "__main__":
                                                                summary_method="rms", window_size=1, display=False)
 
             cell_power_fad[c], cell_power_amp[c] = iORG_signal_metrics(cell_power_iORG[c, :].reshape((1, cell_power_iORG.shape[1])),
-                                                    full_framestamp_range, framerate,
-                                                    filter_type="none", notch_filter=None, display=False,
-                                                    prestim_idx=prestim_ind, poststim_idx=poststim_ind)[0:2]
+                                                                       full_framestamp_range, framerate,
+                                                                       filter_type="none", notch_filter=None, display=False,
+                                                                       prestim_window_idx=prestim_ind, poststim_window_idx=poststim_ind)[0:2]
 
         cell_power_fad[cell_power_fad == 0] = np.nan
 
