@@ -133,17 +133,3 @@ class DisplayParams(StrEnum):
     SAVEAS = "saveas"
     PAUSE_PER_FOLDER = "pause_per_folder"
     NUM_IN_SEQ = "num_in_seq"
-
-    # "pop_summary_overlap": {
-    #     "stimulus": true,
-    #     "control": true,
-    #     "relative": true
-    # },
-    # "pop_summary_seq": {
-    #     "stimulus": true,
-    #     "relative": true,
-    #     "num_in_seq": 8
-    # },
-    # "pop_summary_metrics": {
-    #
-    # }

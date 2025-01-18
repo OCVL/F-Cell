@@ -112,6 +112,11 @@
         "control": true,
         "relative": true
       },
+      "pop_summary_seq": {
+        "stimulus": true,
+        "relative": true,
+        "num_in_seq": 8
+      },
       "saveas": ["png", "svg"],
       "pause_per_folder": false
     }

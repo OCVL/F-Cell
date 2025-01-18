@@ -32,12 +32,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     seg_shape = seg_params.get(SegmentParams.SHAPE, "disk") # Default: A disk shaped mask over each query coordinate
     seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean") # Default the average of the intensity of the query coordinate
 
-    norm_params = analysis_params.get(NormParams.NAME, dict())
-    method = norm_params.get(NormParams.NORM_METHOD,"score")  # Default: Standardizes the video to a unit mean and stddev
-    rescale = norm_params.get(NormParams.NORM_RESCALE,True)  # Default: Rescales the data back into AU to make results easier to interpret
-    res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
-    res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
-
     excl_params = analysis_params.get(ExclusionParams.NAME, dict())
     excl_type = excl_params.get(ExclusionParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
     excl_units = excl_params.get(ExclusionParams.UNITS, "time")
@@ -97,10 +91,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
-
-    # Normalize the video to reduce framewide intensity changes
-    dataset.video_data = norm_video(dataset.video_data, norm_method=method, rescaled=rescale,
-                                    rescale_mean=res_mean, rescale_std=res_stddev)
 
     # Extract the signals
     iORG_signals, excl_reason = extract_profiles(dataset.video_data, query_loc.copy(),

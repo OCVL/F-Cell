@@ -86,8 +86,6 @@ if __name__ == "__main__":
     root.geometry('%dx%d+%d+%d' % (w, h, x, y))
     root.update()
 
-
-
     piped_dat_format = dat_form.get("pipelined")
     processed_dat_format = dat_form.get("processed")
     pipeline_params = processed_dat_format.get("pipeline_params")
@@ -114,6 +112,12 @@ if __name__ == "__main__":
         groups = allData[PipelineParams.GROUP_BY].unique().tolist()
     else:
         groups = [""]  # If we don't have any groups, then just make the list an empty string.
+
+    norm_params = analysis_params.get(NormParams.NAME, dict())
+    method = norm_params.get(NormParams.NORM_METHOD,"score")  # Default: Standardizes the video to a unit mean and stddev
+    rescale = norm_params.get(NormParams.NORM_RESCALE,True)  # Default: Rescales the data back into AU to make results easier to interpret
+    res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
 
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
@@ -201,12 +205,19 @@ if __name__ == "__main__":
                     # Actually load the dataset, and all its metadata.
                     dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params)
 
+
                     if dataset is not None:
+                        # Normalize the video to reduce the influence of framewide intensity changes
+                        dataset.video_data = norm_video(dataset.video_data, norm_method=method, rescaled=rescale,
+                                                        rescale_mean=res_mean, rescale_std=res_stddev)
+
                         group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
 
                         if control_loc == "folder" and folder.stem == control_folder:
-                            # If we're in the control folder, then we're a control video.
+                            # If we're in the control folder, then we're a control video- and we shouldn't extract
+                            # any iORGs until later as our stimulus deliveries may vary.
                             group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = False
+
                             continue
                         else:
                             group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
