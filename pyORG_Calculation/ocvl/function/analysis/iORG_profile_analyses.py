@@ -440,7 +440,7 @@ def extract_texture_profiles(full_profiles, summary_methods=("all"), numlevels=3
     #         # glcmmean[f] = np.sqrt(np.sum(com[f]**2))
 
 
-def iORG_signal_metrics(temporal_profiles, framerate=1,
+def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
                         prestim_window_idx=None, poststim_window_idx=None):
 
     if temporal_profiles.ndim == 1:
@@ -475,6 +475,7 @@ def iORG_signal_metrics(temporal_profiles, framerate=1,
 
     prestim = temporal_profiles[:, prestim_window_idx]
     poststim = temporal_profiles[:, poststim_window_idx]
+    poststim_frms = framestamps[poststim_window_idx]
 
     prestim_val = np.nanmedian(prestim, axis=1)
     poststim_val = np.nanquantile(poststim, [0.99], axis=1).flatten()
@@ -482,11 +483,10 @@ def iORG_signal_metrics(temporal_profiles, framerate=1,
     # ** Amplitude **
     amplitude = np.abs(poststim_val - prestim_val)
 
-    # ** Area Under the Curve (est. by trapezoidal rule) **
+    # ** Area Under the Response (est. by trapezoidal rule) **
     auc = np.full((temporal_profiles.shape[0], ), np.nan)
     for c in range(temporal_profiles.shape[0]):
-        auc[c] = np.trapezoid(poststim[c, np.isfinite(poststim[c,:])], x=poststim_window_idx[np.isfinite(poststim[c,:])] / framerate)
-
+        auc[c] = np.trapezoid(poststim[c, np.isfinite(poststim[c,:])], x=poststim_frms[np.isfinite(poststim[c,:])] / framerate)
 
 
     final_val = np.nanmean(temporal_profiles[:,-5:], axis=1)

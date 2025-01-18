@@ -91,7 +91,7 @@
         "method": "rms",
         "control": "subtraction",
         "metrics": {
-          "type": ["auc", "amplitude", "imp_time", "rec_amp"],
+          "type": ["aur", "amplitude", "imp_time", "rec_amp"],
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],

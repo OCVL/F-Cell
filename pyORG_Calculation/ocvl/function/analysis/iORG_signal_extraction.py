@@ -21,6 +21,11 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     if stimtrain_frame_stamps is None:
         stimtrain_frame_stamps = dataset.stimtrain_frame_stamps
 
+    # Round the query locations
+
+    query_loc = np.round(query_loc)
+    og = query_loc.copy()
+
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
@@ -56,7 +61,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     valid_signals = np.full((query_loc.shape[0]), True)
 
     if seg_params.get(SegmentParams.REFINE_TO_REF, True):
-        query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc)
+        query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc.copy())
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
         valid = np.full((query_loc.shape[0]), True)
@@ -81,10 +86,12 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
 
     if seg_params.get(SegmentParams.REFINE_TO_VID, True):
         query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
-                                                                         query_loc)
+                                                              query_loc.copy())
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
         valid = np.full((query_loc.shape[0]), True)
+
+
 
     # Update our audit path.
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
@@ -96,7 +103,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
                                     rescale_mean=res_mean, rescale_std=res_stddev)
 
     # Extract the signals
-    iORG_signals, excl_reason = extract_profiles(dataset.video_data, query_loc,
+    iORG_signals, excl_reason = extract_profiles(dataset.video_data, query_loc.copy(),
                                                  seg_radius=segmentation_radius,
                                                  seg_mask=seg_shape, summary=seg_summary)
     # Update our audit path.

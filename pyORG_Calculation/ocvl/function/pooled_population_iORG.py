@@ -391,6 +391,7 @@ if __name__ == "__main__":
 
                             stim_iORG_summary = np.full((max_frmstamp + 1,), np.nan)
                             stim_iORG_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
+                            stim_framestamps = np.arange(max_frmstamp + 1)
 
                             if sum_control == "subtraction":
                                 stim_dataset.summarized_iORGs[q] = stim_iORG_summary - control_iORG_summary[q]
@@ -417,14 +418,14 @@ if __name__ == "__main__":
                                     ind += 1
                                 if disp_stim:
                                     plt.title("Stimulus iORG")
-                                    plt.plot(stim_dataset.framestamps/stim_dataset.framerate, stim_iORG_summary[stim_dataset.framestamps])
+                                    plt.plot(stim_framestamps/stim_dataset.framerate, stim_iORG_summary)
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
                                 if how_many > 1 and disp_cont:
                                     plt.subplot(1, how_many, ind)
                                     ind += 1
                                 if disp_cont:
-                                    plt.title("Control iORG")
+                                    plt.title("Summarized control iORG")
                                     plt.plot(control_framestamps[q]/stim_dataset.framerate, control_iORG_summary[q][control_framestamps[q]])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
@@ -433,7 +434,7 @@ if __name__ == "__main__":
                                     ind += 1
                                 if disp_rel:
                                     plt.title("Stimulus relative to control iORG via " + sum_control)
-                                    plt.plot(stim_dataset.framestamps/stim_dataset.framerate, stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
+                                    plt.plot(stim_framestamps/stim_dataset.framerate, stim_dataset.summarized_iORGs[q])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
 
@@ -458,7 +459,7 @@ if __name__ == "__main__":
 
                                     plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
                                     plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
-                                    plt.plot(stim_dataset.framestamps/stim_dataset.framerate, stim_iORG_summary[stim_dataset.framestamps])
+                                    plt.plot(stim_framestamps/stim_dataset.framerate, stim_iORG_summary)
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
 
@@ -469,13 +470,13 @@ if __name__ == "__main__":
 
                                     plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
                                     plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
-                                    plt.plot(stim_dataset.framestamps/stim_dataset.framerate,stim_dataset.summarized_iORGs[q][stim_dataset.framestamps])
+                                    plt.plot(stim_framestamps/stim_dataset.framerate,stim_dataset.summarized_iORGs[q])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
 
                                 plt.show(block=False)
 
-                            metrics_type = metrics.get(SummaryParams.TYPE, ["auc", "amplitude", "imp_time", "rec_amp"])
+                            metrics_type = metrics.get(SummaryParams.TYPE, ["aur", "amplitude", "imp_time", "rec_amp"])
                             metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
                             metrics_units = metrics.get(SummaryParams.UNITS, "time")
                             metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
@@ -493,18 +494,30 @@ if __name__ == "__main__":
                                 metrics_poststim = stim_dataset.stimtrain_frame_stamps[1] + metrics_poststim
 
                             # Make the list of indices that should correspond to pre and post stimulus
-                            metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1)
-                            metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1)
-                            # Make sure to only include framestamps we have
-                            metrics_prestim = np.flatnonzero(np.isin(stim_dataset.framestamps, metrics_prestim))
-                            metrics_poststim = np.flatnonzero(np.isin(stim_dataset.framestamps, metrics_poststim))
+                            metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
+                            metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
+                            # Find the indexes of the framestamps corresponding to our pre and post stim frames;
+                            prestim = np.flatnonzero(np.isin(stim_dataset.framestamps, metrics_prestim))
+                            poststim = np.flatnonzero(np.isin(stim_dataset.framestamps, metrics_poststim))
 
-                            amplitude, implicit_time, auc, recovery = iORG_signal_metrics(stim_dataset.summarized_iORGs[q], stim_dataset.framerate,
-                                                                                          metrics_prestim, metrics_poststim)
+                            # if we're missing an *end* framestamp in our window, interpolate to find the value there,
+                            # and add it temporarily to our signal to make sure things like AUR work correctly.
+                            iORG_summary = stim_dataset.summarized_iORGs[q][stim_dataset.framestamps]
+                            iORG_frmstmp = stim_dataset.framestamps
+                            if not np.any(stim_dataset.framestamps[poststim] == metrics_poststim[-1]):
+                                inter_val = np.interp(metrics_poststim[-1], iORG_frmstmp, iORG_summary)
+                                # Find where to insert the interpolant and its framestamp
+                                next_highest = np.argmax(iORG_frmstmp > metrics_poststim[-1])
+                                iORG_summary = np.insert(iORG_summary, next_highest, inter_val)
+                                iORG_frmstmp = np.insert(iORG_frmstmp, next_highest, metrics_poststim[-1])
+                                poststim = np.append(poststim, next_highest)
+
+                            amplitude, implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp, stim_dataset.framerate,
+                                                                                          prestim, poststim)
 
                             for metric in metrics_type:
-                                if metric == "auc":
-                                    iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q], MetricTags.AUC)] = auc
+                                if metric == "aur":
+                                    iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q], MetricTags.AUR)] = aur
                                 elif metric == "amplitude":
                                     iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.AMPLITUDE)] = amplitude
                                 elif metric == "imp_time":
@@ -513,7 +526,7 @@ if __name__ == "__main__":
                                     iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.RECOVERY_PERCENT)] = recovery
 
                         # When done analyzing the population-level stuff for both query points, update the framestamps
-                        # for the dataset so that we can combine everything in the next step.
+                        # for the dataset so that we can combine everything later (i.e. for individual iORGs).
                         stim_dataset.framestamps = np.arange(max_frmstamp + 1)
 
                     respath = result_folder.joinpath("pop_summary_metrics_" + str(folder.stem) + "_" + str(mode) + ".csv")
@@ -532,6 +545,7 @@ if __name__ == "__main__":
                         plt.gcf().set_size_inches(10, 4)
                         for ext in saveas_ext:
                             plt.savefig(result_folder.joinpath(fname+"."+ext), dpi=300)
+                        plt.close(figname)
 
                     if display_params.get(DisplayParams.PAUSE_PER_FOLDER, False):
                         plt.waitforbuttonpress()

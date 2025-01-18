@@ -116,7 +116,7 @@ class ControlParams(StrEnum):
     FOLDER_NAME = "folder_name"
 
 class MetricTags(StrEnum):
-    AUC = "Area Under Curve"
+    AUR = "Response Area Under Curve"
     AMPLITUDE = "Amplitude"
     IMPLICT_TIME = "Implict Time"
     RECOVERY_PERCENT = "Recovery Percent"
