@@ -12,8 +12,8 @@ Working with optoretinograms often requires supra-normal processing of AOSLO/AOL
 
 How these stages work are governed by json-based configuration files that allow you to run the code on your data's particular filename, video, and metadata format. It also allows you to specify the parameters used during the processing and analysis steps, for your specific scientific problem.
 
-### Configuration file format:
-The configuration file uses a json file format. At the moment, its creation is manual, though we will be developing a GUI tool for easy creation/updating of parameters in the coming months.
+### Configuration files:
+The configuration file uses a json file format. At the moment, its creation is manual, though we will be developing a GUI tool for easy creation/updating of parameters in the coming months. **Note: Examples can be found in the config_files directory.**
 
 The base format of the configuration json has the following structure:
 
@@ -28,15 +28,28 @@ The base format of the configuration json has the following structure:
 }
 ```
 
-This corresponds to the following key/value pairs: 
+This corresponds to the following key/value pairs, where options for each are in parenthesis, e.g: `your_mom: ("is lovely", "wears combat boots")`: 
 
 - `version: "string"`:  The version of the configuration file used. The current newest version is 0.2
 - `description: "string"`: The description of the configuration. Useful if multiple configurations are used for your particular analysis, if you have multiple devices, or if you want to test multiple pipeline/analysis combinations.
-- `recursive_search: [true/false]`: Whether or not to analyze the folder structure recursively from the user-selected folder.
-- `raw: {}`: Parameters relating to handling of **raw** data
+- `raw: {}`: Parameters relating to handling of raw data. **Currently unused.**
 - `processed: {}`: Parameters relating to handling of data that has been registered, or **processed**.
 - `pipelined: {}`: Parameters relating to handling of data that has gone through F-Cell's pre-processing pipeline.
 
+#### `processed` keys/values:
+The processed parameters are as follows.
+
+- `video_format: "format string"`: The filename format of the **video** (e.g. avi, mp4, etc) associated with a single acquisition. Uses tag formatting to extract file-specific metadata.
+- `mask_format: "format string"`: The filename format of the **video of masks** associated with the video. Consists of a video of binary masks that describes the valid region in the video. Uses tag formatting to extract file-specific metadata.
+- `image_format: "format string"`: The filename format of the averaged image associated with a single acquisition. Uses tag formatting to extract file-specific metadata.
+- `recursive_search: (true/false)`: Whether or not to analyze the folder structure recursively from the user-selected folder.
+- `metadata: {}`: Parmaeters pertaining to a datasets' metadata.
+  - `type: ("text_file", "mat_file", "database")`: The source of non-filename based metadata.
+  - `metadata_format: "format string"`: The filename format, or database path of the metadata associated with a single acquisition. Uses tag formatting to extract file-specific metadata.
+  - `fields_to_load: {}`: The fields to load from the metadata source. If not specified, will load all metadata from the file.
+    Currently internally handled fields are:
+    - `framestamps: "string"`: The original frame indices, or "framestamps" of the processed video data. Included to track which frames were dropped from the original video.
+    - `stimulus_sequence: "string"`: The stimulus status (on/off), per frame, of the video. Length must match framestamps, and be a column of true/false values.
 
 
 ### Pre-processing pipeline:
