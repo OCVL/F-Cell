@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import SimpleITK as sitk
 from matplotlib import pyplot, pyplot as plt
+from scipy.fft import next_fast_len, fft2, ifft2
 from scipy.ndimage import binary_erosion
 from scipy.signal import fftconvolve
 from numpy.polynomial import Polynomial
@@ -20,9 +21,9 @@ def flat_field_frame(dataframe, sigma, rescale=False):
     mask[dataframe == 0] = 0
 
     dataframe[dataframe == 0] = 1
-    blurred_frame = cv2.GaussianBlur(dataframe.astype("float64"), (kernelsize, kernelsize),
+    blurred_frame = cv2.GaussianBlur(dataframe.astype("float32"), (kernelsize, kernelsize),
                                      sigmaX=sigma, sigmaY=sigma)
-    flat_fielded = (dataframe.astype("float64") / blurred_frame)
+    flat_fielded = (dataframe.astype("float32") / blurred_frame)
 
     flat_fielded *= mask
 
@@ -196,7 +197,7 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
         centered_col_shifts = -np.nanmedian(indiv_colshift, axis=0)
         centered_row_shifts = -np.nanmedian(indiv_rowshift, axis=0)
 
-    dewarped = np.zeros(image_data.shape)
+    dewarped = np.zeros(image_data.shape, dtype=np.float32)
 
     col_base = np.tile(np.arange(width, dtype=np.float32)[np.newaxis, :], [height, 1])
     row_base = np.tile(np.arange(height, dtype=np.float32)[:, np.newaxis], [1, width])
@@ -204,32 +205,25 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
     centered_col_shifts = col_base + np.tile(centered_col_shifts[:, np.newaxis], [1, width]).astype("float32")
     centered_row_shifts = row_base + np.tile(centered_row_shifts[:, np.newaxis], [1, width]).astype("float32")
 
-    if image_data.dtype == np.uint8:
-        for f in range(num_frames):
-            dewarped[..., f] = cv2.remap(image_data[..., f].astype("float32") / 255, centered_col_shifts,
-                                         centered_row_shifts,
-                                         interpolation=cv2.INTER_CUBIC)
+    premask_dtype = image_data.dtype
+    datmax = np.iinfo(premask_dtype).max
 
-        # Clamp our values.
-        dewarped[dewarped < 0] = 0
-        dewarped[dewarped > 1] = 1
+    for f in range(num_frames):
+        norm_frame = image_data[..., f].astype("float64") / datmax
+        norm_frame[norm_frame == 0] = np.nan
+        dewarped[..., f] = cv2.remap(norm_frame,
+                                     centered_col_shifts,
+                                     centered_row_shifts,
+                                     interpolation=cv2.INTER_LINEAR)
 
-        return (dewarped * 255).astype("uint8"), centered_col_shifts, centered_row_shifts
-    else:
-        datmax = np.amax(image_data[:])
-        for f in range(num_frames):
-            dewarped[..., f] = cv2.remap(image_data[..., f] / datmax,
-                                         centered_col_shifts,
-                                         centered_row_shifts,
-                                         interpolation=cv2.INTER_CUBIC)
+    # Clamp our values, and convert nan to 0s to maintain compatability
+    dewarped[dewarped < 0] = 0
+    dewarped[np.isnan(dewarped)] = 0
+    dewarped[dewarped > 1] = 1
 
-        # Clamp our values.
-        dewarped[dewarped < 0] = 0
-        dewarped[dewarped > 1] = 1
+    return (dewarped*datmax).astype(premask_dtype), centered_col_shifts, centered_row_shifts
 
-        return dewarped*datmax, centered_col_shifts, centered_row_shifts
 
-    # save_video("C:\\Users\\rober\\Documents\\temp\\test.avi", (dewarped*255).astype("uint8"), 30)
 
 
 # Calculate a running sum in all four directions - apparently more memory efficient
@@ -258,44 +252,58 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     template = template_im.astype("float32")
     reference = reference_im.astype("float32")
 
+    # Speed up FFT by padding to optimal size.
+    ogrows = temp_size[0] + ref_size[0] - 1
+    ogcols = temp_size[1] + ref_size[1] - 1
+    target_size = (next_fast_len(ogrows), next_fast_len(ogcols))
+
     if template_mask is None:
-        template_mask = np.ones(temp_size)
+        template_mask = template_im > 0
     if reference_mask is None:
-        reference_mask = np.ones(ref_size)
+        reference_mask = reference_im > 0
 
     # First, cross correlate our two images (but this isn't normalized, yet!)
     # The templates should be rotated by 90 degrees. So...
     template_mask = np.rot90(template_mask.copy(), k=2)
     template = np.rot90(template, k=2)
-    base_xcorr = fftconvolve(template, reference)
+
+    f_one = fft2(reference, target_size)
+    f_one_sq = fft2(reference*reference, target_size)
+    m_one = fft2(reference_mask, target_size)
+
+    f_two = fft2(template, target_size)
+    f_two_sq = fft2(template * template, target_size)
+    m_two = fft2(template_mask, target_size)
+
+    base_xcorr = ifft2(f_one * f_two).real
 
     # Fulfill equations 10-12 from the paper.
     # First get the overlapping energy...
-    pixelwise_overlap = fftconvolve(template_mask, reference_mask)  # Eq 10
+    pixelwise_overlap = ifft2(m_one * m_two).real  # Eq 10
     pixelwise_overlap[pixelwise_overlap <= 0] = 1
+
     # For the template frame denominator portion.
-    ref_corrw_one = fftconvolve(reference, reference_mask)  # Eq 11
-    ref_sq_corrw_one = fftconvolve(reference * reference, reference_mask)  # Eq 12
+    ref_corrw_one = ifft2(f_one * m_two).real  # Eq 11
+    ref_sq_corrw_one = ifft2(f_one_sq * m_two).real  # Eq 12
 
     ref_denom = ref_sq_corrw_one - ((ref_corrw_one * ref_corrw_one) / pixelwise_overlap)
     ref_denom[ref_denom < 0] = 0  # Clamp these values to 0.
 
     # For the reference frame denominator portion.
-    temp_corrw_one = fftconvolve(template, template_mask)  # Eq 11
-    temp_sq_corrw_one = fftconvolve(template * template, template_mask)  # Eq 12
+    temp_corrw_one = ifft2(m_one * f_two).real  # Eq 11
+    temp_sq_corrw_one = ifft2(m_one * f_two_sq).real  # Eq 12
 
     temp_denom = temp_sq_corrw_one - ((temp_corrw_one * temp_corrw_one) / pixelwise_overlap)
     temp_denom[temp_denom < 0] = 0  # Clamp these values to 0.
 
     # Construct our numerator
-    numerator = base_xcorr - ((temp_corrw_one*ref_corrw_one)/pixelwise_overlap)
-    denom = np.sqrt(temp_denom*ref_denom)
+    numerator = base_xcorr - ((ref_corrw_one*temp_corrw_one)/pixelwise_overlap)
+    denom = np.sqrt(temp_denom)*np.sqrt(ref_denom)
 
     # Need this bit to avoid dividing by zero.
     tolerance = 1000*np.finfo(np.amax(denom)).eps
 
-    xcorr_out = np.zeros(numerator.shape, dtype=float)
-    xcorr_out[denom > tolerance] = numerator[denom > tolerance] / denom[denom > tolerance]
+    xcorr_out = numerator / (denom + 1)
 
     # By default, the images have to overlap by more than 20% of their maximal overlap.
     if not required_overlap:
@@ -304,37 +312,65 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
 
     maxval = np.amax(xcorr_out[:])
     maxloc = np.unravel_index(np.argmax(xcorr_out[:]), xcorr_out.shape)
-    maxshift = (-float(maxloc[1]-ref_size[1]), -float(maxloc[0]-ref_size[0])) #Output as X and Y.
+    maxshift = (-float(maxloc[1]-np.floor(ogcols/2.0)), -float(maxloc[0]-np.floor(ogrows/2.0))) #Output as X and Y.
+    # pyplot.imshow(xcorr_out, cmap='gray')
+    # pyplot.show()
 
     return maxshift, maxval, xcorr_out
 
 
-def simple_image_stack_align(im_stack, mask_stack, ref_idx):
+def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0):
     num_frames = im_stack.shape[-1]
     shifts = [None] * num_frames
     # flattened = flat_field(im_stack)
     flattened = (im_stack)
     print("Aligning to frame " + str(ref_idx))
-    for f2 in range(0, num_frames):
-        shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx],
-                                                  template_mask=mask_stack[..., f2],
-                                                  reference_mask=mask_stack[..., ref_idx])
-        # print("Found shift of: " + str(shift) + ", value of " + str(val))
-        shifts[f2] = shift
+    if mask_stack is not None:
+        for f2 in range(0, num_frames):
+            shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx],
+                                                      template_mask=mask_stack[..., f2],
+                                                      reference_mask=mask_stack[..., ref_idx])
+            #print("Found shift of: " + str(shift) + ", value of " + str(val))
+            shifts[f2] = shift
+    else:
+        for f2 in range(0, num_frames):
+            shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx])
+            #print("Found shift of: " + str(shift) + ", value of " + str(val))
+            shifts[f2] = shift
+
+    return shifts
+
+def simple_dataset_list_align(datasets, ref_idx):
+    num_frames = len(datasets)
+    shifts = [None] * num_frames
+
+    ref_dataset = datasets[ref_idx]
+    print("Aligning to dataset with video number: " + str(ref_idx))
+    i = 0
+    for dataset in datasets:
+        shift, val, xcorrmap = general_normxcorr2(dataset.avg_image_data, ref_dataset.avg_image_data)
+        #print("Found shift of: " + str(shift) + ", value of " + str(val))
+        shifts[i] = shift
+        i+=1
 
     return shifts
 
 
-def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=False, dropthresh=None, transformtype="affine"):
+def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=False, dropthresh=None, transformtype="affine", justalign=False):
     num_frames = im_stack.shape[-1]
+    og_dtype = im_stack.dtype
+    if not justalign:
+        reg_stack = np.zeros(im_stack.shape)
+        reg_mask = np.zeros(mask_stack.shape)
+    else:
+        reg_stack = None
+        reg_mask = None
 
-    reg_stack = np.zeros(im_stack.shape)
     eroded_mask = np.zeros(mask_stack.shape)
 
     # Erode our masks a bit to help with stability.
     for f in range(0, num_frames):
         eroded_mask[..., f] = binary_erosion(mask_stack[..., f], structure=np.ones((21, 21)))
-    #   #  im_stack[..., f] *= mask_stack[..., f]
 
     if determine_initial_shifts:
         initial_shifts = simple_image_stack_align(im_stack * eroded_mask, eroded_mask, reference_idx)
@@ -344,24 +380,23 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
     imreg_method = sitk.ImageRegistrationMethod()
     imreg_method.SetMetricAsCorrelation()
-    #imreg_method.SetMetricAsMeanSquares() #Equivalent to MATLAB results ?
-    #imreg_method.SetMetricAsANTSNeighborhoodCorrelation(16) # Similar to, but not better than the above
     imreg_method.SetOptimizerAsRegularStepGradientDescent(learningRate=0.0625, minStep=1e-5,
                                                           numberOfIterations=500,
                                                           relaxationFactor=0.6, gradientMagnitudeTolerance=1e-5)
-    #imreg_method.SetOptimizerAsConjugateGradientLineSearch()
     imreg_method.SetOptimizerScalesFromPhysicalShift() #This apparently allows parameters to change independently of one another.
                                                       # And is incredibly important.
     # #https://insightsoftwareconsortium.github.io/SimpleITK-Notebooks/Python_html/61_Registration_Introduction_Continued.html#Final-registration
-    #imreg_method.SetInterpolator(sitk.sitkLanczosWindowedSinc) # Adding this just makes it dog slow.
 
+    im_stack = im_stack.astype("float32")
+
+    im_stack[np.isnan(im_stack)] = 0
     ref_im = sitk.GetImageFromArray(im_stack[..., reference_idx])
-    # ref_im = sitk.Cast(ref_im, sitk.sitkFloat64)
-    ref_im = sitk.Normalize(ref_im)
-
+    #ref_im = sitk.Cast(ref_im, sitk.sitkfloat32)
+    #ref_im = sitk.Normalize(ref_im)
     dims = ref_im.GetDimension()
 
-    imreg_method.SetMetricFixedMask(sitk.GetImageFromArray(eroded_mask[..., reference_idx], sitk.sitkInt8))
+    imreg_method.SetMetricFixedMask(sitk.GetImageFromArray(eroded_mask[..., reference_idx]))
+
     xforms = [None] * num_frames
     inliers = np.zeros(num_frames, dtype=bool)
     for f in range(0, num_frames):
@@ -378,16 +413,14 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         imreg_method.SetInterpolator(sitk.sitkLinear)
 
         moving_im = sitk.GetImageFromArray(im_stack[..., f])
-        moving_im = sitk.Normalize(moving_im)
-        imreg_method.SetMetricMovingMask(sitk.GetImageFromArray(eroded_mask[..., f], sitk.sitkInt8))
+        #moving_im = sitk.Normalize(moving_im)
+        imreg_method.SetMetricMovingMask(sitk.GetImageFromArray(eroded_mask[..., f]))
 
         outXform = imreg_method.Execute(ref_im, moving_im)
 
         if dropthresh is not None and imreg_method.GetMetricValue() > -dropthresh:
-            # print("Excluded: " + str(imreg_method.GetMetricValue()))
             inliers[f] = False
         else:
-            # print("INCLUDED: " + str(imreg_method.GetMetricValue()))
             inliers[f] = True
 
         if transformtype == "rigid":
@@ -405,13 +438,27 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         Tx[0:2, 2] = -np.dot(A, c)+t+c
         xforms[f] = Tx[0:2, :]
 
-        out_im = sitk.Resample(sitk.GetImageFromArray(im_stack[..., f]), ref_im, outXform, sitk.sitkLanczosWindowedSinc)
-        reg_stack[..., f] = sitk.GetArrayFromImage(out_im)
+        if inliers[f] and not justalign:
+            norm_frame = im_stack[..., f]
+            # Make all masked data nan so that when we transform them we don't have weird edge effects
+            norm_frame[mask_stack[..., f] == 0] = np.nan
 
-    # save_video(
-    #     "E:\\Dropbox (Personal)\\Grant_Proposals\\2022_Feb_R01\\LSO_Prelim_data\\Processed\\testalign.avi",
-    #     reg_stack, 100)
-    return reg_stack, xforms, inliers
+            norm_frame = cv2.warpAffine(norm_frame, xforms[f],(norm_frame.shape[1], norm_frame.shape[0]),
+                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=np.nan)
+
+            reg_mask[..., f] = np.isfinite(norm_frame).astype(og_dtype) # Our new mask corresponds to the real data.
+            norm_frame[np.isnan(norm_frame)] = 0 # Make anything that was nan into a 0, to be kind to non nan-types
+            reg_stack[..., f] = norm_frame
+
+
+    if justalign:
+        return None, xforms, inliers, None
+    else:
+        return reg_stack.astype(og_dtype), xforms, inliers, reg_mask.astype(og_dtype)
+     # save_video(
+     #     "B:\\Dropbox\\testalign.avi",
+     #      reg_stack, 25)
+
 
 
 def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=5000, method="affine", dropthresh=None):
@@ -517,15 +564,7 @@ def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=
 def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="average"):
     num_frames = image_data.shape[-1]
 
-    origtype = image_data.dtype
-
-    if origtype == np.float32 or origtype == np.float64:
-        minpossval = 0
-        maxpossval = 1
-    else:
-        minpossval = np.iinfo(origtype).min
-        maxpossval = np.iinfo(origtype).max
-
+    og_dtype = image_data.dtype
     if weights is None:
         weights = image_data > 0
 
@@ -539,11 +578,18 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
 
     image_projection /= weight_projection
 
-    weight_projection[np.isnan(weight_projection)] = minpossval
+    weight_projection[np.isnan(weight_projection)] = 0
+    image_projection[np.isnan(image_projection)] = 0
+    image_projection[image_projection < 0] = 0
 
-    image_projection[image_projection < minpossval] = minpossval
-    image_projection[image_projection >= maxpossval] = maxpossval
-    #pyplot.imshow(image_projection, cmap='gray')
-    #pyplot.show()
+    if og_dtype == np.uint8:
+        image_projection[image_projection > 255] = 255
+        image_projection=image_projection.astype("uint8")
+    else:
+        image_projection[image_projection > 1] = 1
 
-    return image_projection.astype(origtype), (weight_projection / np.amax(weight_projection))
+    # pyplot.imshow(image_projection, cmap='gray')
+    # pyplot.show()
+    # return image_projection.astype("uint8"), (weight_projection / np.nanmax(weight_projection.flatten()))
+
+    return image_projection.astype(og_dtype), (weight_projection / np.nanmax(weight_projection.flatten()))

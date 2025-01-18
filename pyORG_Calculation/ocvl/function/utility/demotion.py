@@ -9,7 +9,7 @@ import pandas as pd
 from os import path
 
 from ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align
-from ocvl.function.utility.generic import PipeStages
+from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.resources import load_video
 
 
@@ -124,7 +124,7 @@ class DemotionDataset:
             if self.coord_path:
                 self.coord_data = pd.read_csv(self.coord_path, delimiter=',', header=None,
                                               encoding="utf-8-sig").to_numpy()
-                # print(self.coord_data)
+                # print(self.query_loc)
 
             if self.stimtrain_path: # [ 58 2 106 ] (176?) -> [ 58 60 176 ]
                 self.stimtrain_frame_stamps = np.cumsum(np.squeeze(pd.read_csv(self.stimtrain_path, delimiter=',', header=None,
@@ -234,10 +234,10 @@ class DemotionDataset:
             warp_mask = np.zeros(self.video_data.shape)
             ref_vid = np.zeros(self.video_data.shape)
             for f in range(self.num_frames):
-                warp_mask[..., f] = cv2.remap(self.mask_data[..., f].astype("float64"), map_mesh_x,
+                warp_mask[..., f] = cv2.remap(self.mask_data[..., f].astype("float32"), map_mesh_x,
                                               map_mesh_y, interpolation=cv2.INTER_NEAREST)
 
-                ref_vid[..., f] = cv2.remap(self.ref_video_data[..., f].astype("float64") / 255,
+                ref_vid[..., f] = cv2.remap(self.ref_video_data[..., f].astype("float32") / 255,
                                             map_mesh_x, map_mesh_y,
                                             interpolation=cv2.INTER_LANCZOS4)
             # Clamp our values.

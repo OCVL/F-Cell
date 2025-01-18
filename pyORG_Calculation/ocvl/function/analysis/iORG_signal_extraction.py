@@ -6,29 +6,177 @@ from matplotlib import pyplot as plt
 from numpy.polynomial import Polynomial
 
 from skimage.morphology import disk
-from skimage.morphology.footprints import ellipse, octagon
 
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
-from ocvl.function.utility.generic import PipeStages
-from ocvl.function.utility.meao import MEAODataset
-from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
+from ocvl.function.preprocessing.improc import norm_video
+from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
+    SummaryParams
+from scipy.spatial.distance import pdist, squareform
+
+def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stimtrain_frame_stamps=None):
+
+    if query_loc is None:
+        query_loc= dataset.query_loc[0]
+
+    if stimtrain_frame_stamps is None:
+        stimtrain_frame_stamps = dataset.stimtrain_frame_stamps
+
+    # Round the query locations
+
+    query_loc = np.round(query_loc)
+    og = query_loc.copy()
+
+    # Snag all of our parameter dictionaries that we'll use here.
+    # Default to an empty dictionary so that we can query against it with fewer if statements.
+    seg_params = analysis_params.get(SegmentParams.NAME, dict())
+    seg_shape = seg_params.get(SegmentParams.SHAPE, "disk") # Default: A disk shaped mask over each query coordinate
+    seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean") # Default the average of the intensity of the query coordinate
+
+    excl_params = analysis_params.get(ExclusionParams.NAME, dict())
+    excl_type = excl_params.get(ExclusionParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
+    excl_units = excl_params.get(ExclusionParams.UNITS, "time")
+    excl_start = excl_params.get(ExclusionParams.START, -0.2)
+    excl_stop = excl_params.get(ExclusionParams.STOP, 0.2)
+    excl_cutoff_fraction = excl_params.get(ExclusionParams.FRACTION, 0.5)
+
+    std_params = analysis_params.get(STDParams.NAME, dict())
+    std_meth = std_params.get(STDParams.METHOD, "mean_sub") # Default: Subtracts the mean from each iORG signal
+    std_type = std_params.get(STDParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
+    std_units = std_params.get(STDParams.UNITS, "time")
+    std_start = std_params.get(STDParams.START, -1)
+    std_stop = std_params.get(STDParams.STOP, 0)
+
+    sum_params = analysis_params.get(SummaryParams.NAME, dict())
+    sum_method = sum_params.get(SummaryParams.METHOD, "rms")
+    sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
+    sum_control = sum_params.get(SummaryParams.CONTROL, "subtract")
+
+    query_status = np.full(query_loc.shape[0], "Included", dtype=object)
+    valid_signals = np.full((query_loc.shape[0]), True)
+
+    if seg_params.get(SegmentParams.REFINE_TO_REF, True):
+        query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc.copy())
+    else:
+        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
+        valid = np.full((query_loc.shape[0]), True)
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    coorddist = pdist(query_loc, "euclidean")
+    coorddist = squareform(coorddist)
+    coorddist[coorddist == 0] = np.amax(coorddist.flatten())
+    mindist = np.amin(coorddist, axis=-1)
+
+    # If not defined, then we default to "auto" which determines it from the spacing of the query points
+    segmentation_radius = seg_params.get(SegmentParams.RADIUS, "auto")
+    if segmentation_radius == "auto":
+        segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
+
+        segmentation_radius = int(segmentation_radius)
+        print("Detected segmentation radius: " + str(segmentation_radius))
+
+    if seg_params.get(SegmentParams.REFINE_TO_VID, True):
+        query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
+                                                              query_loc.copy())
+    else:
+        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
+        valid = np.full((query_loc.shape[0]), True)
+
+
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    # Extract the signals
+    iORG_signals, excl_reason = extract_profiles(dataset.video_data, query_loc.copy(),
+                                                 seg_radius=segmentation_radius,
+                                                 seg_mask=seg_shape, summary=seg_summary)
+    # Update our audit path.
+    valid = np.all(np.isfinite(iORG_signals), axis=1)
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    # Should only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
+    # will be used for, or what critical region/standardization indicies it'll need.
+
+    # Exclude signals that don't pass our criterion
+    if excl_units == "time":
+        excl_start_ind = int(excl_start * dataset.framerate)
+        excl_stop_ind = int(excl_stop * dataset.framerate)
+    else:  # if units == "frames":
+        excl_start_ind = int(excl_start)
+        excl_stop_ind = int(excl_stop)
+
+    if excl_type == "stim-relative":
+        excl_start_ind = stimtrain_frame_stamps[0] + excl_start_ind
+        excl_stop_ind = stimtrain_frame_stamps[1] + excl_stop_ind
+    else:  # if type == "absolute":
+        pass
+        # excl_start_ind = excl_start_ind
+        # excl_stop_ind = excl_stop_ind
+    crit_region = np.arange(excl_start_ind, excl_stop_ind)
+
+    iORG_signals, valid, excl_reason = exclude_profiles(iORG_signals, dataset.framestamps,
+                                                        critical_region=crit_region,
+                                                        critical_fraction=excl_cutoff_fraction)
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    # Standardize individual signals
+    if std_units == "time":
+        std_start_ind = int(std_start * dataset.framerate)
+        std_stop_ind = int(std_stop * dataset.framerate)
+    else:  # if units == "frames":
+        std_start_ind = int(std_start)
+        std_stop_ind = int(std_stop)
+
+    if std_type == "stim-relative":
+        std_start_ind = stimtrain_frame_stamps[0] + std_start_ind
+        std_stop_ind = stimtrain_frame_stamps[1] + std_stop_ind
+
+    std_ind = np.arange(std_start_ind, std_stop_ind)
+
+    iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
+
+    summarized_iORG, num_signals_per_sample = signal_power_iORG(iORG_signals, dataset.framestamps,
+                                                                summary_method=sum_method,
+                                                                window_size=sum_window)
+
+    return iORG_signals, summarized_iORG, query_status, query_loc
+
+
 
 def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
 
     im_size = ref_image.shape
 
+
+    query_status = np.full(coordinates.shape[0], "Included", dtype=object)
+
     # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded before analysis.
     pluscoord = coordinates + search_radius*2*numiter # Include extra region to avoid edge effects
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
+    query_status[pluscoord[:, 0] < im_size[1]] = "Refinement area outside image bounds (right side)"
+    query_status[pluscoord[:, 0] < im_size[0]] = "Refinement area outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - search_radius*2*numiter # Include extra region to avoid edge effects
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
+    query_status[minuscoord[:, 0] >= 0] = "Refinement area outside image bounds (top side)"
+    query_status[minuscoord[:, 1] >= 0] = "Refinement area outside image bounds (left side)"
     del minuscoord
 
-    coordinates = np.round(coordinates[includelist, :]).astype("int")
+    coordinates = np.round(coordinates).astype("int")
 
     for i in range(coordinates.shape[0]):
         if includelist[i]:
@@ -41,33 +189,13 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
                 minV, maxV, minL, maxL = cv2.minMaxLoc(ref_template)
 
                 maxL = np.array(maxL)-search_radius # Make relative to the center.
-                # print(coord)
                 coordinates[i, :] = coord + maxL
-                # print(" to: " + str(coordinates[i, :]))
-
-                # plt.figure(11)
-                # plt.clf()
-                # plt.imshow(ref_template)
-                # plt.plot(maxL[0]+search_radius,maxL[1]+search_radius,"r*")
-                # plt.show(block=False)
-                # plt.waitforbuttonpress()
 
                 if np.all(maxL == 0):
                     # print("Unchanged. Breaking...")
                     break
 
-            # plt.figure(12)
-            # plt.clf()
-            # plt.imshow(ref_image)
-            # plt.plot(coordinates[i, 0],coordinates[i, 1],"r*")
-            # plt.imshow( ref_image[(coordinates[i, 1] - 5):(coordinates[i, 1] + 5 + 1),
-            #             (coordinates[i, 0] - 5):(coordinates[i, 0] + 5 + 1)])
-            #
-            # plt.waitforbuttonpress()
-
-
-
-    return coordinates
+    return coordinates, includelist, query_status
 
 
 def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, threshold=0.3):
@@ -79,22 +207,24 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
 
     search_region = 2*search_radius # Include extra region for edge effects
 
+    query_status = np.full(coordinates.shape[0], "Included", dtype=object)
+
     # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded from refinement.
     pluscoord = coordinates + search_region
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
+    query_status[pluscoord[:, 0] < im_size[1]] = "Stack refinement area outside image bounds (right side)"
+    query_status[pluscoord[:, 0] < im_size[0]] = "Stack refinement area outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - search_region
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
+    query_status[minuscoord[:, 0] >= 0] = "Stack refinement area outside image bounds (top side)"
+    query_status[minuscoord[:, 1] >= 0] = "Stack refinement area outside image bounds (left side)"
     del minuscoord
 
     coordinates = np.round(coordinates).astype("int")
-
-    #search_mask = np.zeros(2*search_region)
-    #search_mask[(coord[1] - search_radius):(coord[1] + search_radius + 1),
-                #(coord[0] - search_radius):(coord[0] + search_radius + 1)]
 
     for i in range(coordinates.shape[0]):
         if includelist[i]:
@@ -110,27 +240,10 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
             match_reg = cv2.matchTemplate(stack_im, ref_template, cv2.TM_CCOEFF_NORMED)
             minV, maxV, minL, maxL = cv2.minMaxLoc(match_reg)
             maxL = np.array(maxL) - search_radius  # Make relative to the center.
-            if threshold < maxV: # If the alignment is over our threshold (empirically, 0.3 works well), then do the alignment.
-                # print(coord)
+            if threshold < maxV: # If the alignment is over our NCC threshold (empirically, 0.3 works well), then do the alignment.
                 coordinates[i, :] = coord + maxL
-                # print(" to: " +str(coordinates[i, :]))
-            # else:
-            #     print(maxV)
-            #     plt.figure(10)
-            #     plt.imshow(stack_im)
-            #     plt.figure(11)
-            #     plt.imshow(ref_template)
-            #
-            #     plt.figure(12)
-            #     stack_data = image_stack[(coordinates[i,1] - search_region):(coordinates[i,1] + search_region + 1),
-            #                  (coordinates[i,0] - search_region):(coordinates[i,0] + search_region + 1),
-            #                  :]
-            #     stack_im_realign = np.nanmean(stack_data, axis=-1).astype("uint8")
-            #     plt.imshow(stack_im_realign)
-            #     plt.show(block=False)
-            #     plt.waitforbuttonpress()
-            #print(maxL)
-    return coordinates
+
+    return coordinates, includelist, query_status
 
 
 def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None, display=False):
@@ -152,7 +265,7 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
     if coordinates is None:
         pass # Todo: create coordinates for every position in the image stack.
 
-    #im_stack = image_stack.astype("float64")
+    #im_stack = image_stack.astype("float32")
 
     im_stack_mask = image_stack == 0
     im_stack_mask = cv2.morphologyEx(im_stack_mask.astype("uint8"), cv2.MORPH_OPEN, np.ones((3, 3)),
@@ -166,16 +279,20 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
         for f in range(im_size[-1]):
             im_stack[..., f] = cv2.GaussianBlur(im_stack[..., f], ksize=(0, 0), sigmaX=sigma)
 
-
+    query_status = np.full(coordinates.shape[0], "Included", dtype=object)
 
     pluscoord = coordinates + seg_radius
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
+    query_status[pluscoord[:, 0] < im_size[1]] = "Segmentation outside image bounds (right side)"
+    query_status[pluscoord[:, 1] < im_size[0]] = "Segmentation outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - seg_radius
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
+    query_status[minuscoord[:, 0] >= 0] = "Segmentation outside image bounds (top side)"
+    query_status[minuscoord[:, 1] >= 0] = "Segmentation outside image bounds (left side)"
     del minuscoord
 
     coordinates = np.floor(coordinates).astype("int")
@@ -258,7 +375,7 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
             plt.plot(profile_data[i, :]-profile_data[i, 0])
         plt.show()
 
-    return profile_data
+    return profile_data, query_status
 
 def exclude_profiles(temporal_profiles, framestamps,
                      critical_region=None, critical_fraction=0.5, require_full_profile=False):
@@ -275,6 +392,8 @@ def exclude_profiles(temporal_profiles, framestamps,
     :return: a NxM numpy matrix of pared-down profiles, where profiles that don't fit the criterion are dropped.
     """
 
+    query_status = np.full(temporal_profiles.shape[0], "Included", dtype=object)
+
     if critical_region is not None:
 
         crit_inds = np.where(np.isin(framestamps, critical_region))[0]
@@ -288,18 +407,22 @@ def exclude_profiles(temporal_profiles, framestamps,
                 temporal_profiles[i, :] = np.nan
                 good_profiles[i] = False
 
+                query_status[i] = ("Only had data for " + f"{this_fraction * 100:.2f}" + "% of the req'd data in the crit region (frames " +
+                                   str(critical_region[0]) + " - " + str(critical_region[-1]) + ").")
+
     if require_full_profile:
         for i in range(temporal_profiles.shape[0]):
             if np.any(~np.isfinite(temporal_profiles[i, :])) and good_profiles[i]:
 
                 temporal_profiles[i, :] = np.nan
                 good_profiles[i] = False
+                query_status[i] = "Incomplete profile, and the function req. full profiles."
                 crit_remove += 1
 
     if critical_region is not None or require_full_profile:
-        print(str(crit_remove) + "/"+str(temporal_profiles.shape[0])+" cells were cleared due to missing data at stimulus delivery")
+        print(str(crit_remove) + "/"+str(temporal_profiles.shape[0])+" cells were cleared due to missing data at stimulus delivery.")
 
-    return temporal_profiles, good_profiles
+    return temporal_profiles, good_profiles, query_status
 
 def norm_profiles(temporal_profiles, norm_method="mean", rescaled=False, video_ref=None):
     """
@@ -366,30 +489,22 @@ def norm_profiles(temporal_profiles, norm_method="mean", rescaled=False, video_r
         return np.divide(temporal_profiles, framewise_norm[None, :])
 
 
-def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method="linear_std", display=False, std_indices=None):
+def standardize_profiles(temporal_profiles, framestamps, std_indices, method="linear_std", display=False):
     """
     This function standardizes each temporal profile (here, the rows of the supplied data) according to the provided
     arguments.
 
     :param temporal_profiles: A NxM numpy matrix with N cells and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
-    :param stimulus_stamp: The framestamp at which to limit the standardization. For functional studies, this is often
-                            the stimulus framestamp.
+    :param std_indices: The range of indices to use when standardizing.
     :param method: The method used to standardize. Default is "linear_std", which subtracts a linear fit to
                     each signal before stimulus_stamp, followed by a standardization based on that pre-stamp linear-fit
                     subtracted data. This was used in Cooper et al 2017/2020.
                     Current options include: "linear_std", "linear_vast", "relative_change", and "mean_sub"
-    :param std_indices: The range of indices to use when standardizing. Defaults to the full prestimulus range.
 
     :return: a NxM numpy matrix of standardized temporal profiles.
     """
-
-    if std_indices is None:
-        prestimulus_idx = np.where(framestamps <= stimulus_stamp, True, False)
-    else:
-        prestimulus_idx = std_indices
-
-    if len(prestimulus_idx) == 0:
+    if len(std_indices) == 0:
         warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
         return temporal_profiles
 
@@ -397,8 +512,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
         # Standardize using Autoscaling preceded by a linear fit to remove
         # any residual low-frequency changes
         for i in range(temporal_profiles.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[prestimulus_idx])
-            prestim_profile = np.squeeze(temporal_profiles[i, prestimulus_idx])
+            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+            prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
             if np.sum(goodind) > 5:
@@ -418,8 +533,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
         # https://www.sciencedirect.com/science/article/pii/S0003267003000941
         # this scaling is defined as autoscaling divided by the CoV.
         for i in range(temporal_profiles.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[prestimulus_idx])
-            prestim_profile = np.squeeze(temporal_profiles[i, prestimulus_idx])
+            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+            prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
             if np.sum(goodind) > 5:
@@ -438,8 +553,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
     elif method == "relative_change":
         # Make our output a representation of the relative change of the signal
         for i in range(temporal_profiles.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[prestimulus_idx])
-            prestim_profile = np.squeeze(temporal_profiles[i, prestimulus_idx])
+            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+            prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
             prestim_mean = np.nanmean(prestim_profile[goodind])
@@ -450,8 +565,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
     elif method == "mean_sub":
         # Make our output just a prestim mean-subtracted signal.
         for i in range(temporal_profiles.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[prestimulus_idx])
-            prestim_profile = np.squeeze(temporal_profiles[i, prestimulus_idx])
+            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+            prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
             if np.sum(goodind) > 5:
@@ -479,8 +594,8 @@ def standardize_profiles(temporal_profiles, framestamps, stimulus_stamp, method=
 #
 #     dataset.load_pipelined_data()
 #
-#     temp_profiles = extract_profiles(dataset.video_data, dataset.coord_data)
-#     norm_temporal_profiles = norm_profiles(temp_profiles, norm_method="mean")
+#     iORG_signals = extract_profiles(dataset.video_data, dataset.query_locs)
+#     norm_temporal_profiles = norm_profiles(iORG_signals, norm_method="mean")
 #     stdize_profiles = standardize_profiles(norm_temporal_profiles, dataset.framestamps, 55, method="mean_sub")
 #     stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps)
 #

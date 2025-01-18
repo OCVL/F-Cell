@@ -183,7 +183,7 @@ if __name__ == "__main__":
 
                 # Loading in the pipelined data (calls the load_pipelined_data() fxn
                 dataset = MEAODataset(file.as_posix(), stimtrain_path=stimtrain_fName,
-                                      analysis_modality="760nm", ref_modality="760nm", stage=PipeStages.PIPELINED)
+                                      analysis_modality="760nm", ref_modality="Confocal", stage=PipeStages.PIPELINED)
                 dataset.load_pipelined_data()
 
                 # Initialize the dict for individual cells.
@@ -224,19 +224,28 @@ if __name__ == "__main__":
                     first = False
 
                 dataset.coord_data = refine_coord_to_stack(dataset.video_data, ref_im, reference_coord_data)
+                dataset.ref_coord_data = refine_coord_to_stack(dataset.ref_video_data, ref_im, reference_coord_data)
 
                 # full_profiles = extract_profiles(dataset.video_data, dataset.query_loc, seg_radius=segmentation_radius+1,
                 #                                  summary="none", sigma=1)
 
                 norm_video_data = norm_video(dataset.video_data, norm_method="score", rescaled=True,
                                              rescale_mean=70, rescale_std=35)
-                # save_tiff_stack(res_dir.joinpath(this_dirname+"_normvid.tif"),norm_video_data)
+                norm_ref_video_data = norm_video(dataset.ref_video_data, norm_method="score", rescaled=True,
+                                             rescale_mean=70, rescale_std=35)
+               # save_tiff_stack(res_dir.joinpath(this_dirname+"_normvid.tif"),norm_video_data)
+                #save_tiff_stack(res_dir.joinpath(this_dirname + "_ref_normvid.tif"), norm_ref_video_data)
 
                 temp_profiles = extract_profiles(norm_video_data, dataset.coord_data, seg_radius=segmentation_radius,
                                                  seg_mask="disk", summary="mean")
+                temp_ref_profiles = extract_profiles(norm_ref_video_data, dataset.ref_coord_data, seg_radius=segmentation_radius,
+                                                     seg_mask="disk", summary="mean")
 
-                temp_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
-                                                     stimulus_stamp=stimulus_train[0], method="mean_sub")
+                # iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps,
+                #                                      stimulus_stamp=stimulus_train[0], method="mean_sub")
+                # temp_ref_profiles = standardize_profiles(temp_ref_profiles, dataset.framestamps,
+                #                                          stimulus_stamp=stimulus_train[0], method="mean_sub")
+
 
                 temp_profiles, good_profiles = exclude_profiles(temp_profiles, dataset.framestamps,
                                                  critical_region=np.arange(stimulus_train[0] - int(0.2 * framerate),
@@ -244,7 +253,25 @@ if __name__ == "__main__":
                                                  critical_fraction=0.5)
 
                 num_sigs += good_profiles[:, np.newaxis]
+                temp_ref_profiles[~good_profiles, :] = np.nan
                 # full_profiles[:, :, :, ~good_profiles] = np.nan
+
+                plt.figure(0)
+                plt.figure(1)
+                plt.show(block=False)
+                for cind in range(200, len(good_profiles)):
+                    plt.figure(0)
+                    plt.clf()
+                    plt.plot(temp_profiles[cind,:])
+                    plt.plot(temp_ref_profiles[cind,:])
+                    plt.draw()
+
+                    plt.figure(1)
+                    plt.clf()
+                    plt.imshow(dataset.reference_im)
+                    plt.plot(reference_coord_data[cind, 0], reference_coord_data[cind, 1], "r*")
+                    plt.waitforbuttonpress()
+
 
                 stdize_profiles, reconst_framestamps, nummissed = reconstruct_profiles(temp_profiles,
                                                                                        dataset.framestamps,

@@ -13,11 +13,11 @@ from matplotlib import patches as ptch
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from scipy.spatial.distance import pdist, squareform
 
-from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles, \
+from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
     refine_coord, refine_coord_to_stack, exclude_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, wavelet_iORG, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.generic import PipeStages
+from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video, save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     # Parse out the locations and filenames, store them in a hash table.
     searchpath = Path(pName)
     for path in searchpath.rglob("*.avi"):
-        if "piped" in path.name:
+        if "piped" in path.name and a_mode in path.name:
             splitfName = path.name.split("_")
 
             if (path.parent.parent == searchpath or path.parent == searchpath):
@@ -208,7 +208,7 @@ if __name__ == "__main__":
                 if dataset.framestamps[-1] > max_frmstamp:
                     max_frmstamp = dataset.framestamps[-1]
 
-        #del dataset, temp_profiles, norm_temporal_profiles, stdize_profiles
+        #del dataset, iORG_signals, norm_temporal_profiles, stdize_profiles
         del temp_profiles,  stdize_profiles
 
 
@@ -254,16 +254,16 @@ if __name__ == "__main__":
             poststim = cell_power_iORG[c, poststim_ind]
 
             if poststim.size == 0 or avg_numdata < (all_cell_iORG.shape[0]/2):
-                poststim_amp = np.NaN
-                prestim_amp = np.NaN
+                poststim_amp = np.nan
+                prestim_amp = np.nan
 
             else:
                 thispower = cell_power_iORG[c, :]
 
                 indiv_iORG_amp[c], indiv_iORG_implicit[c] = iORG_signal_metrics(thispower[None, :], dataset.framestamps,
-                                                                        filter_type="none", display=False,
-                                                                        prestim_idx=prestim_ind,
-                                                                        poststim_idx=poststim_ind)[1:3]
+                                                                                filter_type="none", display=False,
+                                                                                prestim_window_idx=prestim_ind,
+                                                                                poststim_window_idx=poststim_ind)[1:3]
             
 
         log_indiv_iORG_amp = np.log(indiv_iORG_amp)
@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
 
         # TODO: Calling the coordclip fxn to return the simple_amp that corresponds to a 100 cone ROI
-        # clippedcoords = coordclip(coord_data, 10, 100, 'i')
+        # clippedcoords = coordclip(query_loc, 10, 100, 'i')
 
 
         dt = datetime.now()

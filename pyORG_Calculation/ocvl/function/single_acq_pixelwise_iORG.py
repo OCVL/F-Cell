@@ -11,12 +11,12 @@ from numpy import random
 
 from scipy.spatial.distance import pdist, squareform
 
-from ocvl.function.analysis.cell_profile_extraction import extract_profiles, norm_profiles, standardize_profiles, \
+from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
     refine_coord, refine_coord_to_stack, exclude_profiles
 from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, wavelet_iORG, extract_texture_profiles, \
     iORG_signal_metrics, pooled_variance
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.generic import PipeStages
+from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles, densify_temporal_matrix, trim_video
@@ -229,8 +229,8 @@ if __name__ == "__main__":
 
             # What about a temporal histogram?
             indiv_fad[c, :], _, _, indiv_mad = iORG_signal_metrics(all_cell_iORG[:, :], full_framestamp_range,
-                                                            filter_type="MS", notch_filter=None, display=False, fwhm_size=11,
-                                                            prestim_idx=prestim_ind, poststim_idx=poststim_ind-3)
+                                                                   filter_type="MS", notch_filter=None, display=False, fwhm_size=11,
+                                                                   prestim_window_idx=prestim_ind, poststim_window_idx=poststim_ind - 3)
 
             prestim_deriv= np.gradient(np.nanmean(indiv_mad[:, 0:prestim_ind[-1]], axis=0))
 
