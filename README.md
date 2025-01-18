@@ -13,6 +13,31 @@ Working with optoretinograms often requires supra-normal processing of AOSLO/AOL
 How these stages work are governed by json-based configuration files that allow you to run the code on your data's particular filename, video, and metadata format. It also allows you to specify the parameters used during the processing and analysis steps, for your specific scientific problem.
 
 ### Configuration file format:
+The configuration file uses a json file format. At the moment, its creation is manual, though we will be developing a GUI tool for easy creation/updating of parameters in the coming months.
+
+The base format of the configuration json has the following structure:
+
+```json
+{
+  "version": "0.2",
+  "description": "The pipeline and analysis JSON for the OCVL's MEAOSLO.",
+  "recursive_search": true
+  "raw": { }
+  "processed": { }
+  "pipelined": { }
+}
+```
+
+This corresponds to the following key/value pairs: 
+
+- `version: "string"`:  The version of the configuration file used. The current newest version is 0.2
+- `description: "string"`: The description of the configuration. Useful if multiple configurations are used for your particular analysis, if you have multiple devices, or if you want to test multiple pipeline/analysis combinations.
+- `recursive_search: [true/false]`: Whether or not to analyze the folder structure recursively from the user-selected folder.
+- `raw: {}`: Parameters relating to handling of **raw** data
+- `processed: {}`: Parameters relating to handling of data that has been registered, or **processed**.
+- `pipelined: {}`: Parameters relating to handling of data that has gone through F-Cell's pre-processing pipeline.
+
+
 
 ### Pre-processing pipeline:
 
