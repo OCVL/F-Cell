@@ -13,7 +13,7 @@ from scipy.spatial.distance import pdist, squareform
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
     refine_coord, refine_coord_to_stack, exclude_profiles
-from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, wavelet_iORG, extract_texture_profiles, \
+from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, wavelet_iORG, extract_texture_profiles, \
     iORG_signal_metrics, pooled_variance
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages
@@ -49,8 +49,8 @@ def fast_rms_avg(all_iORG, framestamp_range, stiminds):
             # After the rando reorder, then determine the RMS signals of ever increasing numbers of samples
             for ind in range(0, this_cell_iORG.shape[0]):
 
-                cell_rms_iORG[ind, :] = signal_power_iORG(this_cell_iORG[0:ind+1, :], framestamp_range,
-                                                          summary_method="rms", window_size=1)[0]
+                cell_rms_iORG[ind, :] = summarize_iORG_signals(this_cell_iORG[0:ind + 1, :], framestamp_range,
+                                                               summary_method="rms", window_size=1)[0]
 
                 cell_rms_amp[cellind, ind] = iORG_signal_metrics(cell_rms_iORG[ind, :].reshape((1, cell_rms_iORG.shape[1])),
                                                                  framestamp_range,
@@ -332,8 +332,8 @@ if __name__ == "__main__":
                 # plt.waitforbuttonpress()
 
 
-            cell_power_iORG[c, :], numincl = signal_power_iORG(all_cell_iORG[:, :, c], full_framestamp_range,
-                                                               summary_method="rms", window_size=1, display=False)
+            cell_power_iORG[c, :], numincl = summarize_iORG_signals(all_cell_iORG[:, :, c], full_framestamp_range,
+                                                                    summary_method="rms", window_size=1, display=False)
 
             cell_power_fad[c], cell_power_amp[c] = iORG_signal_metrics(cell_power_iORG[c, :].reshape((1, cell_power_iORG.shape[1])),
                                                                        full_framestamp_range, framerate,

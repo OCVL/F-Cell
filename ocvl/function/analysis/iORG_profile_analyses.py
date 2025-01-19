@@ -22,10 +22,10 @@ from ocvl.function.utility.resources import save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import densify_temporal_matrix, reconstruct_profiles
 
 
-def signal_power_iORG(temporal_profiles, framestamps, summary_method="var", window_size=1, fraction_thresh=0.25, display=False, stim_idx=None):
+def summarize_iORG_signals(temporal_profiles, framestamps, summary_method="var", window_size=1, fraction_thresh=0.25, display=False, stim_idx=None):
     """
-    Calculates the iORG on a supplied dataset, using a variety of power based summary methods published in
-    Cooper et. al. 2020, and Cooper et. al. 2017.
+    Summarizes the iORG on a supplied dataset, using a variety of power based summary methods published in
+    Gaffney et. al. 2024, Cooper et. al. 2020, and Cooper et. al. 2017.
 
     :param temporal_profiles: A NxM numpy matrix with N cells OR acquisitions from a single cell,
                                 and M temporal samples of some signal.
@@ -85,7 +85,6 @@ def signal_power_iORG(temporal_profiles, framestamps, summary_method="var", wind
             num_incl = num_incl[framestamps]
         else:
             raise Exception("Window size must be less than half of the number of samples")
-
     elif summary_method == "std":
         if window_radius == 0:
             iORG = np.nanstd(temporal_data, axis=0)
@@ -105,7 +104,6 @@ def signal_power_iORG(temporal_profiles, framestamps, summary_method="var", wind
             num_incl = num_incl[framestamps]
         else:
             raise Exception("Window size must be less than half of the number of samples")
-
     elif summary_method == "rms":
         if window_radius == 0:
 

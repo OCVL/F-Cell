@@ -15,7 +15,7 @@ from scipy.spatial.distance import pdist, squareform
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
     refine_coord, refine_coord_to_stack, exclude_profiles
-from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, wavelet_iORG, iORG_signal_metrics
+from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, wavelet_iORG, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset
@@ -243,9 +243,9 @@ if __name__ == "__main__":
 
         for c in range(len(reference_coord_data)):
 
-            cell_power_iORG[c, :], numincl = signal_power_iORG(all_cell_iORG[:, :, c],
-                                                               dataset.stimtrain_frame_stamps, summary_method="rms",
-                                                               window_size=1, display=False)
+            cell_power_iORG[c, :], numincl = summarize_iORG_signals(all_cell_iORG[:, :, c],
+                                                                    dataset.stimtrain_frame_stamps, summary_method="rms",
+                                                                    window_size=1, display=False)
             avg_numdata = np.nanmean(numincl)
             prestim_ind = np.logical_and(all_frmstamps < dataset.stimtrain_frame_stamps[0],
                                          all_frmstamps >= (dataset.stimtrain_frame_stamps[0] - int(0.75 * dataset.framerate)))

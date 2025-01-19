@@ -12,7 +12,7 @@ from scipy.spatial.distance import pdist, squareform
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
     refine_coord, refine_coord_to_stack, exclude_profiles, extract_n_refine_iorg_signals
-from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG, iORG_signal_metrics
+from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataFormatType, DataTags, AcquisiTags, \
@@ -127,6 +127,7 @@ if __name__ == "__main__":
 
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
+    sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
     sum_control = sum_params.get(SummaryParams.CONTROL, "none")
 
     metrics = sum_params.get(SummaryParams.METRICS, dict())
@@ -296,36 +297,53 @@ if __name__ == "__main__":
 
                     # Determine if all stimulus data in this folder and mode has the same form and contents;
                     # if so, we can just process the control data *one* time, saving a lot of time.
+                    # ALSO, we can perform an individual iORG analysis by combining a cells' iORGs across acquisitions
+                    max_frmstamp = -1
                     all_locs = None
                     all_timestamps = None
                     first_run = True
-                    fast_control_processing = True
+                    uniform_datasets = True
                     for d, dataset in enumerate(stim_datasets):
                         locs = dataset.query_loc
                         the_timestamps = dataset.stimtrain_frame_stamps
+                        max_frmstamp = np.maximum(max_frmstamp, np.amax(dataset.framestamps))
 
                         if d != 0:
                             if np.all(all_timestamps.shape != the_timestamps.shape) and np.all(all_timestamps != the_timestamps):
                                 warnings.warn("Does not qualify for fast control processing: The stimulus timestamps do not match.")
-                                fast_control_processing = False
+                                uniform_datasets = False
                                 break
 
                             if len(locs) == len(all_locs):
                                 for l, the_locs in enumerate(locs):
                                     if np.all(the_locs.shape != all_locs[l].shape) and np.all(the_locs != all_locs[l]):
                                         warnings.warn("Does not qualify for fast control processing: The query locations do not match.")
-                                        fast_control_processing = False
+                                        uniform_datasets = False
                                         break
                             else:
                                 warnings.warn("Does not qualify for fast control processing: The number of query locations do not match.")
-                                fast_control_processing = False
+                                uniform_datasets = False
                                 break
                         else:
                             all_locs = locs
                             all_timestamps = the_timestamps
 
+                    for control_data in control_datasets:
+                        max_frmstamp = np.maximum(max_frmstamp, np.amax(control_data.framestamps))
+
+                    stim_iORG_summary = [None] * len(all_locs)
+                    stim_pop_iORG_summary = [None] * len(all_locs)
+                    stim_iORG_signals = None
+
                     control_iORG_summary = [None] * len(all_locs)
+                    control_pop_iORG_summary = [None] * len(all_locs)
                     control_framestamps = [None] * len(all_locs)
+
+                    if uniform_datasets:
+                        stim_iORG_signals = [None] * len(all_locs)
+                        for q in range(len(all_locs)):
+                            stim_iORG_signals[q] = np.full((len(stim_datasets),
+                                                          all_locs[q].shape[0], max_frmstamp + 1), np.nan)
 
                     # Load each dataset (delineated by different video numbers), and process it relative to the control data.
                     for v, stim_vidnum in enumerate(stim_data_vidnums):
@@ -342,9 +360,10 @@ if __name__ == "__main__":
 
                         # Process all control datasets in accordance with the stimulus datasets' parameters,
                         # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
-                        if not fast_control_processing or first_run:
+                        if not uniform_datasets or first_run:
                             first_run = False
                             control_iORG_summary = [None] * len(stim_dataset.query_loc)
+                            control_pop_iORG_summary = [None] * len(stim_dataset.query_loc)
                             control_framestamps = [None] * len(stim_dataset.query_loc)
 
                             pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
@@ -376,40 +395,46 @@ if __name__ == "__main__":
                                         warnings.warn("Column missing from control iORG summary.")
 
                             # After we've processed all the control data with the parameters of the stimulus data, combine it
-                            max_frmstamp = stim_dataset.framestamps[-1]
-                            for control_data in control_datasets:
-                                max_frmstamp = np.maximum(max_frmstamp, np.amax(control_data.framestamps))
 
                             for q in range(len(control_query_status)):
                                 # First write the control data to a file.
                                 control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
                                                                "_" + query_loc_names[q] + "coords_controldata.csv"))
 
-                                control_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                control_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                control_iORG_summaries = np.full((len(control_datasets),
+                                                                  control_datasets.query_loc[q].shape[0],  max_frmstamp + 1), np.nan)
 
                                 for c, control_data in enumerate(control_datasets):
-                                    control_iORG_N[c, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
-                                    control_iORG_summaries[c, control_data.framestamps] = control_data.summarized_iORGs[q]
+                                    control_pop_iORG_N[c, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
+                                    control_iORG_summaries[c, :, control_data.framestamps] = control_data.iORG_signals[q]
+                                    control_pop_iORG_summaries[c, control_data.framestamps] = control_data.summarized_iORGs[q]
 
-                                control_iORG_summary[q] = np.nansum(control_iORG_N * control_iORG_summaries,
-                                                                 axis=0) / np.nansum(control_iORG_N, axis=0)
-                                control_framestamps[q] = np.flatnonzero(np.isfinite(control_iORG_summary[q]))
+                                # Summarize each of the cells' iORGs
+                                indiv_summary, _ = summarize_iORG_signals(control_iORG_summaries, np.arange(max_frmstamp + 1),
+                                                                      summary_method=sum_method,
+                                                                      window_size=sum_window)
+                                control_iORG_summary[q] = indiv_summary
+
+                                control_pop_iORG_summary[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
+                                                                        axis=0) / np.nansum(control_pop_iORG_N, axis=0)
+                                control_framestamps[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary[q]))
 
 
                         ''' Population iORG analyses start here '''
                         for q in range(len(stim_dataset.query_loc)):
-
-                            stim_iORG_summary = np.full((max_frmstamp + 1,), np.nan)
-                            stim_iORG_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
+                            stim_iORG_signals[q][v, :, stim_dataset.framestamps] = stim_dataset.iORG_signals[q]
+                            stim_pop_iORG_summary = np.full((max_frmstamp + 1,), np.nan)
+                            stim_pop_iORG_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
                             stim_framestamps = np.arange(max_frmstamp + 1)
 
                             if sum_control == "subtraction":
-                                stim_dataset.summarized_iORGs[q] = stim_iORG_summary - control_iORG_summary[q]
+                                stim_dataset.summarized_iORGs[q] = stim_pop_iORG_summary - control_pop_iORG_summary[q]
                             elif sum_control == "division":
-                                stim_dataset.summarized_iORGs[q] = stim_iORG_summary / control_iORG_summary[q]
+                                stim_dataset.summarized_iORGs[q] = stim_pop_iORG_summary / control_pop_iORG_summary[q]
                             elif sum_control == "none":
-                                stim_dataset.summarized_iORGs[q] = stim_iORG_summary
+                                stim_dataset.summarized_iORGs[q] = stim_pop_iORG_summary
 
                             ''' This section is for display of the above iORG summaries, as specified by the user. '''
                             # This shows all summaries overlapping.
@@ -429,7 +454,7 @@ if __name__ == "__main__":
                                     ind += 1
                                 if disp_stim:
                                     plt.title("Stimulus iORG")
-                                    plt.plot(stim_framestamps/stim_dataset.framerate, stim_iORG_summary)
+                                    plt.plot(stim_framestamps / stim_dataset.framerate, stim_pop_iORG_summary)
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
                                 if how_many > 1 and disp_cont:
@@ -437,7 +462,7 @@ if __name__ == "__main__":
                                     ind += 1
                                 if disp_cont:
                                     plt.title("Summarized control iORG")
-                                    plt.plot(control_framestamps[q]/stim_dataset.framerate, control_iORG_summary[q][control_framestamps[q]])
+                                    plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary[q][control_framestamps[q]])
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
                                 if how_many > 1 and disp_rel:
@@ -470,7 +495,7 @@ if __name__ == "__main__":
 
                                     plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
                                     plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
-                                    plt.plot(stim_framestamps/stim_dataset.framerate, stim_iORG_summary)
+                                    plt.plot(stim_framestamps / stim_dataset.framerate, stim_pop_iORG_summary)
                                     plt.xlabel("Time (s)")
                                     plt.ylabel(sum_method)
 
@@ -536,9 +561,32 @@ if __name__ == "__main__":
                                 elif metric == "rec_amp":
                                     iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.RECOVERY_PERCENT)] = recovery
 
-                        # When done analyzing the population-level stuff for both query points, update the framestamps
-                        # for the dataset so that we can combine everything later (i.e. for individual iORGs).
-                        stim_dataset.framestamps = np.arange(max_frmstamp + 1)
+
+                    # Average all stimulus population iORGs, and prep for individual cone analyses.
+                    for q in range(len(all_locs)):
+                        stim_pop_iORG_summaries = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
+                        stim_pop_iORG_N = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
+                        if uniform_datasets:
+                            stim_iORG_summaries = np.full((len(stim_datasets), stim_datasets.query_loc[q].shape[0], max_frmstamp + 1),
+                                                          np.nan)
+
+                        for d, stim_dataset in enumerate(stim_datasets):
+                            stim_pop_iORG_N[d, stim_dataset.framestamps] = np.nansum(np.isfinite(stim_dataset.stim_iORG_signals[q]))
+                            stim_pop_iORG_summaries[d, :] = stim_dataset.summarized_iORGs[q]
+                            # If all stimulus datasets are uniform,
+                            # we can also summarize individual iORGs by combining a cells' iORGs across acquisitions.
+                            if uniform_datasets:
+                                stim_iORG_summaries[c, :, stim_dataset.framestamps] = stim_dataset.iORG_signals[q]
+
+                        stim_pop_iORG_summary[q] = np.nansum(stim_pop_iORG_N * stim_pop_iORG_summaries,axis=0) / np.nansum(stim_pop_iORG_N, axis=0)
+
+                        if uniform_datasets:
+                            stim_iORG_summary[q], _ = summarize_iORG_signals(stim_iORG_summaries, np.arange(max_frmstamp + 1),
+                                                                             summary_method=sum_method,
+                                                                             window_size=sum_window)
+
+
+
 
                     respath = result_folder.joinpath("pop_summary_metrics_" + str(folder.stem) + "_" + str(mode) + ".csv")
                     tryagain = True

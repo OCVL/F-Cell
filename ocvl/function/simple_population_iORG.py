@@ -7,7 +7,7 @@ from tkinter import Tk, filedialog, ttk, HORIZONTAL
 from matplotlib import pyplot as plt
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles
-from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
+from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
@@ -97,7 +97,7 @@ if __name__ == "__main__":
                                                        dataset.stimtrain_frame_stamps[0], method="mean_sub") # Standardizes the temporal profiles
                 #stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps) # Reconstruct via compressive sensing
 
-                pop_iORG, num_incl = signal_power_iORG(stdize_profiles, dataset.framestamps, summary_method="rms", window_size=0)
+                pop_iORG, num_incl = summarize_iORG_signals(stdize_profiles, dataset.framestamps, summary_method="rms", window_size=0)
 
                 plt.figure(0)
                 plt.clf()

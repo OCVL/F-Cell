@@ -7,7 +7,7 @@ from numpy.polynomial import Polynomial
 
 from skimage.morphology import disk
 
-from ocvl.function.analysis.iORG_profile_analyses import signal_power_iORG
+from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
     SummaryParams
@@ -49,7 +49,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
     sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
-    sum_control = sum_params.get(SummaryParams.CONTROL, "subtract")
 
     query_status = np.full(query_loc.shape[0], "Included", dtype=object)
     valid_signals = np.full((query_loc.shape[0]), True)
@@ -146,9 +145,9 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
 
     iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
 
-    summarized_iORG, num_signals_per_sample = signal_power_iORG(iORG_signals, dataset.framestamps,
-                                                                summary_method=sum_method,
-                                                                window_size=sum_window)
+    summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
+                                                                     summary_method=sum_method,
+                                                                     window_size=sum_window)
 
     return iORG_signals, summarized_iORG, query_status, query_loc
 
