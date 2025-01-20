@@ -127,6 +127,7 @@ class DisplayParams(StrEnum):
     POP_SUMMARY_OVERLAP = "pop_summary_overlap"
     POP_SUMMARY_SEQ = "pop_summary_seq"
     POP_SUMMARY_METRICS = "pop_summary_metrics"
+    INDIV_SUMMARY = "indiv_summary"
     DISP_STIMULUS = "stimulus"
     DISP_CONTROL = "control"
     DISP_RELATIVE = "relative"

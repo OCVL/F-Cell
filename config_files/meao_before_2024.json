@@ -117,8 +117,11 @@
         "relative": true,
         "num_in_seq": 8
       },
+      "indiv_summary": {
+
+      },
       "saveas": ["png", "svg"],
-      "pause_per_folder": false
+      "pause_per_folder": true
     }
   }
 
