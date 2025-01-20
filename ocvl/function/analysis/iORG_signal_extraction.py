@@ -84,8 +84,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
         valid = np.full((query_loc.shape[0]), True)
 
-
-
     # Update our audit path.
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
     valid_signals = valid & valid_signals
@@ -96,7 +94,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
                                                  seg_radius=segmentation_radius,
                                                  seg_mask=seg_shape, summary=seg_summary)
     # Update our audit path.
-    valid = np.all(np.isfinite(iORG_signals), axis=1)
+    valid = np.any(np.isfinite(iORG_signals), axis=1)
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
@@ -163,15 +161,15 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
     pluscoord = coordinates + search_radius*2*numiter # Include extra region to avoid edge effects
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
-    query_status[pluscoord[:, 0] < im_size[1]] = "Refinement area outside image bounds (right side)"
-    query_status[pluscoord[:, 0] < im_size[0]] = "Refinement area outside image bounds (bottom side)"
+    query_status[pluscoord[:, 0] >= im_size[1]] = "Reference refinement area outside image bounds (right side)"
+    query_status[pluscoord[:, 1] >= im_size[0]] = "Reference refinement area outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - search_radius*2*numiter # Include extra region to avoid edge effects
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
-    query_status[minuscoord[:, 0] >= 0] = "Refinement area outside image bounds (top side)"
-    query_status[minuscoord[:, 1] >= 0] = "Refinement area outside image bounds (left side)"
+    query_status[minuscoord[:, 0] < 0] = "Reference refinement area outside image bounds (left side)"
+    query_status[minuscoord[:, 1] < 0] = "Reference refinement area outside image bounds (top side)"
     del minuscoord
 
     coordinates = np.round(coordinates).astype("int")
@@ -214,15 +212,15 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
     pluscoord = coordinates + search_region
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
-    query_status[pluscoord[:, 0] < im_size[1]] = "Stack refinement area outside image bounds (right side)"
-    query_status[pluscoord[:, 0] < im_size[0]] = "Stack refinement area outside image bounds (bottom side)"
+    query_status[pluscoord[:, 0] >= im_size[1]] = "Stack refinement area outside image bounds (right side)"
+    query_status[pluscoord[:, 1] >= im_size[0]] = "Stack refinement area outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - search_region
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
-    query_status[minuscoord[:, 0] >= 0] = "Stack refinement area outside image bounds (top side)"
-    query_status[minuscoord[:, 1] >= 0] = "Stack refinement area outside image bounds (left side)"
+    query_status[minuscoord[:, 0] < 0] = "Stack refinement area outside image bounds (left side)"
+    query_status[minuscoord[:, 1] < 0] = "Stack refinement area outside image bounds (top side)"
     del minuscoord
 
     coordinates = np.round(coordinates).astype("int")
@@ -285,15 +283,15 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
     pluscoord = coordinates + seg_radius
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
-    query_status[pluscoord[:, 0] < im_size[1]] = "Segmentation outside image bounds (right side)"
-    query_status[pluscoord[:, 1] < im_size[0]] = "Segmentation outside image bounds (bottom side)"
+    query_status[pluscoord[:, 0] >= im_size[1]] = "Segmentation outside image bounds (right side)"
+    query_status[pluscoord[:, 1] >= im_size[0]] = "Segmentation outside image bounds (bottom side)"
     del pluscoord
 
     minuscoord = coordinates - seg_radius
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
-    query_status[minuscoord[:, 0] >= 0] = "Segmentation outside image bounds (top side)"
-    query_status[minuscoord[:, 1] >= 0] = "Segmentation outside image bounds (left side)"
+    query_status[minuscoord[:, 0] < 0] = "Segmentation outside image bounds (left side)"
+    query_status[minuscoord[:, 1] < 0] = "Segmentation outside image bounds (top side)"
     del minuscoord
 
     coordinates = np.floor(coordinates).astype("int")
@@ -587,20 +585,3 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
 
     return temporal_profiles
 
-#
-# if __name__ == "__main__":
-#     dataset = MEAODataset(
-#         "\\\\134.48.93.176\\Raw Study Data\\00-33388\\MEAOSLO1\\20210924\\Functional Processed\\Functional Pipeline\\(-1,-0.2)\\00-33388_20210924_OS_(-1,-0.2)_1x1_939_760nm1_extract_reg_cropped_piped.avi",
-#                            analysis_modality="760nm", ref_modality="760nm", stage=PipeStages.PIPELINED)
-#
-#     dataset.load_pipelined_data()
-#
-#     iORG_signals = extract_profiles(dataset.video_data, dataset.query_locs)
-#     norm_temporal_profiles = norm_profiles(iORG_signals, norm_method="mean")
-#     stdize_profiles = standardize_profiles(norm_temporal_profiles, dataset.framestamps, 55, method="mean_sub")
-#     stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps)
-#
-#
-#     pop_iORG = signal_power_iORG(stdize_profiles, dataset.framestamps, summary_methods="std", window_size=0)
-#     plt.plot(dataset.framestamps, pop_iORG)
-#     plt.show()

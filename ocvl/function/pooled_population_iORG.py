@@ -196,7 +196,9 @@ if __name__ == "__main__":
                 # Make data storage structures for each of our query location lists for checking which query points went into our analysis.
                 query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
 
+                first = True
                 all_query_status[folder][mode] = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & query_locations).sum())]
+
 
                 pb["maximum"] = len(data_vidnums)
                 # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
@@ -236,6 +238,13 @@ if __name__ == "__main__":
                     # Perform analyses on each query location set for each stimulus dataset.
                     for q in range(len(dataset.query_loc)):
 
+                        # If this is the first time a video of this mode and this folder is loaded, then initialize the query status dataframe
+                        # Such that each row corresponds to the original coordinate locations based on the reference image.
+                        if first:
+                            # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
+                            all_query_status[folder][mode][q] = all_query_status[folder][mode][q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
+                            first = False
+
                         pb_label["text"] = "Processing query file " + query_loc_names[q] + " in dataset #" + str(vidnum) + " from the " + str(
                             mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
                         pb.update()
@@ -247,9 +256,6 @@ if __name__ == "__main__":
                         '''
                         *** This section is where we do dataset summary. ***
                         '''
-                        # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
-                        all_query_status[folder][mode][q] = all_query_status[folder][mode][q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
-
                         (dataset.iORG_signals[q],
                          dataset.summarized_iORGs[q],
                          dataset.query_status[q],
@@ -671,18 +677,20 @@ if __name__ == "__main__":
                     ''' *** Individual iORG analyses start here *** '''
                     if uniform_datasets:
                         iORG_frmstmp = np.arange(max_frmstamp + 1)
+
                         plt.figure("Individual-Cell iORG Summaries")
 
                         for c in range(stim_iORG_summaries.shape[1]):
                             tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_summaries[:, c, :]), axis=1))
-                            all_query_status[folder][mode][q].loc[c, "Num Viable iORGs"] = tot_sig
+                            idx = all_query_status[folder][mode][q].index[c]
+                            all_query_status[folder][mode][q].loc[idx, "Num Viable iORGs"] = tot_sig
 
                             # If we have more signals than our cutoff, then continue with the summary.
                             if tot_sig > sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
-                                all_query_status[folder][mode][q].loc[c, "Viable for single-cell summary?"] = True
+                                all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = True
                                 stim_iORG_summary[q][c, :], _ = summarize_iORG_signals(stim_iORG_summaries[:, c, :], iORG_frmstmp,
-                                                                                    summary_method=sum_method,
-                                                                                    window_size=sum_window)
+                                                                                       summary_method=sum_method,
+                                                                                       window_size=sum_window)
 
                                 if sum_control == "subtraction":
                                     stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] - control_pop_iORG_summary[q]
@@ -693,11 +701,9 @@ if __name__ == "__main__":
 
                                 plt.plot(iORG_frmstmp, stim_iORG_summary[q][c, :])
                             else:
-                                all_query_status[folder][mode][q].loc[c, "Viable for single-cell summary?"] = False
+                                all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = False
 
                         plt.show(block=False)
-
-
 
 
 
