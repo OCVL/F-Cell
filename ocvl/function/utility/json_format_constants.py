@@ -108,6 +108,7 @@ class SummaryParams(StrEnum):
     UNITS = "units"
     PRESTIM = "prestim"
     POSTSTIM = "poststim"
+    INDIV_CUTOFF = "indiv_cutoff"
 
 
 class ControlParams(StrEnum):
@@ -128,6 +129,10 @@ class DisplayParams(StrEnum):
     POP_SUMMARY_SEQ = "pop_summary_seq"
     POP_SUMMARY_METRICS = "pop_summary_metrics"
     INDIV_SUMMARY = "indiv_summary"
+    OVERLAP = "overlap"
+    HISTOGRAM = "histogram"
+    CUMULATIVE_HISTOGRAM = "cumulative_histogram"
+    MAP_OVERLAY = "map_overlay"
     DISP_STIMULUS = "stimulus"
     DISP_CONTROL = "control"
     DISP_RELATIVE = "relative"

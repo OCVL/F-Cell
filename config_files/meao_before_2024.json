@@ -96,7 +96,8 @@
           "units": "time",
           "prestim": [-1, 0],
           "poststim": [0, 1]
-        }
+        },
+        "indiv_cutoff": 5
       },
       "gaus_blur": 0.0,
       "mask_roi": {
@@ -118,7 +119,10 @@
         "num_in_seq": 8
       },
       "indiv_summary": {
-
+        "overlap": true,
+        "histogram": true,
+        "cumulative_histogram": true,
+        "map_overlay": true
       },
       "saveas": ["png", "svg"],
       "pause_per_folder": true

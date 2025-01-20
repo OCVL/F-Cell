@@ -1,3 +1,4 @@
+import warnings
 from itertools import repeat
 from multiprocessing import Pool
 
@@ -22,7 +23,7 @@ from ocvl.function.utility.resources import save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import densify_temporal_matrix, reconstruct_profiles
 
 
-def summarize_iORG_signals(temporal_profiles, framestamps, summary_method="var", window_size=1, fraction_thresh=0.25, display=False, stim_idx=None):
+def summarize_iORG_signals(temporal_profiles, framestamps, summary_method="var", window_size=1, fraction_thresh=0.25):
     """
     Summarizes the iORG on a supplied dataset, using a variety of power based summary methods published in
     Gaffney et. al. 2024, Cooper et. al. 2020, and Cooper et. al. 2017.
@@ -36,10 +37,8 @@ def summarize_iORG_signals(temporal_profiles, framestamps, summary_method="var",
                         1 (no window) to M/2. Default: 1
     :param fraction_thresh: The fraction of the values inside the sample window that must be finite in order for the power
                             to be calculated- otherwise, the value will be considered np.nan.
-    :param display: Display a plot of and pause following calculation of the signal power. (True/False) Default: False
-    :param stim_idx: If display is True, this variable stores the stimulus indices and overlays it on the power plots. Default: None
 
-    :return: a 1xM population iORG signal
+    :return: a 1xM summarized iORG signal
     """
 
     temporal_data = temporal_profiles.copy()
@@ -58,133 +57,99 @@ def summarize_iORG_signals(temporal_profiles, framestamps, summary_method="var",
         temporal_data = densify_temporal_matrix(temporal_data, framestamps)
         temporal_data = np.pad(temporal_data, ((0, 0), (window_radius, window_radius)), "symmetric")
 
-
     num_signals = temporal_data.shape[0]
     num_samples = temporal_data.shape[1]
 
-    num_incl = np.zeros((num_samples))
-    iORG = np.empty((num_samples))
-    iORG[:] = np.nan
+    num_incl = np.zeros((num_samples,))
+    iORG = np.full((num_samples,), np.nan)
 
-    if summary_method == "var":
-        if window_radius == 0:
-            iORG = np.nanvar(temporal_data, axis=0)
-            num_incl = np.sum(np.isfinite(temporal_data), axis=0)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
+        if summary_method == "var":
+            if window_radius == 0:
+                iORG = np.nanvar(temporal_data, axis=0)
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
 
-        elif window_size < (num_samples / 2):
+            elif window_size < (num_samples / 2):
 
-            for i in range(window_radius, num_samples - window_radius):
+                for i in range(window_radius, num_samples - window_radius):
 
-                samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
-                if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
-                    iORG[i] = np.nanvar(samples[:])
-                    num_incl[i] = np.sum(samples[:] != np.nan)
+                    samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
+                    if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
+                        iORG[i] = np.nanvar(samples[:])
+                        num_incl[i] = np.sum(samples[:] != np.nan)
 
-            iORG = iORG[window_radius:-window_radius]
-            iORG = iORG[framestamps]
-            num_incl = num_incl[framestamps]
+                iORG = iORG[window_radius:-window_radius]
+                iORG = iORG[framestamps]
+                num_incl = num_incl[framestamps]
+            else:
+                raise Exception("Window size must be less than half of the number of samples")
+        elif summary_method == "std":
+            if window_radius == 0:
+                iORG = np.nanstd(temporal_data, axis=0)
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
+
+            elif window_size < (num_samples / 2):
+
+                for i in range(window_radius, num_samples - window_radius):
+
+                    samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
+                    if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
+                        iORG[i] = np.nanstd(samples[:])
+                        num_incl[i] = np.sum(samples[:] != np.nan)
+
+                iORG = iORG[window_radius:-window_radius]
+                iORG = iORG[framestamps]
+                num_incl = num_incl[framestamps]
+            else:
+                raise Exception("Window size must be less than half of the number of samples")
+        elif summary_method == "rms":
+            if window_radius == 0:
+
+                iORG = np.nanmean(temporal_data*temporal_data, axis=0)  # Average second
+                iORG = np.sqrt(iORG)  # Sqrt last
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
+
+            elif window_size < (num_samples / 2):
+
+                temporal_data *= temporal_data  # Square first
+                for i in range(window_radius, num_samples - window_radius):
+
+                    samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
+                    if samples[:].size != 0 and np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
+                        iORG[i] = np.nanmean(samples[:])  # Average second
+                        iORG[i] = np.sqrt(iORG[i])  # Sqrt last
+                    # num_incl[i] = np.sum(samples[:] != np.nan)
+
+                iORG = iORG[window_radius:-window_radius]
+                iORG = iORG[framestamps]
+                # num_incl = num_incl[framestamps]
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
+                num_incl = num_incl[framestamps]
+            else:
+                raise Exception("Window size must be less than half of the number of samples")
+        elif summary_method == "avg":
+            if window_radius == 0:
+                iORG = np.nanmean(temporal_data, axis=0)  # Average
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
+
+            elif window_size < (num_samples / 2):
+
+                for i in range(window_radius, num_samples - window_radius):
+
+                    samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
+                    if samples[:].size != 0 and np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
+                        iORG[i] = np.nanmean(samples[:])  # Average
+
+                iORG = iORG[window_radius:-window_radius]
+                iORG = iORG[framestamps]
+                # num_incl = num_incl[framestamps]
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
+                num_incl = num_incl[framestamps]
+            else:
+                raise Exception("Window size must be less than half of the number of samples")
         else:
-            raise Exception("Window size must be less than half of the number of samples")
-    elif summary_method == "std":
-        if window_radius == 0:
-            iORG = np.nanstd(temporal_data, axis=0)
-            num_incl = np.sum(np.isfinite(temporal_data), axis=0)
-
-        elif window_size < (num_samples / 2):
-
-            for i in range(window_radius, num_samples - window_radius):
-
-                samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
-                if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
-                    iORG[i] = np.nanstd(samples[:])
-                    num_incl[i] = np.sum(samples[:] != np.nan)
-
-            iORG = iORG[window_radius:-window_radius]
-            iORG = iORG[framestamps]
-            num_incl = num_incl[framestamps]
-        else:
-            raise Exception("Window size must be less than half of the number of samples")
-    elif summary_method == "rms":
-        if window_radius == 0:
-
-            iORG = np.nanmean(temporal_data*temporal_data, axis=0)  # Average second
-            iORG = np.sqrt(iORG)  # Sqrt last
-            num_incl = np.sum(np.isfinite(temporal_data), axis=0)
-
-        elif window_size < (num_samples / 2):
-
-            temporal_data *= temporal_data  # Square first
-            for i in range(window_radius, num_samples - window_radius):
-
-                samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
-                if samples[:].size != 0 and np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
-                    iORG[i] = np.nanmean(samples[:])  # Average second
-                    iORG[i] = np.sqrt(iORG[i])  # Sqrt last
-                # num_incl[i] = np.sum(samples[:] != np.nan)
-
-            iORG = iORG[window_radius:-window_radius]
-            iORG = iORG[framestamps]
-            # num_incl = num_incl[framestamps]
-            num_incl = np.sum(np.isfinite(temporal_data), axis=0)
-            num_incl = num_incl[framestamps]
-        else:
-            raise Exception("Window size must be less than half of the number of samples")
-    elif summary_method == "avg":
-        if window_radius == 0:
-            iORG = np.nanmean(temporal_data, axis=0)  # Average
-            num_incl = np.sum(np.isfinite(temporal_data), axis=0)
-
-        elif window_size < (num_samples / 2):
-
-            for i in range(window_radius, num_samples - window_radius):
-
-                samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
-                if samples[:].size != 0 and np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
-                    iORG[i] = np.nanmean(samples[:])  # Average
-
-            iORG = iORG[window_radius:-window_radius]
-            iORG = iORG[framestamps]
-            # num_incl = num_incl[framestamps]
-            num_incl = np.sum(np.isfinite(temporal_data), axis=0)
-            num_incl = num_incl[framestamps]
-        else:
-            raise Exception("Window size must be less than half of the number of samples")
-    else:
-        raise Exception("Invalid summary_method")
-
-    if display and np.sum(np.any(np.isfinite(temporal_profiles), axis=1)) >= 1:
-        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", temporal_profiles.shape[0]))
-        plt.figure(42)
-        plt.clf()
-        for i in range(temporal_profiles.shape[0]):
-            plt.subplot(1, 2, 1)
-            plt.title("Raw data")
-            plt.plot(framestamps, temporal_profiles[i, :], color=mapper.to_rgba(i, norm=False))
-            plt.ylim((-200, 200))
-            #plt.xlim((0, framestamps[-1]))
-            plt.xlim((0,175))
-            #plt.gca().set_box_aspect(1)
-
-        if stim_idx:
-            stim_rect = ptch.Rectangle((stim_idx[0], 0),
-                                       (stim_idx[1] - stim_idx[0]), 200,
-                                       color='gray', alpha=0.5)
-        plt.gca().add_patch(stim_rect)
-        plt.subplot(1, 2, 2)
-        plt.title("Signal power iORG")
-        plt.plot(framestamps, iORG, color='black')
-        plt.ylim((-200, 200))
-        #plt.xlim((0, framestamps[-1]))
-        plt.xlim((0,175))
-        #plt.gca().set_box_aspect(1)
-        if stim_idx:
-            stim_rect = ptch.Rectangle((stim_idx[0], 0),
-                                      (stim_idx[1] - stim_idx[0]), 200,
-                                      color='gray', alpha=0.5)
-        plt.gca().add_patch(stim_rect)
-
-        plt.waitforbuttonpress()
-
+            raise Exception("Invalid summary_method")
 
     return iORG, num_incl
 

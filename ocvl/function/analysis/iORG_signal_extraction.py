@@ -157,7 +157,6 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
 
     im_size = ref_image.shape
 
-
     query_status = np.full(coordinates.shape[0], "Included", dtype=object)
 
     # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded before analysis.
@@ -198,9 +197,12 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
 
 
 def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, threshold=0.3):
-    ref_image = ref_image.astype("uint8")
-    image_stack = image_stack.astype("uint8")
-    #image_stack[image_stack == 0] = np.nan # Anything that is equal to 0 should be excluded from consideration.
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
+
+        ref_image = ref_image.astype("uint8")
+        image_stack = image_stack.astype("uint8")
 
     im_size = image_stack.shape
 

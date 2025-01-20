@@ -413,6 +413,7 @@ class Dataset:
 
 
         self.query_loc = query_locations
+        self.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in query_locations]
         self.iORG_signals = [None] * len(query_locations)
         self.summarized_iORGs = [None] * len(query_locations)
 
