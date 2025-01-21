@@ -6,7 +6,7 @@ from tkinter import Tk, filedialog, ttk, HORIZONTAL
 
 from matplotlib import pyplot as plt
 
-from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles
+from ocvl.function.analysis.iORG_signal_extraction import extract_signals, normalize_signals, standardize_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset
@@ -91,10 +91,10 @@ if __name__ == "__main__":
                                       stimtrain_path=stimtrain_fName, stage=PipeStages.PIPELINED) # To handle loading of datasets (of difference stages)
                 dataset.load_data()
 
-                temp_profiles = extract_profiles(dataset.video_data, dataset.coord_data) # Extracts temporal profiles from data
-                norm_temporal_profiles = norm_profiles(temp_profiles, norm_method="mean") # Normalizes the temporal profiles
-                stdize_profiles = standardize_profiles(norm_temporal_profiles, dataset.framestamps,
-                                                       dataset.stimtrain_frame_stamps[0], method="mean_sub") # Standardizes the temporal profiles
+                temp_profiles = extract_signals(dataset.video_data, dataset.coord_data) # Extracts temporal profiles from data
+                norm_temporal_profiles = normalize_signals(temp_profiles, norm_method="mean") # Normalizes the temporal profiles
+                stdize_profiles = standardize_signals(norm_temporal_profiles, dataset.framestamps,
+                                                      dataset.stimtrain_frame_stamps[0], method="mean_sub") # Standardizes the temporal profiles
                 #stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps) # Reconstruct via compressive sensing
 
                 pop_iORG, num_incl = summarize_iORG_signals(stdize_profiles, dataset.framestamps, summary_method="rms", window_size=0)

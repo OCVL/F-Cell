@@ -11,8 +11,8 @@ from numpy import random
 
 from scipy.spatial.distance import pdist, squareform
 
-from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
-    refine_coord, refine_coord_to_stack, exclude_profiles
+from ocvl.function.analysis.iORG_signal_extraction import extract_signals, normalize_signals, standardize_signals, \
+    refine_coord, refine_coord_to_stack, exclude_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, wavelet_iORG, extract_texture_profiles, \
     iORG_signal_metrics, pooled_variance
 from ocvl.function.preprocessing.improc import norm_video
@@ -232,16 +232,16 @@ if __name__ == "__main__":
                                              rescale_mean=70, rescale_std=35)
                 # save_tiff_stack(res_dir.joinpath(this_dirname+"_normvid.tif"),norm_video_data)
 
-                temp_profiles = extract_profiles(norm_video_data, dataset.coord_data, seg_radius=segmentation_radius,
-                                                 seg_mask="disk", summary="mean")
+                temp_profiles = extract_signals(norm_video_data, dataset.coord_data, seg_radius=segmentation_radius,
+                                                seg_mask="disk", summary="mean")
 
-                temp_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
-                                                     stimulus_stamp=stimulus_train[0], method="mean_sub")
+                temp_profiles = standardize_signals(temp_profiles, dataset.framestamps,
+                                                    stimulus_stamp=stimulus_train[0], method="mean_sub")
 
-                temp_profiles, good_profiles = exclude_profiles(temp_profiles, dataset.framestamps,
-                                                 critical_region=np.arange(stimulus_train[0] - int(0.2 * framerate),
+                temp_profiles, good_profiles = exclude_signals(temp_profiles, dataset.framestamps,
+                                                               critical_region=np.arange(stimulus_train[0] - int(0.2 * framerate),
                                                                            stimulus_train[1] + int(0.2 * framerate)),
-                                                 critical_fraction=0.5)
+                                                               critical_fraction=0.5)
 
                 num_sigs += good_profiles[:, np.newaxis]
                 # full_profiles[:, :, :, ~good_profiles] = np.nan

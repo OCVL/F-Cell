@@ -23,12 +23,12 @@ from ocvl.function.utility.resources import save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import densify_temporal_matrix, reconstruct_profiles
 
 
-def summarize_iORG_signals(temporal_profiles, framestamps, summary_method="var", window_size=1, fraction_thresh=0.25):
+def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", window_size=1, fraction_thresh=0.25):
     """
     Summarizes the iORG on a supplied dataset, using a variety of power based summary methods published in
     Gaffney et. al. 2024, Cooper et. al. 2020, and Cooper et. al. 2017.
 
-    :param temporal_profiles: A NxM numpy matrix with N cells OR acquisitions from a single cell,
+    :param temporal_signals: A NxM numpy matrix with N cells OR acquisitions from a single cell,
                                 and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
     :param summary_method: The method used to summarize the population at each sample. Current options include:
@@ -41,7 +41,7 @@ def summarize_iORG_signals(temporal_profiles, framestamps, summary_method="var",
     :return: a 1xM summarized iORG signal
     """
 
-    temporal_data = temporal_profiles.copy()
+    temporal_data = temporal_signals.copy()
 
     if window_size != 0:
         if window_size % 2 < 1:
@@ -154,9 +154,9 @@ def summarize_iORG_signals(temporal_profiles, framestamps, summary_method="var",
     return iORG, num_incl
 
 
-def wavelet_iORG(temporal_profiles, framestamps, fps, sig_threshold=None, display=False):
+def wavelet_iORG(temporal_signals, framestamps, fps, sig_threshold=None, display=False):
     padtype = "reflect"
-    temporal_data = temporal_profiles.copy()
+    temporal_data = temporal_signals.copy()
 
     time = framestamps / fps
     the_wavelet = wavelets.Wavelet(("gmw", {"gamma": 3, "beta": 1}))
@@ -229,7 +229,7 @@ def wavelet_iORG(temporal_profiles, framestamps, fps, sig_threshold=None, displa
     return allWx, allScales, coi_im
 
 
-def extract_texture(full_profiles, cellind, numlevels, summary_methods):
+def extract_texture(full_iORG_profiles, cellind, numlevels, summary_methods):
     contrast = np.full((1), np.nan)
     dissimilarity = np.full((1), np.nan)
     homogeneity = np.full((1), np.nan)
@@ -238,31 +238,31 @@ def extract_texture(full_profiles, cellind, numlevels, summary_methods):
     glcmmean = np.full((1), np.nan)
     ent = np.full((1), np.nan)
     if "contrast" in summary_methods or "all" in summary_methods:
-        contrast = np.full((full_profiles.shape[-2]), np.nan)
+        contrast = np.full((full_iORG_profiles.shape[-2]), np.nan)
     if "dissimilarity" in summary_methods or "all" in summary_methods:
-        dissimilarity = np.full((full_profiles.shape[-2]), np.nan)
+        dissimilarity = np.full((full_iORG_profiles.shape[-2]), np.nan)
     if "homogeneity" in summary_methods or "all" in summary_methods:
-        homogeneity = np.full((full_profiles.shape[-2]), np.nan)
+        homogeneity = np.full((full_iORG_profiles.shape[-2]), np.nan)
     if "energy" in summary_methods or "all" in summary_methods:
-        energy = np.full((full_profiles.shape[-2]), np.nan)
+        energy = np.full((full_iORG_profiles.shape[-2]), np.nan)
     if "correlation" in summary_methods or "all" in summary_methods:
-        correlation = np.full((full_profiles.shape[-2]), np.nan)
+        correlation = np.full((full_iORG_profiles.shape[-2]), np.nan)
     if "glcmmean" in summary_methods or "all" in summary_methods:
-        glcmmean = np.full((full_profiles.shape[-2]), np.nan)
+        glcmmean = np.full((full_iORG_profiles.shape[-2]), np.nan)
     if "entropy" in summary_methods or "all" in summary_methods:
-        ent = np.full((full_profiles.shape[-2]), np.nan)
+        ent = np.full((full_iORG_profiles.shape[-2]), np.nan)
 
-    avg = np.empty((full_profiles.shape[-2], 1))
+    avg = np.empty((full_iORG_profiles.shape[-2], 1))
 
     minlvl = 0  # np.nanmin(full_profiles[:, :, :, cellind].flatten())
     maxlvl = 255  # np.nanmax(full_profiles[:, :, :, cellind].flatten())
 
-    thisprofile = np.round(((full_profiles[:, :, :, cellind] - minlvl) / (maxlvl - minlvl)) * (numlevels - 1))
+    thisprofile = np.round(((full_iORG_profiles[:, :, :, cellind] - minlvl) / (maxlvl - minlvl)) * (numlevels - 1))
     thisprofile[thisprofile >= numlevels] = numlevels - 1
     thisprofile = thisprofile.astype("uint8")
     # com=[]
-    for f in range(full_profiles.shape[-2]):
-        avg[f] = np.mean(full_profiles[1:-1, 1:-1, f, cellind].flatten())
+    for f in range(full_iORG_profiles.shape[-2]):
+        avg[f] = np.mean(full_iORG_profiles[1:-1, 1:-1, f, cellind].flatten())
 
         if avg[f] != 0:
             grayco = graycomatrix(thisprofile[:, :, f], distances=[1], angles=[0, np.pi / 4, np.pi / 2, np.pi * 3 / 4],
@@ -293,11 +293,11 @@ def extract_texture(full_profiles, cellind, numlevels, summary_methods):
     return contrast, dissimilarity, homogeneity, energy, correlation, glcmmean
 
 
-def extract_texture_profiles(full_profiles, summary_methods=("all"), numlevels=32, framestamps=None, display=False):
+def extract_texture_profiles(full_iORG_profiles, summary_methods=("all"), numlevels=32, framestamps=None, display=False):
     """
     This function extracts textures using GLCM from a set of cell profiles.
 
-    :param full_profiles: A numpy array of shape NxMxFxC, where NxM are the 2D dimensions of the area surrounding the
+    :param full_iORG_profiles: A numpy array of shape NxMxFxC, where NxM are the 2D dimensions of the area surrounding the
                           cell coordinate, F is the number of frames in the video, and C is number of cells.
     :param summary_methods: A tuple contraining "contrast", "dissimilarity", "homogeneity", "energy", "correlation",
                            "gclmmean", "entropy", or "all". (Default: "all")
@@ -310,26 +310,26 @@ def extract_texture_profiles(full_profiles, summary_methods=("all"), numlevels=3
 
     # Assumes supplied by extract_profiles, which has the below shapes.
     if "contrast" in summary_methods or "all" in summary_methods:
-        contrast = np.empty((full_profiles.shape[-1], full_profiles.shape[-2]))
+        contrast = np.empty((full_iORG_profiles.shape[-1], full_iORG_profiles.shape[-2]))
     if "dissimilarity" in summary_methods or "all" in summary_methods:
-        dissimilarity = np.empty((full_profiles.shape[-1], full_profiles.shape[-2]))
+        dissimilarity = np.empty((full_iORG_profiles.shape[-1], full_iORG_profiles.shape[-2]))
     if "homogeneity" in summary_methods or "all" in summary_methods:
-        homogeneity = np.empty((full_profiles.shape[-1], full_profiles.shape[-2]))
+        homogeneity = np.empty((full_iORG_profiles.shape[-1], full_iORG_profiles.shape[-2]))
     if "energy" in summary_methods or "all" in summary_methods:
-        energy = np.empty((full_profiles.shape[-1], full_profiles.shape[-2]))
+        energy = np.empty((full_iORG_profiles.shape[-1], full_iORG_profiles.shape[-2]))
     if "correlation" in summary_methods or "all" in summary_methods:
-        correlation = np.empty((full_profiles.shape[-1], full_profiles.shape[-2]))
+        correlation = np.empty((full_iORG_profiles.shape[-1], full_iORG_profiles.shape[-2]))
     if "glcmmean" in summary_methods or "all" in summary_methods:
-        glcmmean = np.empty((full_profiles.shape[-1], full_profiles.shape[-2]))
+        glcmmean = np.empty((full_iORG_profiles.shape[-1], full_iORG_profiles.shape[-2]))
     if "entropy" in summary_methods or "all" in summary_methods:
-        entropy = np.empty((full_profiles.shape[-1], full_profiles.shape[-2]))
+        entropy = np.empty((full_iORG_profiles.shape[-1], full_iORG_profiles.shape[-2]))
 
     retdict = {}
 
     with Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool:
 
         reconst = pool.starmap_async(extract_texture,
-                                     zip(repeat(full_profiles.astype("uint16")), range(full_profiles.shape[-1]),
+                                     zip(repeat(full_iORG_profiles.astype("uint16")), range(full_iORG_profiles.shape[-1]),
                                          repeat(numlevels), repeat(summary_methods)))
 
         res = reconst.get()
@@ -365,7 +365,7 @@ def extract_texture_profiles(full_profiles, summary_methods=("all"), numlevels=3
         retdict["entropy"] = entropy
 
     if display:
-        for c in range(full_profiles.shape[-1]):
+        for c in range(full_iORG_profiles.shape[-1]):
             plt.figure(0)
             plt.clf()
             if "glcmmean" in summary_methods or "all" in summary_methods:
@@ -403,25 +403,25 @@ def extract_texture_profiles(full_profiles, summary_methods=("all"), numlevels=3
     #         # glcmmean[f] = np.sqrt(np.sum(com[f]**2))
 
 
-def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
+def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
                         prestim_window_idx=None, poststim_window_idx=None):
 
-    if temporal_profiles.ndim == 1:
-        temporal_profiles = temporal_profiles[None, :]
+    if temporal_signals.ndim == 1:
+        temporal_signals = temporal_signals[None, :]
 
-    finite_data = np.isfinite(temporal_profiles)
+    finite_data = np.isfinite(temporal_signals)
 
     if np.all(~finite_data) or len(prestim_window_idx) == 0 or len(poststim_window_idx)==0:
-        return np.full((temporal_profiles.shape[0]), np.nan), np.full((temporal_profiles.shape[0]), np.nan), \
-               np.full((temporal_profiles.shape[0]), np.nan), np.full(temporal_profiles.shape, np.nan)
+        return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
+               np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
 
     if prestim_window_idx is None:
         prestim_window_idx = np.zeros((1,))
 
     if poststim_window_idx is None:
-        poststim_window_idx = np.arange(1, temporal_profiles.shape[1])
+        poststim_window_idx = np.arange(1, temporal_signals.shape[1])
 
-    grad_profiles = np.sqrt( (1/(framerate**2)) + (np.gradient(temporal_profiles, axis=1)**2)) # Don't need to factor in the dx, because it gets removed anyway in the next step.
+    grad_profiles = np.sqrt((1/(framerate**2)) + (np.gradient(temporal_signals, axis=1) ** 2)) # Don't need to factor in the dx, because it gets removed anyway in the next step.
 
     pre_abs_diff_profiles = np.abs(grad_profiles[:, prestim_window_idx])
     if np.size(pre_abs_diff_profiles) <=1:
@@ -436,8 +436,8 @@ def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
     prefad = np.amax(cum_pre_abs_diff_profiles, axis=1)
     postfad = np.amax(cum_post_abs_diff_profiles, axis=1)
 
-    prestim = temporal_profiles[:, prestim_window_idx]
-    poststim = temporal_profiles[:, poststim_window_idx]
+    prestim = temporal_signals[:, prestim_window_idx]
+    poststim = temporal_signals[:, poststim_window_idx]
     poststim_frms = framestamps[poststim_window_idx]
 
     prestim_val = np.nanmedian(prestim, axis=1)
@@ -447,19 +447,19 @@ def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
     amplitude = np.abs(poststim_val - prestim_val)
 
     # ** Area Under the Response (est. by trapezoidal rule) **
-    auc = np.full((temporal_profiles.shape[0], ), np.nan)
-    for c in range(temporal_profiles.shape[0]):
+    auc = np.full((temporal_signals.shape[0],), np.nan)
+    for c in range(temporal_signals.shape[0]):
         auc[c] = np.trapezoid(poststim[c, np.isfinite(poststim[c,:])], x=poststim_frms[np.isfinite(poststim[c,:])] / framerate)
 
 
-    final_val = np.nanmean(temporal_profiles[:,-5:], axis=1)
+    final_val = np.nanmean(temporal_signals[:, -5:], axis=1)
 
     # ** Recovery percentage **
     recovery = 1 - ((final_val-prestim_val)/amplitude)
 
     # ** Implicit time **
     implicit_time = np.full_like(amplitude, np.nan)
-    for c in range(temporal_profiles.shape[0]):
+    for c in range(temporal_signals.shape[0]):
         whereabove = np.flatnonzero(poststim[c, :] > poststim_val[c])
 
         if np.any(whereabove) and np.any(np.isfinite(whereabove)):
@@ -467,9 +467,9 @@ def iORG_signal_metrics(temporal_profiles, framestamps, framerate=1,
 
     return amplitude, implicit_time, auc, recovery
 
-def iORG_signal_filter(temporal_profiles, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
+def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
 
-    finite_data = np.isfinite(temporal_profiles)
+    finite_data = np.isfinite(temporal_signals)
 
     # First we filter the data with a notch filter (to possibly remove artifacts from breathing or other things.
     if notch_filter is not None:
@@ -477,12 +477,12 @@ def iORG_signal_filter(temporal_profiles, framestamps, framerate=1, filter_type=
         # sos = signal.iirdesign([1.45, 2.15], [1.5, 2.1], gpass=1, gstop=60, fs=29.5, output='sos')
         sos = signal.iirdesign([1.35, 2], [1.4, 1.95], gpass=0.1, gstop=60, fs=framerate, output='sos')
         # sos = signal.iirdesign(1.1, 1, gpass=0.1, gstop=60, fs=91, output='sos')
-        butter_filtered_profiles = np.full_like(temporal_profiles, np.nan)
-        for i in range(temporal_profiles.shape[0]):
+        butter_filtered_profiles = np.full_like(temporal_signals, np.nan)
+        for i in range(temporal_signals.shape[0]):
             if np.any(finite_data[i, :]):
-                butter_filtered_profiles[i, finite_data[i, :]] = signal.sosfiltfilt(sos, temporal_profiles[i, finite_data[i, :]])
+                butter_filtered_profiles[i, finite_data[i, :]] = signal.sosfiltfilt(sos, temporal_signals[i, finite_data[i, :]])
     else:
-        butter_filtered_profiles = temporal_profiles
+        butter_filtered_profiles = temporal_signals
 
     # Then we filter the data to remove noise; each of these were tested and worked reasonably well, though MS1 is used
     # currently.
@@ -516,7 +516,7 @@ def iORG_signal_filter(temporal_profiles, framestamps, framerate=1, filter_type=
         trunc_sinc /= np.sum(trunc_sinc)
 
         filtered_profiles = np.full_like(butter_filtered_profiles, np.nan)
-        for i in range(temporal_profiles.shape[0]):
+        for i in range(temporal_signals.shape[0]):
             filtered_profiles[i, finite_data[i, :]] = convolve1d(butter_filtered_profiles[i, finite_data[i, :]],
                                                                  trunc_sinc, mode="reflect")
             # The below is my attempt at making an nan-ignoring convolution.
@@ -553,7 +553,7 @@ def iORG_signal_filter(temporal_profiles, framestamps, framerate=1, filter_type=
         trunc_sinc /= np.sum(trunc_sinc)
 
         filtered_profiles = np.full_like(butter_filtered_profiles, np.nan)
-        for i in range(temporal_profiles.shape[0]):
+        for i in range(temporal_signals.shape[0]):
             filtered_profiles[i, finite_data[i, :]] = convolve1d(butter_filtered_profiles[i, finite_data[i, :]],
                                                                  trunc_sinc, mode="reflect")
     elif filter_type == "movmean":

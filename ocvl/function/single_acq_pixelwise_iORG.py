@@ -11,8 +11,8 @@ from numpy import random
 
 from scipy.spatial.distance import pdist, squareform
 
-from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
-    refine_coord, refine_coord_to_stack, exclude_profiles
+from ocvl.function.analysis.iORG_signal_extraction import extract_signals, normalize_signals, standardize_signals, \
+    refine_coord, refine_coord_to_stack, exclude_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, wavelet_iORG, extract_texture_profiles, \
     iORG_signal_metrics, pooled_variance
 from ocvl.function.preprocessing.improc import norm_video
@@ -166,16 +166,16 @@ if __name__ == "__main__":
 
                 norm_video_data = norm_video(dataset.video_data, norm_method="mean", rescaled=True)
 
-                temp_profiles = extract_profiles(norm_video_data, reference_coord_data, seg_radius=0,
-                                                 seg_mask="disk", summary="mean")
+                temp_profiles = extract_signals(norm_video_data, reference_coord_data, seg_radius=0,
+                                                seg_mask="disk", summary="mean")
 
-                temp_profiles = standardize_profiles(temp_profiles, dataset.framestamps,
-                                                     stimulus_stamp=stimulus_train[0], method="mean_sub")
+                temp_profiles = standardize_signals(temp_profiles, dataset.framestamps,
+                                                    stimulus_stamp=stimulus_train[0], method="mean_sub")
 
-                temp_profiles, good_profiles = exclude_profiles(temp_profiles, dataset.framestamps,
-                                                 critical_region=np.arange(stimulus_train[0] - int(0.1 * framerate),
+                temp_profiles, good_profiles = exclude_signals(temp_profiles, dataset.framestamps,
+                                                               critical_region=np.arange(stimulus_train[0] - int(0.1 * framerate),
                                                                            stimulus_train[1] + int(0.2 * framerate)),
-                                                 critical_fraction=0.5)
+                                                               critical_fraction=0.5)
 
                 stdize_profiles, reconst_framestamps, nummissed = reconstruct_profiles(temp_profiles,
                                                                                        dataset.framestamps,

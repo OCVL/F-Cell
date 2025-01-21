@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles
+from ocvl.function.analysis.iORG_signal_extraction import extract_signals, normalize_signals, standardize_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.utility.dataset import PipeStages
 from ocvl.function.utility.meao import MEAODataset
@@ -111,10 +111,10 @@ if __name__ == "__main__":
                     perm = np.arange(len(dataset.coord_data))
                 print("Analyzing " + str(len(perm)) + " cells.")
 
-                temp_profiles = extract_profiles(dataset.video_data, dataset.coord_data[perm, :], seg_radius=2)
-                norm_temporal_profiles = norm_profiles(temp_profiles, norm_method="mean")
-                stdize_profiles = standardize_profiles(norm_temporal_profiles, dataset.framestamps,
-                                                       dataset.stimtrain_frame_stamps[0], method="mean_sub")
+                temp_profiles = extract_signals(dataset.video_data, dataset.coord_data[perm, :], seg_radius=2)
+                norm_temporal_profiles = normalize_signals(temp_profiles, norm_method="mean")
+                stdize_profiles = standardize_signals(norm_temporal_profiles, dataset.framestamps,
+                                                      dataset.stimtrain_frame_stamps[0], method="mean_sub")
                 #stdize_profiles, dataset.framestamps, nummissed = reconstruct_profiles(stdize_profiles, dataset.framestamps)
                 #plt.savefig(os.path.join(res_dir, file[0:-4] + "_all_std_profiles.svg"))
 

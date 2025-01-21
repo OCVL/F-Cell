@@ -10,8 +10,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from scipy.spatial.distance import pdist, squareform
 
-from ocvl.function.analysis.iORG_signal_extraction import extract_profiles, norm_profiles, standardize_profiles, \
-    refine_coord, refine_coord_to_stack, exclude_profiles, extract_n_refine_iorg_signals
+from ocvl.function.analysis.iORG_signal_extraction import extract_signals, normalize_signals, standardize_signals, \
+    refine_coord, refine_coord_to_stack, exclude_signals, extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
