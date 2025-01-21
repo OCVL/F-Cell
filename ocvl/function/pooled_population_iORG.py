@@ -273,7 +273,8 @@ if __name__ == "__main__":
             folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
             data_in_folder = group_datasets.loc[folder_mask]
-            iORG_result_datframes = []
+            pop_iORG_result_datframe = []
+            indiv_iORG_result_datframe = []
 
             # Load each modality
             for mode in modes_of_interest:
@@ -293,7 +294,7 @@ if __name__ == "__main__":
                 # Make data storage structures for our results
                 query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
                 result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
-                iORG_result_datframes = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
+                pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
                 pb["maximum"] = len(stim_data_vidnums)
                 display_dict = {} # A dictionary to store our figure labels and associated filenames for easy saving later.
@@ -435,7 +436,7 @@ if __name__ == "__main__":
                                 control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
                                                            "_" + query_loc_names[q] + "coords_controldata.csv"))
 
-                    ''' *** Population iORG analyses start here *** '''
+                    ''' *** Population iORG analyses here *** '''
                     for q in range(len(stim_dataset.query_loc)):
                         all_query_status[folder][mode][q].loc[:, stim_vidnum] = stim_dataset.query_status[q]
 
@@ -563,23 +564,24 @@ if __name__ == "__main__":
 
                         for metric in metrics_type:
                             if metric == "aur":
-                                iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q], MetricTags.AUR)] = aur
+                                pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.AUR)] = aur
                             elif metric == "amplitude":
-                                iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.AMPLITUDE)] = amplitude
+                                pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.AMPLITUDE)] = amplitude
                             elif metric == "imp_time":
-                                iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.IMPLICT_TIME)] = implicit_time
+                                pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.IMPLICT_TIME)] = implicit_time
                             elif metric == "rec_amp":
-                                iORG_result_datframes.loc[stim_vidnum, (query_loc_names[q],  MetricTags.RECOVERY_PERCENT)] = recovery
+                                pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.RECOVERY_PERCENT)] = recovery
 
 
-                # Average all stimulus population iORGs, and prep for individual cone analyses.
-                pooled_framerate = [None] * len(all_locs)
+                ''' *** Average all stimulus population iORGs, and do individual cone analyses *** '''
                 for q in range(len(all_locs)):
                     stim_pop_iORG_summaries = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
                     stim_pop_iORG_N = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
-                    pooled_framerate[q] = np.full((len(stim_datasets), ), np.nan)
+                    stimtrain = [None] * len(stim_datasets)
+                    pooled_framerate = np.full((len(stim_datasets),), np.nan)
                     iORG_frmstmp = np.arange(max_frmstamp + 1)
 
+                    stim_iORG_summaries = []
                     if uniform_datasets:
                         stim_iORG_summaries = np.full((len(stim_datasets), stim_datasets[0].query_loc[q].shape[0], max_frmstamp + 1),
                                                       np.nan)
@@ -587,7 +589,8 @@ if __name__ == "__main__":
                                                       np.nan)
 
                     for d, stim_dataset in enumerate(stim_datasets):
-                        pooled_framerate[q] = stim_dataset.framerate
+                        pooled_framerate[d] = stim_dataset.framerate
+                        stimtrain[d] = stim_dataset.stimtrain_frame_stamps
                         stim_pop_iORG_N[d, stim_dataset.framestamps] = np.nansum(np.isfinite(stim_dataset.iORG_signals[q]), axis=0)
                         stim_pop_iORG_summaries[d, :] = stim_dataset.summarized_iORGs[q]
                         # If all stimulus datasets are uniform,
@@ -595,10 +598,15 @@ if __name__ == "__main__":
                         if uniform_datasets:
                             stim_iORG_summaries[d, :, stim_dataset.framestamps] = stim_dataset.iORG_signals[q].T
 
-                    pooled_framerate[q] = np.unique(pooled_framerate[q])
-                    if len(pooled_framerate[q]) != 1:
-                        warnings.warn("The framerate of the iORGs analyzed in "+folder.stem + " is inconsistent! Results may be incorrect.")
-                        pooled_framerate[q] = pooled_framerate[q][0]
+                    pooled_framerate = np.unique(pooled_framerate)
+                    if len(pooled_framerate) != 1:
+                        warnings.warn("The framerate of the iORGs analyzed in "+folder.stem + " is inconsistent! Pooled results may be incorrect.")
+                        pooled_framerate = pooled_framerate[0]
+
+                    stimtrain = np.unique(pd.DataFrame(stimtrain).values.astype(np.int32), axis=0)
+                    if stimtrain.shape[0] != 1:
+                        warnings.warn("The framerate of the iORGs analyzed in " + folder.stem + " is inconsistent! Pooled results may be incorrect.")
+                        stimtrain = stimtrain[0, :]
 
                     ''' *** Pool the summarized population iORGs *** '''
                     stim_pop_iORG_summary[q] = np.nansum(stim_pop_iORG_N * stim_pop_iORG_summaries,axis=0) / np.nansum(stim_pop_iORG_N, axis=0)
@@ -613,8 +621,8 @@ if __name__ == "__main__":
                         metrics_poststim = np.round(metrics_poststim)
 
                     if metrics_measured_to == "stim-relative":
-                        metrics_prestim = stim_dataset.stimtrain_frame_stamps[0] + metrics_prestim
-                        metrics_poststim = stim_dataset.stimtrain_frame_stamps[1] + metrics_poststim
+                        metrics_prestim = stimtrain[0] + metrics_prestim
+                        metrics_poststim = stimtrain[1] + metrics_poststim
 
                     # Make the list of indices that should correspond to pre and post stimulus
                     metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1,
@@ -644,15 +652,15 @@ if __name__ == "__main__":
                                                                                   prestim, poststim)
                     for metric in metrics_type:
                         if metric == "aur":
-                            iORG_result_datframes.loc["Pooled", (query_loc_names[q], MetricTags.AUR)] = aur
+                            pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AUR)] = aur
                         elif metric == "amplitude":
-                            iORG_result_datframes.loc[
+                            pop_iORG_result_datframe.loc[
                                 "Pooled", (query_loc_names[q], MetricTags.AMPLITUDE)] = amplitude
                         elif metric == "imp_time":
-                            iORG_result_datframes.loc[
+                            pop_iORG_result_datframe.loc[
                                 "Pooled", (query_loc_names[q], MetricTags.IMPLICT_TIME)] = implicit_time
                         elif metric == "rec_amp":
-                            iORG_result_datframes.loc[
+                            pop_iORG_result_datframe.loc[
                                 "Pooled", (query_loc_names[q], MetricTags.RECOVERY_PERCENT)] = recovery
 
                     # Display the pooled population data
@@ -671,9 +679,10 @@ if __name__ == "__main__":
                     # If we have a uniform dataset, summarize each cell's iORG too.
                     ''' *** Individual iORG analyses start here *** '''
                     if uniform_datasets:
-                        iORG_frmstmp = np.arange(max_frmstamp + 1)
+                        all_frmstmp = np.arange(max_frmstamp + 1)
 
-                        plt.figure("Individual-Cell iORG Summaries")
+                        if indiv_summary_params.get(DisplayParams.OVERLAP):
+                            plt.figure("Individual-Cell iORG Summaries")
 
                         for c in range(stim_iORG_summaries.shape[1]):
                             tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_summaries[:, c, :]), axis=1))
@@ -683,7 +692,7 @@ if __name__ == "__main__":
                             # If we have more signals than our cutoff, then continue with the summary.
                             if tot_sig > sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
                                 all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = True
-                                stim_iORG_summary[q][c, :], _ = summarize_iORG_signals(stim_iORG_summaries[:, c, :], iORG_frmstmp,
+                                stim_iORG_summary[q][c, :], _ = summarize_iORG_signals(stim_iORG_summaries[:, c, :], all_frmstmp,
                                                                                        summary_method=sum_method,
                                                                                        window_size=sum_window)
 
@@ -694,25 +703,46 @@ if __name__ == "__main__":
                                 elif sum_control == "none":
                                     stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :]
 
-                                plt.plot(iORG_frmstmp, stim_iORG_summary[q][c, :])
+                                if indiv_summary_params.get(DisplayParams.OVERLAP):
+                                    plt.plot(all_frmstmp, stim_iORG_summary[q][c, :])
+
+                                finite_iORG = np.isfinite(stim_iORG_summary[q][c, :])
+                                iORG_summary = stim_iORG_summary[q][c, finite_iORG]
+                                iORG_frmstmp = all_frmstmp[finite_iORG]
+
+                                # Find the indexes of the framestamps corresponding to our pre and post stim frames;
+                                prestim = np.flatnonzero(np.isin(iORG_frmstmp, metrics_prestim))
+                                poststim = np.flatnonzero(np.isin(iORG_frmstmp, metrics_poststim))
+
+                                # if we're missing an *end* framestamp in our window, interpolate to find the value there,
+                                # and add it temporarily to our signal to make sure things like AUR work correctly.
+                                if not np.any(iORG_frmstmp[poststim] == metrics_poststim[-1]):
+                                    inter_val = np.interp(metrics_poststim[-1], iORG_frmstmp, iORG_summary)
+                                    # Find where to insert the interpolant and its framestamp
+                                    next_highest = np.argmax(iORG_frmstmp > metrics_poststim[-1])
+                                    iORG_summary = np.insert(iORG_summary, next_highest, inter_val)
+                                    iORG_frmstmp = np.insert(iORG_frmstmp, next_highest, metrics_poststim[-1])
+                                    poststim = np.append(poststim, next_highest)
+
+                                amplitude, implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp,
+                                                                                              pooled_framerate[q],
+                                                                                              prestim, poststim)
+
                             else:
                                 all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = False
 
-                        plt.show(block=False)
-
-
+                        if indiv_summary_params.get(DisplayParams.OVERLAP):
+                            plt.show(block=False)
 
                     all_query_status[folder][mode][q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
                                                "_" + query_loc_names[q] + "coords.csv"))
-
-
 
 
                 respath = result_folder.joinpath("pop_summary_metrics_" + str(folder.stem) + "_" + str(mode) + ".csv")
                 tryagain = True
                 while tryagain:
                     try:
-                        iORG_result_datframes.to_csv(respath)
+                        pop_iORG_result_datframe.to_csv(respath)
                         tryagain = False
                     except PermissionError:
                         tryagain=messagebox.askyesno(title="File: " + str(respath) + " is unable to be written.",
