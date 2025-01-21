@@ -264,14 +264,6 @@ if __name__ == "__main__":
                     # Once we've extracted the iORG signals, remove the video and mask data as it's likely to have a large memory footprint.
                     dataset.clear_video_data()
 
-                # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
-                #query_status[q] = query_status[q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
-                #
-                # for q in range(len(query_status)):
-                #     query_status[q].to_csv(result_folder.joinpath("query_loc_status_"+str(folder.stem) + "_"+ str(mode) +
-                #                                                   "_"+query_loc_names[q] +"coords.csv"))
-
-
         # If desired, make the summarized iORG relative to controls in some way.
         # Control data is expected to be applied to the WHOLE group.
         for folder in folder_groups:
@@ -373,10 +365,12 @@ if __name__ == "__main__":
                     # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
                     if not uniform_datasets or first_run:
                         with (mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool):
+
                             first_run = False
                             control_iORG_summary = [None] * len(stim_dataset.query_loc)
                             control_pop_iORG_summary = [None] * len(stim_dataset.query_loc)
                             control_framestamps = [None] * len(stim_dataset.query_loc)
+                            control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
 
                             pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
                                 stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
@@ -387,8 +381,9 @@ if __name__ == "__main__":
                                 stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
                                 group) + " and folder " + folder.stem + "...")
 
-                            res = pool.map(extract_control_iORG_summaries, zip(control_data_vidnums, group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist(), repeat(control_query_status),
-                                                                                   repeat(analysis_params), repeat(stim_dataset.query_loc), repeat(stim_dataset.stimtrain_frame_stamps)))
+                            res = pool.map(extract_control_iORG_summaries, zip(control_data_vidnums, control_datasets, repeat(control_query_status.copy()),
+                                                                                   repeat(analysis_params), repeat(stim_dataset.query_loc),
+                                                                                 repeat(stim_dataset.stimtrain_frame_stamps)))
 
                             print("...Done.")
 

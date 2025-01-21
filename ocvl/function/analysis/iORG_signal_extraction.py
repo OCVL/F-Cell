@@ -141,7 +141,11 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 
-    iORG_signals = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
+    iORG_signals, valid, excl_reason = standardize_profiles(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
 
     summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
                                                                      summary_method=sum_method,
@@ -316,6 +320,10 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
                 nani = np.any(np.isnan(coordcolumn), axis=0)
                 coordcolumn[:, nani] = np.nan
 
+                if np.all(np.isnan(coordcolumn.flatten())):
+                    query_status[i] = "Missing Data at Query Location"
+                    continue
+
                 if summary == "mean":
                     profile_data[i, nani] = np.nan
                     profile_data[i, np.invert(nani)] = np.mean(coordcolumn[:, np.invert(nani)], axis=0)
@@ -354,6 +362,10 @@ def extract_profiles(image_stack, coordinates=None, seg_mask="box", seg_radius=1
                 coordcolumn = coordcolumn * mask
                 coordcolumn[:, nani] = np.nan
 
+                if np.all(np.isnan(coordcolumn.flatten())):
+                    query_status[i] = "Missing Data at Query Location"
+                    continue
+
                 if summary == "mean":
                     profile_data[i, nani] = np.nan
                     profile_data[i, np.invert(nani)] = np.nanmean(coordcolumn[:, np.invert(nani)], axis=0)
@@ -386,7 +398,7 @@ def exclude_profiles(temporal_profiles, framestamps,
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
     :param critical_region: A set of values containing the critical region of a signal- if a cell doesn't have data here,
                             then drop its entire signal from consideration.
-    :param critical_fraction: The percentage of real values required to consider the signal valid.
+    :param critical_fraction: The fraction of real values required to consider the signal valid.
     :param require_full_profile: Require a full profile instead of merely a fraction of the critical region.
     :return: a NxM numpy matrix of pared-down profiles, where profiles that don't fit the criterion are dropped.
     """
@@ -488,7 +500,7 @@ def norm_profiles(temporal_profiles, norm_method="mean", rescaled=False, video_r
         return np.divide(temporal_profiles, framewise_norm[None, :])
 
 
-def standardize_profiles(temporal_profiles, framestamps, std_indices, method="linear_std", display=False):
+def standardize_profiles(temporal_profiles, framestamps, std_indices, method="linear_std", critical_fraction=0.3):
     """
     This function standardizes each temporal profile (here, the rows of the supplied data) according to the provided
     arguments.
@@ -500,12 +512,16 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
                     each signal before stimulus_stamp, followed by a standardization based on that pre-stamp linear-fit
                     subtracted data. This was used in Cooper et al 2017/2020.
                     Current options include: "linear_std", "linear_vast", "relative_change", and "mean_sub"
+    :param critical_fraction: The fraction of real values required to consider the signal valid.
 
-    :return: a NxM numpy matrix of standardized temporal profiles.
+    :return: a NxM numpy matrix of standardized temporal profiles
     """
     if len(std_indices) == 0:
         warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
         return temporal_profiles
+
+    query_status = np.full(temporal_profiles.shape[0], "Included", dtype=object)
+    valid_stdization = np.full(temporal_profiles.shape[0], True, dtype=bool)
 
     if method == "linear_std":
         # Standardize using Autoscaling preceded by a linear fit to remove
@@ -515,7 +531,7 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
             prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
-            if np.sum(goodind) > 5:
+            if np.sum(goodind) >= np.floor(len(goodind)*critical_fraction):
                 thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
                 fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
 
@@ -525,6 +541,8 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
 
                 temporal_profiles[i, :] = ((temporal_profiles[i, :] - prestim_nofit_mean) / prestim_std)
             else:
+                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)*critical_fraction)+")"
+                valid_stdization[i] = False
                 temporal_profiles[i, :] = np.nan
 
     elif method == "linear_vast":
@@ -536,7 +554,7 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
             prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
-            if np.sum(goodind) > 5:
+            if np.sum(goodind) >= np.floor(len(goodind)*critical_fraction):
                 thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
                 fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
 
@@ -547,6 +565,8 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
                 temporal_profiles[i, :] = ((temporal_profiles[i, :] - prestim_nofit_mean) / prestim_std) / \
                                           (prestim_std / prestim_nofit_mean)
             else:
+                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)*critical_fraction)+")"
+                valid_stdization[i] = False
                 temporal_profiles[i, :] = np.nan
 
     elif method == "relative_change":
@@ -556,10 +576,15 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
             prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
-            prestim_mean = np.nanmean(prestim_profile[goodind])
-            temporal_profiles[i, :] -= prestim_mean
-            temporal_profiles[i, :] /= prestim_mean
-            temporal_profiles[i, :] *= 100
+            if np.sum(goodind) >= np.floor(len(goodind)*critical_fraction):
+                prestim_mean = np.nanmean(prestim_profile[goodind])
+                temporal_profiles[i, :] -= prestim_mean
+                temporal_profiles[i, :] /= prestim_mean
+                temporal_profiles[i, :] *= 100
+            else:
+                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)*critical_fraction)+")"
+                valid_stdization[i] = False
+                temporal_profiles[i, :] = np.nan
 
     elif method == "mean_sub":
         # Make our output just a prestim mean-subtracted signal.
@@ -568,20 +593,13 @@ def standardize_profiles(temporal_profiles, framestamps, std_indices, method="li
             prestim_profile = np.squeeze(temporal_profiles[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
-            if np.sum(goodind) > 5:
+            if np.sum(goodind) >= np.floor(len(goodind)*critical_fraction):
                 prestim_mean = np.nanmean(prestim_profile[goodind])
                 temporal_profiles[i, :] -= prestim_mean
             else:
+                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)*critical_fraction)+")"
+                valid_stdization[i] = False
                 temporal_profiles[i, :] = np.nan
 
-    if display:
-        plt.figure(1)
-        for i in range(temporal_profiles.shape[0]):
-
-            plt.plot(framestamps, temporal_profiles[i, :])
-            #plt.waitforbuttonpress()
-
-        plt.show(block=True)
-
-    return temporal_profiles
+    return temporal_profiles, valid_stdization, query_status
 
