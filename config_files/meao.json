@@ -44,7 +44,7 @@
   },
   "pipelined": {
     "image_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_ALL_ACQ_AVG.tif",
-    "queryloc_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_ALL_ACQ_AVG_coords.csv",
+    "queryloc_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_ALL_ACQ_AVG_{QueryLoc:s?}coords.csv",
     "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_piped.avi",
     "metadata": {
       "type": "text_file",
@@ -72,23 +72,33 @@
         "summary": "mean"
       },
       "exclusion_criteria": {
-        "type": "relative",
+        "type": "stim-relative",
         "units": "time",
         "start": -0.2,
-        "end": 0.2,
+        "stop": 0.2,
         "fraction": 0.5
       },
-       "standardization": {
+      "standardization": {
         "method": "mean_sub",
         "type": "stim-relative",
         "units": "time",
         "start": -1
       },
       "control": {
-        "location": "implicit"
+        "location": "folder",
+        "folder_name": "control"
       },
       "summary": {
-        "method": "rms"
+        "method": "rms",
+        "control": "subtraction",
+        "metrics": {
+          "type": ["aur", "amplitude", "imp_time", "rec_amp"],
+          "measured": "stim-relative",
+          "units": "time",
+          "prestim": [-1, 0],
+          "poststim": [0, 1]
+        },
+        "indiv_cutoff": 5
       },
       "gaus_blur": 0.0,
       "mask_roi": {
@@ -97,6 +107,26 @@
         "width": -1,
         "height": -1
       }
+    },
+    "display_params": {
+      "pop_summary_overlap": {
+        "stimulus": true,
+        "control": true,
+        "relative": true
+      },
+      "pop_summary_seq": {
+        "stimulus": true,
+        "relative": true,
+        "num_in_seq": 8
+      },
+      "indiv_summary": {
+        "overlap": true,
+        "histogram": true,
+        "cumulative_histogram": true,
+        "map_overlay": true
+      },
+      "saveas": ["png", "svg"],
+      "pause_per_folder": true
     }
   }
 
