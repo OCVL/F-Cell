@@ -76,6 +76,9 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
 
         segmentation_radius = int(segmentation_radius)
         print("Detected segmentation radius: " + str(segmentation_radius))
+    else:
+        segmentation_radius = int(segmentation_radius)
+        print("Chosen segmentation radius: " + str(segmentation_radius))
 
     if seg_params.get(SegmentParams.REFINE_TO_VID, True):
         query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,

@@ -118,6 +118,7 @@ class ControlParams(StrEnum):
 
 class MetricTags(StrEnum):
     AUR = "Response Area Under Curve"
+    LOG_AMPLITUDE = "Log Amplitude"
     AMPLITUDE = "Amplitude"
     IMPLICT_TIME = "Implict Time"
     RECOVERY_PERCENT = "Recovery Fraction"
