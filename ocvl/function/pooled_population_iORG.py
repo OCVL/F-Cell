@@ -3,20 +3,19 @@ import multiprocessing as mp
 import warnings
 from itertools import repeat
 from pathlib import Path, PurePath
-from tkinter import Tk, filedialog, ttk, HORIZONTAL, simpledialog, messagebox
+from tkinter import Tk, filedialog, ttk, HORIZONTAL, messagebox
 
+import cv2
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from scipy.spatial.distance import pdist, squareform
 
-from ocvl.function.analysis.iORG_signal_extraction import extract_signals, normalize_signals, standardize_signals, \
-    refine_coord, refine_coord_to_stack, exclude_signals, extract_n_refine_iorg_signals
+from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.dataset import PipeStages, parse_file_metadata, initialize_and_load_dataset
+from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataFormatType, DataTags, AcquisiTags, \
-    SegmentParams, ExclusionParams, NormParams, STDParams, MetricTags, SummaryParams, ControlParams, DisplayParams, \
+    NormParams, SummaryParams, ControlParams, DisplayParams, \
     MetricTags
 
 from datetime import datetime, date, time, timezone
@@ -195,6 +194,9 @@ if __name__ == "__main__":
 
                 # Make data storage structures for each of our query location lists for checking which query points went into our analysis.
                 query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
+                for q, query_loc_name in enumerate(query_loc_names):
+                    if len(query_loc_name) == 0:
+                        query_loc_names[q] = " "
 
                 first = True
                 all_query_status[folder][mode] = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & query_locations).sum())]
@@ -243,7 +245,7 @@ if __name__ == "__main__":
                         if first:
                             # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
                             all_query_status[folder][mode][q] = all_query_status[folder][mode][q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
-                            first = False
+
 
                         pb_label["text"] = "Processing query file " + query_loc_names[q] + " in dataset #" + str(vidnum) + " from the " + str(
                             mode) + " modality in group " + str(group) + " and folder " + folder.stem + "..."
@@ -260,6 +262,8 @@ if __name__ == "__main__":
                          dataset.summarized_iORGs[q],
                          dataset.query_status[q],
                          dataset.query_loc[q]) = extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=dataset.query_loc[q])
+
+                    first = False
 
                     # Once we've extracted the iORG signals, remove the video and mask data as it's likely to have a large memory footprint.
                     dataset.clear_video_data()
@@ -293,6 +297,9 @@ if __name__ == "__main__":
 
                 # Make data storage structures for our results
                 query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
+                for q, query_loc_name in enumerate(query_loc_names):
+                    if len(query_loc_name) == 0:
+                        query_loc_names[q] = " "
                 result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                 pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
@@ -348,6 +355,7 @@ if __name__ == "__main__":
                     stim_iORG_signals = [None] * len(all_locs)
                     for q in range(len(all_locs)):
                         stim_iORG_signals[q] = np.full((len(stim_datasets), all_locs[q].shape[0], max_frmstamp + 1), np.nan)
+
 
                 # Load each dataset (delineated by different video numbers), and process it relative to the control data.
                 mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(stim_data_vidnums)))
@@ -745,11 +753,23 @@ if __name__ == "__main__":
                             else:
                                 all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = False
 
+                        indiv_respath = result_folder.joinpath("indiv_summary_metrics" + str(folder.stem) + "_" + str(mode) +
+                                                   "_" + query_loc_names[q] + "coords.csv")
+
+                        tryagain = True
+                        while tryagain:
+                            try:
+                                indiv_iORG_result[q].to_csv(indiv_respath)
+                                tryagain = False
+                            except PermissionError:
+                                tryagain = messagebox.askyesno(
+                                    title="File: " + str(indiv_respath) + " is unable to be written.",
+                                    message="The result file may be open. Close the file, then try to write again?")
 
                         if indiv_summary_params.get(DisplayParams.HISTOGRAM):
-                            overlap_label = "Query location: "+query_loc_names[q]+ ": Individual-Cell iORGs metric histograms from " + mode + " iORGs in " + folder.stem
+                            overlap_label = "Individual-Cell iORGs metric histograms from " + mode + " iORGs in " + folder.stem
                             plt.figure(overlap_label)
-                            display_dict[mode + "_indiv_iORG_" + sum_method + "_" + query_loc_names[q] + "coords_metric_histograms"] = overlap_label
+                            display_dict[mode + "_indiv_iORG_" + sum_method + "_metric_histograms"] = overlap_label
 
                             numsub = np.sum( indiv_iORG_result[q].count() > 0 )
                             subind = 1
@@ -761,18 +781,51 @@ if __name__ == "__main__":
 
                                     # histbins = np.arange(start=np.nanmin(metric_res.flatten()), stop=np.nanmax(metric_res.flatten()), step=1)
                                     # plt.hist(metric_res, bins=histbins)
-                                    plt.hist(metric_res, bins=50)
+                                    plt.hist(metric_res, bins=50, label=query_loc_names[q])
                                     plt.title(metric)
+                                    plt.legend()
 
                                     subind += 1
                                     plt.show(block=False)
 
-                        indiv_iORG_result[q].to_csv(result_folder.joinpath("indiv_summary_metrics" + str(folder.stem) + "_" + str(mode) +
-                                                       "_" + query_loc_names[q] + "coords.csv"))
+                        if indiv_summary_params.get(DisplayParams.CUMULATIVE_HISTOGRAM):
+                            overlap_label = "Individual-Cell iORGs metric cumulative histograms from " + mode + " iORGs in " + folder.stem
+                            plt.figure(overlap_label)
+                            display_dict[mode + "_indiv_iORG_" + sum_method + "_metric_cumul_histograms"] = overlap_label
 
+                            numsub = np.sum( indiv_iORG_result[q].count() > 0 )
+                            subind = 1
+                            for metric in list(MetricTags):
+                                if indiv_iORG_result[q].loc[:, metric].count() != 0:
+                                    metric_res = indiv_iORG_result[q].loc[:, metric]
+                                    plt.subplot(numsub, 1, subind)
+                                    plt.hist(metric_res, bins=50, label=query_loc_names[q], density=True, histtype="step", cumulative=True)
+                                    plt.title(metric)
+                                    plt.legend()
+
+                                    subind += 1
+                                    plt.show(block=False)
+
+
+                        label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.stem
+                        plt.figure(label)
+                        display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = label
+                        refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
+                        plt.title(label)
+                        plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
+                        viability = all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"]
+                        cellcoords = all_query_status[folder][mode][q].index
+                        for coords, viability in viability.items():
+                            if viability:
+                                plt.scatter(coords[0], coords[1], s=7, c="c")
+                            else:
+                                plt.scatter(coords[0], coords[1], s=7, c="red")
+                        plt.show(block=False)
 
                     all_query_status[folder][mode][q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.stem) + "_" + str(mode) +
                                                "_" + query_loc_names[q] + "coords.csv"))
+
+
 
 
                 respath = result_folder.joinpath("pop_summary_metrics_" + str(folder.stem) + "_" + str(mode) + ".csv")
