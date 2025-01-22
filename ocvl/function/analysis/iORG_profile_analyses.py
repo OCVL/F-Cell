@@ -449,7 +449,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
     # ** Area Under the Response (est. by trapezoidal rule) **
     auc = np.full((temporal_signals.shape[0],), np.nan)
     for c in range(temporal_signals.shape[0]):
-        auc[c] = np.trapezoid(poststim[c, np.isfinite(poststim[c,:])], x=poststim_frms[np.isfinite(poststim[c,:])] / framerate)
+        auc[c] = np.trapezoid(np.abs(poststim[c, np.isfinite(poststim[c,:])]), x=poststim_frms[np.isfinite(poststim[c,:])] / framerate)
 
 
     final_val = np.nanmean(temporal_signals[:, -5:], axis=1)

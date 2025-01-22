@@ -120,8 +120,7 @@ class MetricTags(StrEnum):
     AUR = "Response Area Under Curve"
     AMPLITUDE = "Amplitude"
     IMPLICT_TIME = "Implict Time"
-    RECOVERY_PERCENT = "Recovery Percent"
-    RECOVERY = "Recovery"
+    RECOVERY_PERCENT = "Recovery Fraction"
 
 class DisplayParams(StrEnum):
     NAME = "display_params"
