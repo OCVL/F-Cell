@@ -99,8 +99,8 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                 # Parse out the locations and filenames, store them in a hash table by location.
                 searchpath = Path(pName)
                 allFiles = list()
-                recurse_me = dat_format.get(DataFormatType.RECURSIVE)
-                if recurse_me is not None and recurse_me:
+                recurse_me = dat_format.get(DataFormatType.RECURSIVE, True)
+                if recurse_me:
                     for ext in all_ext:
                         for path in searchpath.rglob("*" + ext):
                             format_type, file_info = parser.parse_file(path.name)
