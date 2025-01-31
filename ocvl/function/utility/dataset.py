@@ -273,7 +273,7 @@ def preprocess_dataset(dataset, pipeline_params):
 
                 if dataset.metadata[AcquisiTags.META_PATH] is not None:
                     dat_metadata = pd.read_csv(dataset.metadata[AcquisiTags.META_PATH], encoding="utf-8-sig",
-                                               skipinitWialspace=True)
+                                               skipinitWhitespace=True)
 
                     ncc = 1 - dat_metadata["NCC"].to_numpy(dtype=float)
                     dataset.reference_frame_idx = min(range(len(ncc)), key=ncc.__getitem__)
