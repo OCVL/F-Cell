@@ -84,51 +84,48 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                 metadata_params = dat_format.get(MetaTags.METATAG)
                 metadata_form = metadata_params.get(DataFormatType.METADATA)
 
-            if vid_form is not None:
+            all_ext = ()
+            # Grab our extensions, make sure to check them all.
+            all_ext = all_ext + (vid_form[vid_form.rfind(".", -5, -1):],) if vid_form else all_ext
+            all_ext = all_ext + (mask_form[mask_form.rfind(".", -5, -1):],) if mask_form and mask_form[mask_form.rfind(".",-5,-1):] not in all_ext else all_ext
+            all_ext = all_ext + (im_form[im_form.rfind(".", -5, -1):],) if im_form and im_form[ im_form.rfind(".", -5, -1):] not in all_ext else all_ext
+            all_ext = all_ext + (query_form[query_form.rfind(".", -5, -1):],) if query_form and query_form[query_form.rfind(".", -5,-1):] not in all_ext else all_ext
+            all_ext = all_ext + (metadata_form[metadata_form.rfind(".", -5, -1):],) if metadata_form and metadata_form[ metadata_form.rfind(".", -5, -1):] not in all_ext else all_ext
 
-                # Grab our extensions, make sure to check them all.
-                all_ext = (vid_form[vid_form.rfind(".", -5, -1):],)
-                all_ext = all_ext + (mask_form[mask_form.rfind(".", -5, -1):],) if mask_form and mask_form[mask_form.rfind(".",-5,-1):] not in all_ext else all_ext
-                all_ext = all_ext + (im_form[im_form.rfind(".", -5, -1):],) if im_form and im_form[ im_form.rfind(".", -5, -1):] not in all_ext else all_ext
-                all_ext = all_ext + (query_form[query_form.rfind(".", -5, -1):],) if query_form and query_form[query_form.rfind(".", -5,-1):] not in all_ext else all_ext
-                all_ext = all_ext + (metadata_form[metadata_form.rfind(".", -5, -1):],) if metadata_form and metadata_form[ metadata_form.rfind(".", -5, -1):] not in all_ext else all_ext
+            # Construct the parser we'll use for each of these forms
+            parser = FormatParser(vid_form, mask_form, im_form, metadata_form, query_form)
 
-                # Construct the parser we'll use for each of these forms
-                parser = FormatParser(vid_form, mask_form, im_form, metadata_form, query_form)
+            # Parse out the locations and filenames, store them in a hash table by location.
+            searchpath = Path(pName)
+            allFiles = list()
+            recurse_me = dat_format.get(DataFormatType.RECURSIVE, True)
+            if recurse_me:
+                for ext in all_ext:
+                    for path in searchpath.rglob("*" + ext):
+                        format_type, file_info = parser.parse_file(path.name)
+                        if format_type is not None:
+                            file_info[DataFormatType.FORMAT_TYPE] = format_type
+                            file_info[AcquisiTags.DATA_PATH] = path
+                            file_info[AcquisiTags.BASE_PATH] = path.parent
+                            file_info[AcquisiTags.DATASET] = None
+                            entry = pd.DataFrame.from_dict([file_info])
 
-                # Parse out the locations and filenames, store them in a hash table by location.
-                searchpath = Path(pName)
-                allFiles = list()
-                recurse_me = dat_format.get(DataFormatType.RECURSIVE, True)
-                if recurse_me:
-                    for ext in all_ext:
-                        for path in searchpath.rglob("*" + ext):
-                            format_type, file_info = parser.parse_file(path.name)
-                            if format_type is not None:
-                                file_info[DataFormatType.FORMAT_TYPE] = format_type
-                                file_info[AcquisiTags.DATA_PATH] = path
-                                file_info[AcquisiTags.BASE_PATH] = path.parent
-                                file_info[AcquisiTags.DATASET] = None
-                                entry = pd.DataFrame.from_dict([file_info])
-
-                                allFiles.append(entry)
-                else:
-                    for ext in all_ext:
-                        for path in searchpath.glob("*" + ext):
-                            format_type, file_info = parser.parse_file(path.name)
-                            if format_type is not None:
-                                file_info[DataFormatType.FORMAT_TYPE] = format_type
-                                file_info[AcquisiTags.DATA_PATH] = path
-                                file_info[AcquisiTags.BASE_PATH] = path.parent
-                                file_info[AcquisiTags.DATASET] = None
-                                entry = pd.DataFrame.from_dict([file_info])
-
-                                allFiles.append(entry)
-
-                return dat_form, pd.concat(allFiles, ignore_index=True)
+                            allFiles.append(entry)
             else:
-                warning("Unable to detect "+ group +" json group!")
-                return None
+                for ext in all_ext:
+                    for path in searchpath.glob("*" + ext):
+                        format_type, file_info = parser.parse_file(path.name)
+                        if format_type is not None:
+                            file_info[DataFormatType.FORMAT_TYPE] = format_type
+                            file_info[AcquisiTags.DATA_PATH] = path
+                            file_info[AcquisiTags.BASE_PATH] = path.parent
+                            file_info[AcquisiTags.DATASET] = None
+                            entry = pd.DataFrame.from_dict([file_info])
+
+                            allFiles.append(entry)
+
+            return dat_form, pd.concat(allFiles, ignore_index=True)
+
         else:
             return None
 
@@ -188,7 +185,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
     mask_data = None
     metadata = dataset_metadata
-    metadata[AcquisiTags.VIDEO_PATH] = dataset_metadata[AcquisiTags.DATA_PATH]
+    metadata[AcquisiTags.VIDEO_PATH] = dataset_metadata.get(AcquisiTags.DATA_PATH,Path())
     metadata[AcquisiTags.MASK_PATH] = mask_path
     metadata[AcquisiTags.META_PATH] = extra_metadata_path
 

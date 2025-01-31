@@ -5,9 +5,14 @@ from ocvl.function.utility.json_format_constants import DataTags, DataFormatType
 
 
 class FormatParser():
-    def __init__(self, video_format, mask_format=None, image_format=None, metadata_format=None, queryloc_format=None):
+    def __init__(self, video_format=None, mask_format=None, image_format=None, metadata_format=None, queryloc_format=None):
         self.formatlocs = dict()
-        self.vid_parser = parse.compile(video_format)
+
+        if video_format is not None:
+            self.vid_parser = parse.compile(video_format)
+        else:
+            self.vid_parser = None
+
         # An optional parser for strings.
         self.optional_parse = TypeBuilder.with_optional(lambda opt_str: str(opt_str))
 
@@ -35,8 +40,10 @@ class FormatParser():
 
         filename_metadata = dict()
 
-        parsed_str = self.vid_parser.parse(file_string)
-        parser_used = DataFormatType.VIDEO
+        parsed_str = None
+        if self.vid_parser is not None:
+            parsed_str = self.vid_parser.parse(file_string)
+            parser_used = DataFormatType.VIDEO
         if parsed_str is None and self.mask_parser is not None:
             parsed_str = self.mask_parser.parse(file_string)
             parser_used = DataFormatType.MASK
