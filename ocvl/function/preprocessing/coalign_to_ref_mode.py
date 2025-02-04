@@ -88,10 +88,46 @@ if __name__ == "__main__":
     xformed_vert = cv2.warpAffine(vert_im, xform, vert_im.shape,
                                   flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT,borderValue=np.nan)
 
+    nancols = np.any(np.isfinite(xformed_vert), axis=0)
+    leftind = 0
+    rightind = len(nancols)
+
+    if np.any(nancols):
+        leftind = np.argmax(nancols)
+        rightind = len(nancols) - np.argmax(nancols[::-1])
+
+        # if leftind == rightind and np.all(~nancols[leftind:]):
+        #     rightind = len(nancols)
+        # elif leftind == rightind and np.all(~nancols[:rightind]):
+        #     leftind = 0
+
+    nanrows = np.any(np.isfinite(xformed_vert), axis=1)
+    topind = 0
+    bottomind = len(nanrows)
+
+    if np.any(nanrows):
+        topind = np.argmax(nanrows)
+        bottomind = len(nanrows) - np.argmax(nanrows[::-1])
+
+        # if topind == bottomind and np.all(~nanrows[topind:]):
+        #     bottomind = len(nanrows)
+        # elif topind == bottomind and np.all(~nanrows[:bottomind]):
+        #     topind = 0
+
+    # Crop to the only good area.
+    horz_im = horz_im[topind:bottomind, leftind:rightind]
+    xformed_vert = xformed_vert[topind:bottomind, leftind:rightind]
+
     dIx_dx = scipy.signal.convolve2d(horz_im, horz_kern, boundary='symmetric', mode='same')
     dIx_dy = scipy.signal.convolve2d(horz_im, vert_kern, boundary='symmetric', mode='same')
     dIy_dx = scipy.signal.convolve2d(xformed_vert, horz_flip_kern, boundary='symmetric', mode='same')
     dIy_dy = scipy.signal.convolve2d(xformed_vert, vert_flip_kern, boundary='symmetric', mode='same')
+
+    cutoff = 4
+    dIx_dx[np.abs(dIx_dx) > cutoff] = cutoff
+    dIx_dy[np.abs(dIx_dy) > cutoff] = cutoff
+    dIy_dx[np.abs(dIy_dx) > cutoff] = cutoff
+    dIy_dy[np.abs(dIy_dy) > cutoff] = cutoff
 
     ax_of_stig = (dIx_dy + dIy_dx) / (dIx_dx - dIy_dy)
     angle_of_stig = np.atan(ax_of_stig)/2
@@ -104,10 +140,10 @@ if __name__ == "__main__":
     mean_sphere_lens_power[np.isnan(mean_sphere_lens_power)] = 0
     combo_orientmap[np.isnan(combo_orientmap)] = 0
 
-    leftside = np.concatenate((np.hstack((np.ones_like(combo_orientmap), np.sin(combo_orientmap)**2)),
-                                     np.hstack((np.ones_like(combo_orientmap), np.cos(combo_orientmap)**2)),
-                                     np.hstack((np.zeros_like(combo_orientmap), -np.sin(combo_orientmap)*np.cos(combo_orientmap))) ), axis=0)
-    rightside = np.concatenate((dIx_dx, dIy_dy, (dIx_dy + dIy_dx)/2), axis=0)
+    leftside = np.vstack((np.hstack((np.ones_like(combo_orientmap), np.sin(combo_orientmap)**2)),
+                          np.hstack((np.ones_like(combo_orientmap), np.cos(combo_orientmap)**2)),
+                          np.hstack((np.zeros_like(combo_orientmap), (-np.sin(combo_orientmap)*np.cos(combo_orientmap)) )) ))
+    rightside = np.vstack((dIx_dx, dIy_dy, (dIx_dy + dIy_dx)/2))
     rightside[np.isnan(rightside)] = 0
     SC = np.linalg.pinv(leftside) @ rightside
 
@@ -140,9 +176,9 @@ if __name__ == "__main__":
 
     plt.figure("Most negative and most positive meridia")
     plt.subplot(1, 2, 1)
-    plt.imshow(SC[0:720,:]+SC[720:,:], cmap='gray')
+    plt.imshow(SC[0:bottomind-topind,:], cmap='gray')
     plt.subplot(1, 2, 2)
-    plt.imshow(SC[720:,:], cmap='gray')
+    plt.imshow(SC[bottomind-topind:,:], cmap='gray')
     plt.show(block=False)
     plt.waitforbuttonpress()
 
