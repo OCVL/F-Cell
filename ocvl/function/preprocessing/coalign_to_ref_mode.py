@@ -1,3 +1,4 @@
+from pathlib import Path
 
 import scipy
 from matplotlib import pyplot, pyplot as plt
@@ -50,7 +51,7 @@ if __name__ == "__main__":
         src_pts = np.float32([horz_kp[f1.queryIdx].pt for f1 in good_matches]).reshape(-1, 1, 2)
         dst_pts = np.float32([vert_kp[f1.trainIdx].pt for f1 in good_matches]).reshape(-1, 1, 2)
 
-        xform, inliers = cv2.estimateAffine2D(dst_pts, src_pts,ransacReprojThreshold=2,  confidence=0.99, refineIters=1000)
+        xform, inliers = cv2.estimateAffinePartial2D(dst_pts, src_pts,ransacReprojThreshold=2,  confidence=0.99, refineIters=1000)
 
         print(xform)
         if xform is not None and np.sum(inliers) >= 4:
@@ -65,7 +66,7 @@ if __name__ == "__main__":
             # -- Show detected matches
             cv2.imshow('Good Matches', img_matches)
             cv2.waitKey()
-            cv2.imwrite("output.tif",xformed_vert)
+#            cv2.imwrite("output.tif",xformed_vert)
         else:
             print("Failed to find a good match, exiting...")
             quit()
@@ -100,6 +101,16 @@ if __name__ == "__main__":
     y_orientmap = np.atan2(dIy_dy, dIy_dx)
     combo_orientmap = np.atan2((dIx_dy + dIy_dx) , (dIx_dx - dIy_dy))
 
+    mean_sphere_lens_power[np.isnan(mean_sphere_lens_power)] = 0
+    combo_orientmap[np.isnan(combo_orientmap)] = 0
+
+    leftside = np.concatenate((np.hstack((np.ones_like(combo_orientmap), np.sin(combo_orientmap)**2)),
+                                     np.hstack((np.ones_like(combo_orientmap), np.cos(combo_orientmap)**2)),
+                                     np.hstack((np.zeros_like(combo_orientmap), -np.sin(combo_orientmap)*np.cos(combo_orientmap))) ), axis=0)
+    rightside = np.concatenate((dIx_dx, dIy_dy, (dIx_dy + dIy_dx)/2), axis=0)
+    rightside[np.isnan(rightside)] = 0
+    SC = np.linalg.pinv(leftside) @ rightside
+
     plt.figure("Dominant Orientation")
     plt.subplot(1, 3, 1)
     plt.hist(x_orientmap.flatten() * (180 / np.pi), bins=180)
@@ -124,12 +135,24 @@ if __name__ == "__main__":
     plt.subplot(1,2,1)
     plt.imshow(mean_sphere_lens_power, cmap='gray')
     plt.subplot(1,2,2)
-    plt.imshow(combo_orientmap, cmap='gray')
+    plt.imshow(combo_orientmap, cmap='hsv')
+
+
+    plt.figure("Most negative and most positive meridia")
+    plt.subplot(1, 2, 1)
+    plt.imshow(SC[0:720,:]+SC[720:,:], cmap='gray')
+    plt.subplot(1, 2, 2)
+    plt.imshow(SC[720:,:], cmap='gray')
     plt.show(block=False)
     plt.waitforbuttonpress()
 
+    horz_split_path = Path(horz_split_fName)
+    horz_split_path = horz_split_path.parent.joinpath("Results", horz_split_path.stem + "_meansphere.tif")
+    horz_split_path.parent.mkdir(exist_ok=True)
+    cv2.imwrite(str(horz_split_path), mean_sphere_lens_power)
 
-    print("blah")
+
+    print("PK FIRE")
     # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
     # #pName = "P:\\RFC_Projects\\F-Cell_Generalization_Test_Data"
     # if not pName:
