@@ -64,8 +64,8 @@ if __name__ == "__main__":
             cv2.drawMatches(horzconf_im, horz_kp, vertconf_im, vert_kp, good_matches, img_matches,
                             flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
             # -- Show detected matches
-            cv2.imshow('Good Matches', img_matches)
-            cv2.waitKey()
+            # cv2.imshow('Good Matches', img_matches)
+            #cv2.waitKey()
 #            cv2.imwrite("output.tif",xformed_vert)
         else:
             print("Failed to find a good match, exiting...")
@@ -84,6 +84,11 @@ if __name__ == "__main__":
 
     horz_im = cv2.imread(horz_split_fName, cv2.IMREAD_GRAYSCALE).astype(np.float32)
     vert_im = cv2.imread(vert_split_fName, cv2.IMREAD_GRAYSCALE).astype(np.float32)
+
+    filtMe =False
+    if filtMe:
+        horz_im = cv2.GaussianBlur(horz_im, (0,0), 2.2)
+        vert_im = cv2.GaussianBlur(vert_im, (0,0), 2.2)
 
     xformed_vert = cv2.warpAffine(vert_im, xform, vert_im.shape,
                                   flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT,borderValue=np.nan)
@@ -115,19 +120,19 @@ if __name__ == "__main__":
         #     topind = 0
 
     # Crop to the only good area.
-    #horz_im = horz_im[topind:bottomind, leftind:rightind]
-    #xformed_vert = xformed_vert[topind:bottomind, leftind:rightind]
+    horz_im = horz_im[topind:bottomind, leftind:rightind]
+    xformed_vert = xformed_vert[topind:bottomind, leftind:rightind]
 
     dIx_dx = scipy.signal.convolve2d(horz_im, horz_kern, boundary='symmetric', mode='same')
     dIx_dy = scipy.signal.convolve2d(horz_im, vert_kern, boundary='symmetric', mode='same')
     dIy_dx = scipy.signal.convolve2d(xformed_vert, horz_flip_kern, boundary='symmetric', mode='same')
     dIy_dy = scipy.signal.convolve2d(xformed_vert, vert_flip_kern, boundary='symmetric', mode='same')
 
-    cutoff = 4
-    dIx_dx[np.abs(dIx_dx) > cutoff] = cutoff
-    dIx_dy[np.abs(dIx_dy) > cutoff] = cutoff
-    dIy_dx[np.abs(dIy_dx) > cutoff] = cutoff
-    dIy_dy[np.abs(dIy_dy) > cutoff] = cutoff
+    # cutoff = 4
+    # dIx_dx[np.abs(dIx_dx) > cutoff] = cutoff
+    # dIx_dy[np.abs(dIx_dy) > cutoff] = cutoff
+    # dIy_dx[np.abs(dIy_dx) > cutoff] = cutoff
+    # dIy_dy[np.abs(dIy_dy) > cutoff] = cutoff
 
     ax_of_stig = (dIx_dy + dIy_dx) / (dIx_dx - dIy_dy)
     angle_of_stig = np.atan(ax_of_stig)/2
@@ -139,6 +144,7 @@ if __name__ == "__main__":
 
     mean_sphere_lens_power[np.isnan(mean_sphere_lens_power)] = 0
     combo_orientmap[np.isnan(combo_orientmap)] = 0
+    combo_orientmap = combo_orientmap*(180 / np.pi)
 
     leftside = np.vstack((np.hstack((np.ones_like(combo_orientmap), np.sin(combo_orientmap)**2)),
                           np.hstack((np.ones_like(combo_orientmap), np.cos(combo_orientmap)**2)),
@@ -154,7 +160,7 @@ if __name__ == "__main__":
     plt.subplot(1, 3, 2)
     plt.hist(y_orientmap.flatten() * (180 / np.pi), bins=180)
     plt.subplot(1, 3, 3)
-    plt.hist(combo_orientmap.flatten() * (180 / np.pi), bins=180)
+    plt.hist(combo_orientmap.flatten(), bins=180)
 
 
     plt.figure("Derivatives")
@@ -176,18 +182,25 @@ if __name__ == "__main__":
 
 
     plt.figure("Most negative and most positive meridia")
-    plt.subplot(1, 2, 1)
-    plt.imshow(SC_lsq[0:720,:], cmap='gray')
-    plt.subplot(1, 2, 2)
-    plt.imshow(SC_lsq[720:,:], cmap='gray')
+    # plt.subplot(1, 2, 1)
+    plt.imshow(SC_lsq, cmap='gray')
+    # plt.subplot(1, 2, 2)
+    # plt.imshow(SC_lsq[720:,:], cmap='gray')
     plt.show(block=False)
-    plt.waitforbuttonpress()
+    # plt.waitforbuttonpress()
 
     horz_split_path = Path(horz_split_fName)
     horz_split_path = horz_split_path.parent.joinpath("Results", horz_split_path.stem + "_meansphere.tif")
     horz_split_path.parent.mkdir(exist_ok=True)
-    cv2.imwrite(str(horz_split_path), mean_sphere_lens_power)
 
+    immin, immax = np.quantile(mean_sphere_lens_power.flatten(), [0.01, 0.99])
+
+    imnorm = ((mean_sphere_lens_power-immin) / (immax - immin))
+    imnorm[imnorm>1] = 1
+    imnorm[imnorm<0] = 0
+    imnorm = (255*imnorm).astype(np.uint8)
+
+    cv2.imwrite(str(horz_split_path), imnorm)
 
     print("PK FIRE")
     # pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
