@@ -115,8 +115,8 @@ if __name__ == "__main__":
         #     topind = 0
 
     # Crop to the only good area.
-    horz_im = horz_im[topind:bottomind, leftind:rightind]
-    xformed_vert = xformed_vert[topind:bottomind, leftind:rightind]
+    #horz_im = horz_im[topind:bottomind, leftind:rightind]
+    #xformed_vert = xformed_vert[topind:bottomind, leftind:rightind]
 
     dIx_dx = scipy.signal.convolve2d(horz_im, horz_kern, boundary='symmetric', mode='same')
     dIx_dy = scipy.signal.convolve2d(horz_im, vert_kern, boundary='symmetric', mode='same')
@@ -146,6 +146,7 @@ if __name__ == "__main__":
     rightside = np.vstack((dIx_dx, dIy_dy, (dIx_dy + dIy_dx)/2))
     rightside[np.isnan(rightside)] = 0
     SC = np.linalg.pinv(leftside) @ rightside
+    SC_lsq = np.linalg.lstsq(leftside, rightside, rcond=None)[0]
 
     plt.figure("Dominant Orientation")
     plt.subplot(1, 3, 1)
@@ -176,9 +177,9 @@ if __name__ == "__main__":
 
     plt.figure("Most negative and most positive meridia")
     plt.subplot(1, 2, 1)
-    plt.imshow(SC[0:bottomind-topind,:], cmap='gray')
+    plt.imshow(SC_lsq[0:720,:], cmap='gray')
     plt.subplot(1, 2, 2)
-    plt.imshow(SC[bottomind-topind:,:], cmap='gray')
+    plt.imshow(SC_lsq[720:,:], cmap='gray')
     plt.show(block=False)
     plt.waitforbuttonpress()
 
