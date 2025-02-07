@@ -53,7 +53,11 @@
         "framestamps": "FrameStamps"
       }
     },
-    "recursive_search": true,
+    "recursive_search": false,
+    "control": {
+      "location": "folder",
+      "folder_name": "control"
+    },
     "analysis_params": {
       "modalities": ["760nm"],
       "output_folder": "Results",
@@ -83,13 +87,9 @@
         "units": "time",
         "start": -1
       },
-      "control": {
-        "location": "folder",
-        "folder_name": "control"
-      },
       "summary": {
         "method": "rms",
-        "control": "subtraction",
+        "control": "none",
         "metrics": {
           "type": ["aur", "amplitude", "imp_time", "rec_amp"],
           "measured": "stim-relative",

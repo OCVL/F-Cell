@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
-    control_params = analysis_params.get(ControlParams.NAME, dict())
+    control_params = piped_dat_format.get(ControlParams.NAME, dict())
     control_loc = control_params.get(ControlParams.LOCATION, "implicit")
     control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
 
@@ -222,6 +222,7 @@ if __name__ == "__main__":
                                                         rescale_mean=res_mean, rescale_std=res_stddev)
 
                         group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
+
 
                         if control_loc == "folder" and folder.name == control_folder:
                             # If we're in the control folder, then we're a control video- and we shouldn't extract
@@ -348,7 +349,7 @@ if __name__ == "__main__":
                 stim_iORG_signals = None
 
                 control_iORG_summary = [None] * len(all_locs)
-                control_pop_iORG_summary = [None] * len(all_locs)
+                control_pop_iORG_summary_pooled = [None] * len(all_locs)
                 control_framestamps = [None] * len(all_locs)
 
                 if uniform_datasets:
@@ -378,6 +379,7 @@ if __name__ == "__main__":
                             first_run = False
                             control_iORG_summary = [None] * len(stim_dataset.query_loc)
                             control_pop_iORG_summary = [None] * len(stim_dataset.query_loc)
+                            control_pop_iORG_summary_pooled = [None] * len(stim_dataset.query_loc)
                             control_framestamps = [None] * len(stim_dataset.query_loc)
                             control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
 
@@ -415,30 +417,30 @@ if __name__ == "__main__":
 
                                 control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
                                 control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                control_iORG_summaries = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0],  max_frmstamp + 1), np.nan)
+                                control_iORG_signals = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
 
                                 for c, control_data in enumerate(control_datasets):
                                     control_pop_iORG_N[c, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
-                                    control_iORG_summaries[c, :, control_data.framestamps] = control_data.iORG_signals[q].T
+                                    control_iORG_signals[c, :, control_data.framestamps] = control_data.iORG_signals[q].T
                                     control_pop_iORG_summaries[c, control_data.framestamps] = control_data.summarized_iORGs[q]
 
                                 # Summarize each of the cells' iORGs
                                 # *** Removed for now, may add later.
-                                # for c in range(control_iORG_summaries.shape[1]):
-                                #     tot_sig = np.nansum(np.any(np.isfinite(control_iORG_summaries[:, c, :]), axis=1))
+                                # for c in range(control_iORG_signals.shape[1]):
+                                #     tot_sig = np.nansum(np.any(np.isfinite(control_iORG_signals[:, c, :]), axis=1))
                                 #     control_query_status[q].loc[c, "Num Viable iORGs"] = tot_sig
                                 #
                                 #     if tot_sig > sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
                                 #         control_query_status[q].loc[c, "Viable for single-cell summary?"] = True
-                                #         control_iORG_summary[q][c, :], _ = summarize_iORG_signals(control_iORG_summaries[:, c, :],
+                                #         control_iORG_summary[q][c, :], _ = summarize_iORG_signals(control_iORG_signals[:, c, :],
                                 #                                                                np.arange(max_frmstamp + 1),
                                 #                                                                summary_method=sum_method,
                                 #                                                                window_size=sum_window)
 
-
-                                control_pop_iORG_summary[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
-                                                                        axis=0) / np.nansum(control_pop_iORG_N, axis=0)
-                                control_framestamps[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary[q]))
+                                control_pop_iORG_summary[q] = control_pop_iORG_summaries
+                                control_pop_iORG_summary_pooled[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
+                                                                               axis=0) / np.nansum(control_pop_iORG_N, axis=0)
+                                control_framestamps[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary_pooled[q]))
 
                                 # First write the control data to a file.
                                 control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.name) + "_" + str(mode) +
@@ -453,9 +455,9 @@ if __name__ == "__main__":
                         stim_framestamps = np.arange(max_frmstamp + 1)
 
                         if sum_control == "subtraction":
-                            stim_dataset.summarized_iORGs[q] = stim_pop_summary - control_pop_iORG_summary[q]
+                            stim_dataset.summarized_iORGs[q] = stim_pop_summary - control_pop_iORG_summary_pooled[q]
                         elif sum_control == "division":
-                            stim_dataset.summarized_iORGs[q] = stim_pop_summary / control_pop_iORG_summary[q]
+                            stim_dataset.summarized_iORGs[q] = stim_pop_summary / control_pop_iORG_summary_pooled[q]
                         elif sum_control == "none":
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary
 
@@ -484,8 +486,10 @@ if __name__ == "__main__":
                                 plt.subplot(1, how_many, ind)
                                 ind += 1
                             if disp_cont:
-                                plt.title("Summarized control iORG")
-                                plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary[q][control_framestamps[q]])
+                                plt.title("Control iORGs")
+                                for r in range(control_pop_iORG_summary[q].shape[0]):
+                                    plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary[q][r, control_framestamps[q]])
+                                plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary_pooled[q][control_framestamps[q]], 'k--', linewidth=4)
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
                             if how_many > 1 and disp_rel:
@@ -679,9 +683,10 @@ if __name__ == "__main__":
                         overlap_label = "Pooled data summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
                         plt.figure(overlap_label)
                         display_dict["pooled_" + mode + "_pop_iORG_" + sum_method + "_overlapping"] = overlap_label
-                        plt.title("Pooled summarized iORGs")
+                        plt.title("Pooled "+ sum_method +"iORGs relative to control iORG via " + sum_control)
+
                         plt.plot(np.arange(max_frmstamp + 1) / pooled_framerate, stim_pop_iORG_summary[q],
-                                 label=query_loc_names[q] + " relative to control")
+                                 label=query_loc_names[q])
                         plt.xlabel("Time (s)")
                         plt.ylabel(sum_method)
                         plt.legend()
@@ -710,9 +715,9 @@ if __name__ == "__main__":
                                                                                        window_size=sum_window)
 
                                 if sum_control == "subtraction":
-                                    stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] - control_pop_iORG_summary[q]
+                                    stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] - control_pop_iORG_summary_pooled[q]
                                 elif sum_control == "division":
-                                    stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] / control_pop_iORG_summary[q]
+                                    stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] / control_pop_iORG_summary_pooled[q]
                                 elif sum_control == "none":
                                     stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :]
 

@@ -14,7 +14,8 @@ from scipy.ndimage import gaussian_filter
 
 from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, PipelineParams
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, PipelineParams, \
+    ControlParams
 from ocvl.function.utility.resources import load_video, save_video
 
 
@@ -104,6 +105,14 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
             # Construct the parser we'll use for each of these forms
             parser = FormatParser(vid_form, mask_form, im_form, metadata_form, query_form)
 
+            # If our control data comes from the file structure, then prep to check for it in case its in the config.
+            control_params = dat_format.get(ControlParams.NAME, None)
+            if control_params is not None:
+                control_loc = control_params.get(ControlParams.LOCATION, "folder")
+                if control_loc == "folder":
+                    control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
+
+
             # Parse out the locations and filenames, store them in a hash table by location.
             searchpath = Path(pName)
             allFiles = list()
@@ -132,6 +141,18 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                             entry = pd.DataFrame.from_dict([file_info])
 
                             allFiles.append(entry)
+                    if control_params is not None:
+                        controlsearchpath = searchpath.joinpath(control_folder)
+                        for path in controlsearchpath.glob("*" + ext):
+                            format_type, file_info = parser.parse_file(path.name)
+                            if format_type is not None:
+                                file_info[DataFormatType.FORMAT_TYPE] = format_type
+                                file_info[AcquisiTags.DATA_PATH] = path
+                                file_info[AcquisiTags.BASE_PATH] = path.parent
+                                file_info[AcquisiTags.DATASET] = None
+                                entry = pd.DataFrame.from_dict([file_info])
+
+                                allFiles.append(entry)
 
             return dat_form, pd.concat(allFiles, ignore_index=True)
         else:

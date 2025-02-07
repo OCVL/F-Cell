@@ -55,6 +55,10 @@
       }
     },
     "recursive_search": true,
+    "control": {
+      "location": "folder",
+      "folder_name": "control"
+    },
     "analysis_params": {
       "modalities": ["760nm"],
       "output_folder": "Results",
@@ -83,10 +87,6 @@
         "type": "stim-relative",
         "units": "time",
         "start": -1
-      },
-      "control": {
-        "location": "folder",
-        "folder_name": "control"
       },
       "summary": {
         "method": "rms",
