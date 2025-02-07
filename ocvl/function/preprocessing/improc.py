@@ -206,7 +206,11 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
     centered_row_shifts = row_base + np.tile(centered_row_shifts[:, np.newaxis], [1, width]).astype("float32")
 
     premask_dtype = image_data.dtype
-    datmax = np.iinfo(premask_dtype).max
+
+    if premask_dtype == np.float32 or premask_dtype == np.float64:
+        datmax = 1
+    else:
+        datmax = np.iinfo(premask_dtype).max
 
     for f in range(num_frames):
         norm_frame = image_data[..., f].astype("float64") / datmax
