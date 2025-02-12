@@ -373,7 +373,9 @@ if __name__ == "__main__":
 
                     # Process all control datasets in accordance with the stimulus datasets' parameters,
                     # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
-                    if not uniform_datasets or first_run:
+                    control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
+
+                    if (not uniform_datasets or first_run) and control_datasets:
                         with (mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool):
 
                             first_run = False
@@ -381,7 +383,6 @@ if __name__ == "__main__":
                             control_pop_iORG_summary = [None] * len(stim_dataset.query_loc)
                             control_pop_iORG_summary_pooled = [None] * len(stim_dataset.query_loc)
                             control_framestamps = [None] * len(stim_dataset.query_loc)
-                            control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
 
                             pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
                                 stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
@@ -454,9 +455,9 @@ if __name__ == "__main__":
                         stim_pop_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
                         stim_framestamps = np.arange(max_frmstamp + 1)
 
-                        if sum_control == "subtraction":
+                        if sum_control == "subtraction" and control_datasets:
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary - control_pop_iORG_summary_pooled[q]
-                        elif sum_control == "division":
+                        elif sum_control == "division" and control_datasets:
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary / control_pop_iORG_summary_pooled[q]
                         elif sum_control == "none":
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary
@@ -485,7 +486,7 @@ if __name__ == "__main__":
                             if how_many > 1 and disp_cont:
                                 plt.subplot(1, how_many, ind)
                                 ind += 1
-                            if disp_cont:
+                            if disp_cont and control_datasets:
                                 plt.title("Control iORGs")
                                 for r in range(control_pop_iORG_summary[q].shape[0]):
                                     plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary[q][r, control_framestamps[q]])
