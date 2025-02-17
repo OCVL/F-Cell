@@ -271,8 +271,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     # For importing metadata RE: the stimulus delivery
     stimulus_sequence = None
     if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata:
-        stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None,
-                                      encoding="utf-8-sig").to_numpy()
+        stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None, encoding="utf-8-sig").to_numpy()
     elif MetaTags.STIMULUS_SEQ in metadata:
         stimulus_sequence = metadata.get(MetaTags.STIMULUS_SEQ)
     else:

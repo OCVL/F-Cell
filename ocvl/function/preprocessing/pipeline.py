@@ -149,6 +149,8 @@ if __name__ == "__main__":
 
                 vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
                 datasets = modevids[AcquisiTags.DATASET].to_list()
+                if not datasets:
+                    continue
                 avg_images = np.dstack([data.avg_image_data for data in datasets])
 
                 print("Selecting ideal central frame for mode and location: "+mode)
