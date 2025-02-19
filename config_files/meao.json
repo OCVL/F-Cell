@@ -32,8 +32,8 @@
         "width": -1,
         "height": -1
       },
-      "alignment_reference_modality": "CalculatedSplit",
-      "modalities": ["CalculatedSplit","DarkField"],
+      "alignment_reference_modality": "Confocal",
+      "modalities": ["DarkField"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,

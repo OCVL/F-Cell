@@ -99,26 +99,35 @@ if __name__ == "__main__":
 
         for mode in modes_of_interest:
             modevids = allData.loc[allData[DataTags.MODALITY] == mode]
+            ref_modevids = allData.loc[allData[DataTags.MODALITY] == alignment_ref_mode]
 
             vidnums = np.unique(modevids[DataTags.VIDEO_ID].to_numpy())
             for num in vidnums:
                 # Find the rows associated with this video number, and
                 # extract the rows corresponding to this acquisition.
                 acquisition = modevids.loc[modevids[DataTags.VIDEO_ID] == num]
+                ref_acquisition = ref_modevids.loc[ref_modevids[DataTags.VIDEO_ID] == num]
 
                 if (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK).sum() <= 1 and \
                         (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA).sum() <= 1 and \
                         (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO).sum() == 1:
 
                     video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
+                    ref_video_info = ref_acquisition.loc[ref_acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
 
                     dataset = initialize_and_load_dataset(acquisition, metadata_params)
 
                     if dataset is not None:
                         # Run the preprocessing pipeline on this dataset, with params specified by the json.
                         # When done, put it into the database.
-                        print("Preprocessing dataset...")
-                        allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params)
+
+                        if mode != alignment_ref_mode:
+                            print("Preprocessing dataset using reference video for alignment...")
+                            allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params,
+                                                                                                    initialize_and_load_dataset(ref_acquisition, metadata_params))
+                        else:
+                            print("Preprocessing dataset...")
+                            allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params)
 
                     else:
                         warning("Unable to load dataset specified for vidnum: "+num)
@@ -149,9 +158,10 @@ if __name__ == "__main__":
 
 
             ref_xforms=[]
+            dist_ref_idx=0
             if alignment_ref_mode is not None:
                 print("Selecting ideal central frame for REFERENCE mode and location: " + mode)
-                ref_modes = group_datasets.loc[group_datasets[DataTags.MODALITY] == "CalculatedSplit"]
+                ref_modes = group_datasets.loc[group_datasets[DataTags.MODALITY] == alignment_ref_mode]
 
                 vidnums = ref_modes[DataTags.VIDEO_ID].to_numpy()
                 datasets = ref_modes[AcquisiTags.DATASET].to_list()
@@ -244,6 +254,8 @@ if __name__ == "__main__":
                                                                                         dist_ref_idx,
                                                                                         determine_initial_shifts=True,
                                                                                         dropthresh=0.0, transformtype="affine")
+                else:
+                    central_dataset = datasets[dist_ref_idx]
 
                 # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
                 for f in range(avg_images.shape[-1]):

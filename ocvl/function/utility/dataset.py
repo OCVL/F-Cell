@@ -10,6 +10,7 @@ from tkinter import filedialog
 import cv2
 import numpy as np
 import pandas as pd
+from colorama import Fore
 from scipy.ndimage import gaussian_filter
 
 from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection
@@ -197,7 +198,7 @@ def initialize_and_load_dataset(acquisition, metadata_params):
         mask_path = None
 
     if not video_info.empty:
-        print("Initializing and loading dataset: " + video_info.at[video_info.index[0], AcquisiTags.DATA_PATH].name)
+        print(Fore.GREEN +"Initializing and loading dataset: " + video_info.at[video_info.index[0], AcquisiTags.DATA_PATH].name)
         dataset = load_dataset(video_info.at[video_info.index[0], AcquisiTags.DATA_PATH],
                                mask_path,
                                metadata_path,
@@ -282,7 +283,11 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     return Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence)
 
 
-def preprocess_dataset(dataset, pipeline_params):
+def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
+
+    if reference_dataset is None:
+        reference_dataset = dataset
+
     # First do custom preprocessing steps, e.g. things implemented expressly for and by the OCVL
     # If you would like to "bake in" custom pipeline steps, please contact the OCVL using GitHub's Issues
     # or submit a pull request.
@@ -345,8 +350,8 @@ def preprocess_dataset(dataset, pipeline_params):
         dataset.num_frames = dataset.video_data.shape[-1]
         dataset.framestamps = dataset.framestamps[(dataset.framestamps < end_idx) & (dataset.framestamps >= start_idx)]
 
-    align_dat = dataset.video_data
-    mask_dat = dataset.mask_data
+    align_dat = reference_dataset.video_data.copy()
+    mask_dat = reference_dataset.mask_data.copy()
     # Try and figure out the reference frame, if we haven't already.
     # This is based on the simple method of determining the maximum area subtended by our mask.
     if dataset.reference_frame_idx is None:
@@ -382,7 +387,7 @@ def preprocess_dataset(dataset, pipeline_params):
 
         mask_dat = mask_dat[r:r + height, c:c + width, :]
 
-    # save_tiff_stack("no.tif", align_dat)
+
     # Finally, correct for residual torsion if requested
     correct_torsion = pipeline_params.get(PipelineParams.CORRECT_TORSION)
     if correct_torsion is not None and correct_torsion:
@@ -392,7 +397,7 @@ def preprocess_dataset(dataset, pipeline_params):
 
         # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
         og_dtype = dataset.video_data.dtype
-        # save_tiff_stack("yes.tif", dataset.video_data)
+
         for f in range(dataset.num_frames):
             if inliers[f]:
                 norm_frame = dataset.video_data[..., f].astype("float32")
@@ -407,7 +412,7 @@ def preprocess_dataset(dataset, pipeline_params):
                 dataset.mask_data[..., f] = np.isfinite(norm_frame).astype(og_dtype)  # Our new mask corresponds to the real data.
                 norm_frame[np.isnan(norm_frame)] = 0  # Make anything that was nan into a 0, to be kind to non nan-types
                 dataset.video_data[..., f] = norm_frame.astype(og_dtype)
-        # save_tiff_stack("yes.tif", dataset.video_data)
+
         dataset.avg_image_data, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
 
     return dataset
@@ -488,7 +493,7 @@ class Dataset:
             self.query_coord_paths = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
             # If we don't have query locations associated with this dataset, then try to guess.
             if self.query_coord_paths is None and not self.query_loc:
-                warnings.warn("No viable query coordinate file for dataset at: " + str(self.video_path) + ". Attempting to detect...")
+
                 coordname = None
                 if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
                         self.prefix.with_name(self.prefix.name + "_coords.csv").exists():
