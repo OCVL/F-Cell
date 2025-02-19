@@ -75,6 +75,9 @@ if __name__ == "__main__":
         processed_dat_format = dat_form.get("processed")
         pipeline_params = processed_dat_format.get("pipeline_params")
         modes_of_interest = pipeline_params.get(PipelineParams.MODALITIES)
+        alignment_ref_mode = pipeline_params.get(PipelineParams.ALIGNMENT_REF_MODE)
+        if alignment_ref_mode not in modes_of_interest:
+            modes_of_interest.append(alignment_ref_mode)
 
         output_folder = pipeline_params.get(PipelineParams.OUTPUT_FOLDER)
         if output_folder is None:
@@ -144,20 +147,21 @@ if __name__ == "__main__":
 
             group_folder = output_folder.joinpath(group)
 
-            for mode in modes_of_interest:
-                modevids = group_datasets.loc[group_datasets[DataTags.MODALITY] == mode]
 
-                vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
-                datasets = modevids[AcquisiTags.DATASET].to_list()
+            ref_xforms=[]
+            if alignment_ref_mode is not None:
+                print("Selecting ideal central frame for REFERENCE mode and location: " + mode)
+                ref_modes = group_datasets.loc[group_datasets[DataTags.MODALITY] == "CalculatedSplit"]
+
+                vidnums = ref_modes[DataTags.VIDEO_ID].to_numpy()
+                datasets = ref_modes[AcquisiTags.DATASET].to_list()
                 if not datasets:
                     continue
                 avg_images = np.dstack([data.avg_image_data for data in datasets])
 
-                print("Selecting ideal central frame for mode and location: "+mode)
-
                 dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                             repeat(None),
-                                                                            np.arange(len(datasets)) ))
+                                                                            np.arange(len(datasets))))
                 shift_info = dist_res.get()
 
                 # Determine the average
@@ -182,14 +186,64 @@ if __name__ == "__main__":
                 align_dat = avg_images.copy()
                 if gausblur is not None and gausblur != 0.0:
                     for f in range(avg_images.shape[-1]):
-                        align_dat[...,f] = gaussian_filter(avg_images[...,f], sigma=gausblur)
+                        align_dat[..., f] = gaussian_filter(avg_images[..., f], sigma=gausblur)
 
                 # Align the stack of average images from all datasets
-                align_dat, ref_xforms, inliers, avg_masks  = optimizer_stack_align(align_dat,
-                                                                                    (align_dat > 0),
-                                                                                    dist_ref_idx,
-                                                                                    determine_initial_shifts=True,
-                                                                                    dropthresh=0.0, transformtype="affine")
+                align_dat, ref_xforms, inliers, avg_masks = optimizer_stack_align(align_dat,
+                                                                                  (align_dat > 0),
+                                                                                  dist_ref_idx,
+                                                                                  determine_initial_shifts=True,
+                                                                                  dropthresh=0.0,
+                                                                                  transformtype="affine")
+
+            for mode in modes_of_interest:
+
+                modevids = group_datasets.loc[group_datasets[DataTags.MODALITY] == mode]
+
+                vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
+                datasets = modevids[AcquisiTags.DATASET].to_list()
+                if not datasets:
+                    continue
+                avg_images = np.dstack([data.avg_image_data for data in datasets])
+
+                if alignment_ref_mode is None:
+                    print("Selecting ideal central frame for mode and location: "+mode)
+
+                    dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
+                                                                                repeat(None),
+                                                                                np.arange(len(datasets)) ))
+                    shift_info = dist_res.get()
+
+                    # Determine the average
+                    avg_loc_dist = np.zeros(len(shift_info))
+                    f = 0
+                    for allshifts in shift_info:
+                        allshifts = np.stack(allshifts)
+                        allshifts **= 2
+                        allshifts = np.sum(allshifts, axis=1)
+                        avg_loc_dist[f] = np.mean(np.sqrt(allshifts))  # Find the average distance to this reference.
+                        f += 1
+
+                    avg_loc_idx = np.argsort(avg_loc_dist)
+                    dist_ref_idx = avg_loc_idx[0]
+
+                    print("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
+
+                    central_dataset = datasets[dist_ref_idx]
+
+                    # Gaussian blur the data first before aligning, if requested
+                    gausblur = pipeline_params.get(PipelineParams.GAUSSIAN_BLUR)
+                    align_dat = avg_images.copy()
+                    if gausblur is not None and gausblur != 0.0:
+                        for f in range(avg_images.shape[-1]):
+                            align_dat[...,f] = gaussian_filter(avg_images[...,f], sigma=gausblur)
+
+                    # Align the stack of average images from all datasets
+                    align_dat, ref_xforms, inliers, avg_masks  = optimizer_stack_align(align_dat,
+                                                                                        (align_dat > 0),
+                                                                                        dist_ref_idx,
+                                                                                        determine_initial_shifts=True,
+                                                                                        dropthresh=0.0, transformtype="affine")
 
                 # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
                 for f in range(avg_images.shape[-1]):
@@ -204,7 +258,6 @@ if __name__ == "__main__":
 
                 # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
                 # pipeline filename structure.
-
 
                 # Determine the filename for the superaverage using the central-most dataset.
                 pipelined_dat_format = dat_form.get("pipelined")

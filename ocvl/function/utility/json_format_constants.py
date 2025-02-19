@@ -61,6 +61,7 @@ class PipelineParams(StrEnum):
     MASK_ROI = "mask_roi",
     TRIM = "trim",
     MODALITIES = "modalities",
+    ALIGNMENT_REF_MODE = "alignment_reference_modality",
     CORRECT_TORSION = "correct_torsion",
     CUSTOM = "custom"
     OUTPUT_FOLDER = "output_folder"

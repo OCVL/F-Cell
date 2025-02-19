@@ -16,8 +16,7 @@ from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_
 from ocvl.function.utility.format_parser import FormatParser
 from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, PipelineParams, \
     ControlParams
-from ocvl.function.utility.resources import load_video, save_video
-
+from ocvl.function.utility.resources import load_video, save_video, save_tiff_stack
 
 stimseq_fName = None
 
@@ -231,8 +230,8 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
         if mask_path.exists():
             mask_res = load_video(mask_path)
             mask_data = mask_res.data / mask_res.data.max()
-            mask_data[mask_data < 0] = 0
-            mask_data[mask_data > 1] = 1
+            mask_data[mask_data <= 0] = 0
+            mask_data[mask_data > 0] = 1
             # Mask our video data correspondingly.
             premask_dtype = video_data.dtype
             video_data = (video_data * mask_data).astype(premask_dtype)
@@ -383,6 +382,7 @@ def preprocess_dataset(dataset, pipeline_params):
 
         mask_dat = mask_dat[r:r + height, c:c + width, :]
 
+    # save_tiff_stack("no.tif", align_dat)
     # Finally, correct for residual torsion if requested
     correct_torsion = pipeline_params.get(PipelineParams.CORRECT_TORSION)
     if correct_torsion is not None and correct_torsion:
@@ -392,6 +392,7 @@ def preprocess_dataset(dataset, pipeline_params):
 
         # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
         og_dtype = dataset.video_data.dtype
+        # save_tiff_stack("yes.tif", dataset.video_data)
         for f in range(dataset.num_frames):
             if inliers[f]:
                 norm_frame = dataset.video_data[..., f].astype("float32")
@@ -406,7 +407,7 @@ def preprocess_dataset(dataset, pipeline_params):
                 dataset.mask_data[..., f] = np.isfinite(norm_frame).astype(og_dtype)  # Our new mask corresponds to the real data.
                 norm_frame[np.isnan(norm_frame)] = 0  # Make anything that was nan into a 0, to be kind to non nan-types
                 dataset.video_data[..., f] = norm_frame.astype(og_dtype)
-
+        # save_tiff_stack("yes.tif", dataset.video_data)
         dataset.avg_image_data, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
 
     return dataset

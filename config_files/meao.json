@@ -32,7 +32,8 @@
         "width": -1,
         "height": -1
       },
-      "modalities": ["Confocal", "Direct", "Reflected"],
+      "alignment_reference_modality": "CalculatedSplit",
+      "modalities": ["CalculatedSplit","DarkField"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
@@ -60,7 +61,7 @@
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": ["Confocal", "Direct", "Reflected"],
+      "modalities": ["Direct", "Reflected"],
       "output_folder": "Results",
       "normalization": {
         "method": "score",
