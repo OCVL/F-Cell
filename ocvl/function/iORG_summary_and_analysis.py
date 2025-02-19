@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset
+from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, PipeStages
 from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataFormatType, DataTags, AcquisiTags, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
     MetricTags
@@ -214,7 +214,7 @@ if __name__ == "__main__":
                     pb["value"] = v
 
                     # Actually load the dataset, and all its metadata.
-                    dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params)
+                    dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params, stage=PipeStages.PIPELINED)
 
                     if dataset is not None:
                         # Normalize the video to reduce the influence of framewide intensity changes
@@ -459,7 +459,7 @@ if __name__ == "__main__":
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary - control_pop_iORG_summary_pooled[q]
                         elif sum_control == "division" and control_datasets:
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary / control_pop_iORG_summary_pooled[q]
-                        elif sum_control == "none":
+                        elif sum_control == "none" or not control_datasets:
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary
 
                         ''' This section is for display of the above iORG summaries, as specified by the user. '''
@@ -836,28 +836,29 @@ if __name__ == "__main__":
                             plt.show(block=False)
 
 
-                        label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
-                        plt.figure(label)
-                        display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = label
-                        refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
-                        plt.title(label)
-                        plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
-                        viability = all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"]
-
-                        viable = []
-                        nonviable = []
-                        for coords, viability in viability.items():
-                            if viability:
-                                viable.append(coords)
-                            else:
-                                nonviable.append(coords)
-
-                        viable = np.array(viable)
-                        nonviable = np.array(nonviable)
-                        plt.scatter(viable[:, 0], viable[:, 1], s=7, c="c")
-                        if nonviable.size >0:
-                            plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
-                        plt.show(block=False)
+                        # label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
+                        # plt.figure(label)
+                        # display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = label
+                        # refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
+                        # plt.title(label)
+                        # plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
+                        # viability = all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"]
+                        #
+                        # viable = []
+                        # nonviable = []
+                        # for coords, viability in viability.items():
+                        #     if viability:
+                        #         viable.append(coords)
+                        #     else:
+                        #         nonviable.append(coords)
+                        #
+                        # viable = np.array(viable)
+                        # nonviable = np.array(nonviable)
+                        # if viable.size > 0:
+                        #     plt.scatter(viable[:, 0], viable[:, 1], s=7, c="c")
+                        # if nonviable.size >0:
+                        #     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
+                        # plt.show(block=False)
 
                     all_query_status[folder][mode][q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.name) + "_" + str(mode) +
                                                "_" + query_loc_names[q] + "coords.csv"))

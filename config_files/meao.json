@@ -32,7 +32,7 @@
         "width": -1,
         "height": -1
       },
-      "alignment_reference_modality": "Confocal",
+      "alignment_reference_modality": "CalculatedSplit",
       "modalities": ["DarkField"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
@@ -61,7 +61,7 @@
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": ["Direct", "Reflected"],
+      "modalities": ["Confocal"],
       "output_folder": "Results",
       "normalization": {
         "method": "score",
@@ -116,15 +116,15 @@
         "relative": true
       },
       "pop_summary_seq": {
-        "stimulus": true,
-        "relative": true,
+        "stimulus": false,
+        "relative": false,
         "num_in_seq": 8
       },
       "indiv_summary": {
-        "overlap": true,
-        "histogram": true,
-        "cumulative_histogram": true,
-        "map_overlay": true
+        "overlap": false,
+        "histogram": false,
+        "cumulative_histogram": false,
+        "map_overlay": false
       },
       "saveas": ["png", "svg"],
       "pause_per_folder": true

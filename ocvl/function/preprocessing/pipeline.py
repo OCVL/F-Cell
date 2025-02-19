@@ -25,6 +25,8 @@ import numpy as np
 import multiprocessing as mp
 from tkinter import *
 from tkinter import filedialog, ttk
+
+from colorama import Fore
 from scipy.ndimage import gaussian_filter
 import pandas as pd
 
@@ -122,12 +124,14 @@ if __name__ == "__main__":
                         # When done, put it into the database.
 
                         if mode != alignment_ref_mode:
-                            print("Preprocessing dataset using reference video for alignment...")
+                            print(Fore.WHITE + "Preprocessing dataset using reference video for alignment...")
                             allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params,
                                                                                                     initialize_and_load_dataset(ref_acquisition, metadata_params))
+                            print()
                         else:
-                            print("Preprocessing dataset...")
+                            print(Fore.WHITE + "Preprocessing dataset...")
                             allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params)
+                            print()
 
                     else:
                         warning("Unable to load dataset specified for vidnum: "+num)

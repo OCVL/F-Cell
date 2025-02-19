@@ -158,7 +158,7 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
         else:
             return None
 
-def initialize_and_load_dataset(acquisition, metadata_params):
+def initialize_and_load_dataset(acquisition, metadata_params, stage=PipeStages.PROCESSED):
 
     video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
     mask_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK]
@@ -202,7 +202,8 @@ def initialize_and_load_dataset(acquisition, metadata_params):
         dataset = load_dataset(video_info.at[video_info.index[0], AcquisiTags.DATA_PATH],
                                mask_path,
                                metadata_path,
-                               combined_meta_dict)
+                               combined_meta_dict,
+                               stage)
     else:
         warnings.warn("Failed to detect dataset.")
         dataset = None
@@ -210,7 +211,7 @@ def initialize_and_load_dataset(acquisition, metadata_params):
     return dataset
 
 
-def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None):
+def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None, stage=PipeStages.PROCESSED):
 
     mask_data = None
     metadata = dataset_metadata
@@ -274,13 +275,13 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
         stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None, encoding="utf-8-sig").to_numpy()
     elif MetaTags.STIMULUS_SEQ in metadata:
         stimulus_sequence = metadata.get(MetaTags.STIMULUS_SEQ)
-    else:
+    elif stage == PipeStages.PIPELINED:
         if Dataset.stimseq_fName is None:
             Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
         stimulus_sequence = np.cumsum(pd.read_csv(Dataset.stimseq_fName, header=None,encoding="utf-8-sig").to_numpy())
 
 
-    return Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence)
+    return Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)
 
 
 def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
