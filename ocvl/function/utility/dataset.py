@@ -198,6 +198,7 @@ def initialize_and_load_dataset(acquisition, metadata_params, stage=PipeStages.P
         mask_path = None
 
     if not video_info.empty:
+        print()
         print(Fore.GREEN +"Initializing and loading dataset: " + video_info.at[video_info.index[0], AcquisiTags.DATA_PATH].name)
         dataset = load_dataset(video_info.at[video_info.index[0], AcquisiTags.DATA_PATH],
                                mask_path,

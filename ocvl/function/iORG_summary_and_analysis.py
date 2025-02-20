@@ -459,7 +459,7 @@ if __name__ == "__main__":
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary - control_pop_iORG_summary_pooled[q]
                         elif sum_control == "division" and control_datasets:
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary / control_pop_iORG_summary_pooled[q]
-                        elif sum_control == "none" or not control_datasets:
+                        else:
                             stim_dataset.summarized_iORGs[q] = stim_pop_summary
 
                         ''' This section is for display of the above iORG summaries, as specified by the user. '''
@@ -480,7 +480,7 @@ if __name__ == "__main__":
                                 ind += 1
                             if disp_stim:
                                 plt.title("Stimulus iORG")
-                                plt.plot(stim_framestamps / stim_dataset.framerate, stim_pop_summary)
+                                plt.plot(stim_framestamps / stim_dataset.framerate, stim_pop_summary, label=str(stim_vidnum))
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
                             if how_many > 1 and disp_cont:
@@ -498,10 +498,11 @@ if __name__ == "__main__":
                                 ind += 1
                             if disp_rel:
                                 plt.title("Stimulus relative to control iORG via " + sum_control)
-                                plt.plot(stim_framestamps/stim_dataset.framerate, stim_dataset.summarized_iORGs[q])
+                                plt.plot(stim_framestamps/stim_dataset.framerate, stim_dataset.summarized_iORGs[q], label=str(stim_vidnum))
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
 
+                            plt.legend()
                             plt.show(block=False)
 
                         # This shows all summaries in temporal sequence.
@@ -715,11 +716,11 @@ if __name__ == "__main__":
                                                                                        summary_method=sum_method,
                                                                                        window_size=sum_window)
 
-                                if sum_control == "subtraction":
+                                if sum_control == "subtraction" and control_datasets:
                                     stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] - control_pop_iORG_summary_pooled[q]
-                                elif sum_control == "division":
+                                elif sum_control == "division" and control_datasets:
                                     stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] / control_pop_iORG_summary_pooled[q]
-                                elif sum_control == "none":
+                                else:
                                     stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :]
 
                                 if indiv_summary_params.get(DisplayParams.OVERLAP):

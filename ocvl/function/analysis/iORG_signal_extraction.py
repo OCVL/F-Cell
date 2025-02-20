@@ -2,6 +2,7 @@ import warnings
 
 import cv2
 import numpy as np
+from colorama import Fore
 from matplotlib import pyplot as plt
 from numpy.polynomial import Polynomial
 
@@ -10,20 +11,61 @@ from skimage.morphology import disk
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
-    SummaryParams
+    SummaryParams, PipelineParams
 from scipy.spatial.distance import pdist, squareform
 
 def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stimtrain_frame_stamps=None):
 
     if query_loc is None:
-        query_loc= dataset.query_loc[0]
+        query_loc= dataset.query_loc[0].copy()
 
     if stimtrain_frame_stamps is None:
         stimtrain_frame_stamps = dataset.stimtrain_frame_stamps
 
-    # Round the query locations
+    query_status = np.full(query_loc.shape[0], "Included", dtype=object)
+    valid_signals = np.full((query_loc.shape[0]), True)
 
-    query_loc = np.round(query_loc)
+
+    # If the user has a mask definition, then make sure we invalidate cells outside of it.
+    mask_roi = analysis_params.get(PipelineParams.MASK_ROI)
+    if mask_roi is not None:
+        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
+
+        r = mask_roi.get("r")
+        c = mask_roi.get("c")
+        width = mask_roi.get("width")
+        height = mask_roi.get("height")
+
+        # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded before analysis.
+        pluscoord = query_loc.copy()
+        pluscoord[:, 0] = pluscoord[:, 0] + c
+        pluscoord[:, 1] = pluscoord[:, 1] + r
+        valid = pluscoord[:, 0] < width
+        valid &= pluscoord[:, 1] < height
+        excl_reason[pluscoord[:, 0] >= width] = "Outside of user selected ROI (right side)"
+        excl_reason[pluscoord[:, 1] >= height] = "Outside of user selected ROI (bottom side)"
+        del pluscoord
+
+        minuscoord = query_loc.copy()
+        minuscoord[:, 0] = minuscoord[:, 0] - c
+        minuscoord[:, 1] = minuscoord[:, 1] - r
+        valid &= minuscoord[:, 0] >= 0
+        valid &= minuscoord[:, 1] >= 0
+        excl_reason[minuscoord[:, 0] < 0] = "Outside of user selected ROI (left side)"
+        excl_reason[minuscoord[:, 1] < 0] = "Outside of user selected ROI (top side)"
+        del minuscoord
+
+    else:
+        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
+        valid = np.full((query_loc.shape[0]), True)
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    # Round the query locations
+    query_loc = np.round(query_loc.copy())
     og = query_loc.copy()
 
     # Snag all of our parameter dictionaries that we'll use here.
@@ -49,9 +91,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
     sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
-
-    query_status = np.full(query_loc.shape[0], "Included", dtype=object)
-    valid_signals = np.full((query_loc.shape[0]), True)
 
     if seg_params.get(SegmentParams.REFINE_TO_REF, True):
         query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc.copy())
@@ -154,6 +193,10 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
                                                                      summary_method=sum_method,
                                                                      window_size=sum_window)
 
+    # Wipe out the signals of the invalid signals.
+    iORG_signals[~valid_signals, :] = np.nan
+    print(Fore.YELLOW+str(np.sum(~valid_signals)) + "/" + str(valid_signals.shape[0]) + " cells were removed from consideration.")
+
     return iORG_signals, summarized_iORG, query_status, query_loc
 
 
@@ -165,14 +208,14 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
     query_status = np.full(coordinates.shape[0], "Included", dtype=object)
 
     # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded before analysis.
-    pluscoord = coordinates + search_radius*2*numiter # Include extra region to avoid edge effects
+    pluscoord = coordinates.copy() + search_radius*2*numiter # Include extra region to avoid edge effects
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
     query_status[pluscoord[:, 0] >= im_size[1]] = "Reference refinement area outside image bounds (right side)"
     query_status[pluscoord[:, 1] >= im_size[0]] = "Reference refinement area outside image bounds (bottom side)"
     del pluscoord
 
-    minuscoord = coordinates - search_radius*2*numiter # Include extra region to avoid edge effects
+    minuscoord = coordinates.copy() - search_radius*2*numiter # Include extra region to avoid edge effects
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
     query_status[minuscoord[:, 0] < 0] = "Reference refinement area outside image bounds (left side)"
@@ -216,14 +259,14 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
     query_status = np.full(coordinates.shape[0], "Included", dtype=object)
 
     # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded from refinement.
-    pluscoord = coordinates + search_region
+    pluscoord = coordinates.copy() + search_region
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
     query_status[pluscoord[:, 0] >= im_size[1]] = "Stack refinement area outside image bounds (right side)"
     query_status[pluscoord[:, 1] >= im_size[0]] = "Stack refinement area outside image bounds (bottom side)"
     del pluscoord
 
-    minuscoord = coordinates - search_region
+    minuscoord = coordinates.copy() - search_region
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
     query_status[minuscoord[:, 0] < 0] = "Stack refinement area outside image bounds (left side)"
@@ -287,14 +330,14 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 
     query_status = np.full(coordinates.shape[0], "Included", dtype=object)
 
-    pluscoord = coordinates + seg_radius
+    pluscoord = coordinates.copy() + seg_radius
     includelist = pluscoord[:, 0] < im_size[1]
     includelist &= pluscoord[:, 1] < im_size[0]
     query_status[pluscoord[:, 0] >= im_size[1]] = "Segmentation outside image bounds (right side)"
     query_status[pluscoord[:, 1] >= im_size[0]] = "Segmentation outside image bounds (bottom side)"
     del pluscoord
 
-    minuscoord = coordinates - seg_radius
+    minuscoord = coordinates.copy() - seg_radius
     includelist &= minuscoord[:, 0] >= 0
     includelist &= minuscoord[:, 1] >= 0
     query_status[minuscoord[:, 0] < 0] = "Segmentation outside image bounds (left side)"
@@ -433,8 +476,8 @@ def exclude_signals(temporal_signals, framestamps,
                 query_status[i] = "Incomplete profile, and the function req. full profiles."
                 crit_remove += 1
 
-    if critical_region is not None or require_full_signal:
-        print(str(crit_remove) + "/" + str(temporal_signals.shape[0]) + " cells were cleared due to missing data at stimulus delivery.")
+    # if critical_region is not None or require_full_signal:
+    #     print(str(crit_remove) + "/" + str(temporal_signals.shape[0]) + " cells were cleared due to missing data at stimulus delivery.")
 
     return temporal_signals, good_profiles, query_status
 
