@@ -31,10 +31,18 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     if mask_roi is not None:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
 
-        r = mask_roi.get("r")
-        c = mask_roi.get("c")
-        width = mask_roi.get("width")
-        height = mask_roi.get("height")
+        r = mask_roi.get("r", -1)
+        c = mask_roi.get("c", -1)
+        width = mask_roi.get("width", -1)
+        height = mask_roi.get("height", -1)
+        if r == -1:
+            r = 0
+        if c == -1:
+            c = 0
+        if width == -1:
+            width = np.amax(query_loc[:, 0])
+        if height == -1:
+            height = np.amax(query_loc[:, 1])
 
         # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded before analysis.
         pluscoord = query_loc.copy()

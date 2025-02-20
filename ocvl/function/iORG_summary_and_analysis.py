@@ -8,6 +8,7 @@ from tkinter import Tk, filedialog, ttk, HORIZONTAL, messagebox
 import cv2
 import numpy as np
 import pandas as pd
+from colorama import Fore
 from matplotlib import pyplot as plt
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
@@ -157,7 +158,7 @@ if __name__ == "__main__":
         else:
             group_datasets = allData
 
-        group_datasets.loc[:,AcquisiTags.STIM_PRESENT] = False
+        group_datasets[AcquisiTags.STIM_PRESENT] = False
         reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
         query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
         only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
@@ -252,7 +253,7 @@ if __name__ == "__main__":
                             mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
                         pb.update()
                         pb_label.update()
-                        print("Processing query file " + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,Path())[q].name) +
+                        print(Fore.WHITE +"Processing query file " + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,Path())[q].name) +
                               " in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
                               + str(group) + " and folder " + folder.name + "...")
 
@@ -389,7 +390,7 @@ if __name__ == "__main__":
                                 group) + " and folder " + folder.name + "..."
                             pb.update()
                             pb_label.update()
-                            print("Processing query files in control datasets for stim video " + str(
+                            print(Fore.GREEN+"Processing query files in control datasets for stim video " + str(
                                 stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
                                 group) + " and folder " + folder.name + "...")
 
