@@ -123,7 +123,7 @@ if __name__ == "__main__":
                         # Run the preprocessing pipeline on this dataset, with params specified by the json.
                         # When done, put it into the database.
 
-                        if mode != alignment_ref_mode:
+                        if alignment_ref_mode is not None and mode != alignment_ref_mode:
                             print(Fore.WHITE + "Preprocessing dataset using reference video for alignment...")
                             allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params,
                                                                                                     initialize_and_load_dataset(ref_acquisition, metadata_params))
