@@ -508,9 +508,9 @@ class Dataset:
                             coordname = filename
 
                 if coordname is None and stage is PipeStages.PIPELINED:
-                    warnings.warn("Unable to detect viable coordinate file for dataset at: "+ str(self.video_path))
+                    warnings.warn("Unable to detect viable query location file for dataset at: "+ str(self.video_path))
                 elif stage is PipeStages.PIPELINED:
-                    warnings.warn("Success! Detected "+str(coordname))
+                    print(Fore.YELLOW+"Automatically detected the query locations: "+str(coordname))
                     self.query_coord_paths = coordname
                     match self.query_coord_paths.suffix:
                         case ".csv":

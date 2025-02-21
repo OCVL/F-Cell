@@ -78,7 +78,7 @@ class SegmentParams(StrEnum):
     NAME = "segmentation"
     REFINE_TO_REF = "refine_to_ref"
     REFINE_TO_VID = "refine_to_vid"
-    RADIUS = "auto"
+    RADIUS = "radius"
     SHAPE = "disk"
     SUMMARY = "mean"
 

@@ -484,16 +484,19 @@ if __name__ == "__main__":
                                 plt.plot(stim_framestamps / stim_dataset.framerate, stim_pop_summary, label=str(stim_vidnum))
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
+                                # plt.xlim((0, 4))
                             if how_many > 1 and disp_cont:
                                 plt.subplot(1, how_many, ind)
                                 ind += 1
-                            if disp_cont and control_datasets:
+                            if disp_cont and control_datasets and plt.gca().get_title() != "Control iORGs": # The last bit ensures we don't spam the subplots with control data.
                                 plt.title("Control iORGs")
                                 for r in range(control_pop_iORG_summary[q].shape[0]):
-                                    plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary[q][r, control_framestamps[q]])
+                                    plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary[q][r, control_framestamps[q]], label=str(control_vidnums[r]))
                                 plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary_pooled[q][control_framestamps[q]], 'k--', linewidth=4)
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
+                                # plt.xlim((0, 4))
+                                plt.legend()
                             if how_many > 1 and disp_rel:
                                 plt.subplot(1, how_many, ind)
                                 ind += 1
@@ -502,6 +505,7 @@ if __name__ == "__main__":
                                 plt.plot(stim_framestamps/stim_dataset.framerate, stim_dataset.summarized_iORGs[q], label=str(stim_vidnum))
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
+                                # plt.xlim((0, 4))
 
                             plt.legend()
                             plt.show(block=False)
