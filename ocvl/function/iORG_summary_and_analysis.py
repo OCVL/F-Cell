@@ -355,8 +355,6 @@ if __name__ == "__main__":
 
                 if uniform_datasets:
                     stim_iORG_signals = [None] * len(all_locs)
-                    for q in range(len(all_locs)):
-                        stim_iORG_signals[q] = np.full((len(stim_datasets), all_locs[q].shape[0], max_frmstamp + 1), np.nan)
 
 
                 # Load each dataset (delineated by different video numbers), and process it relative to the control data.
@@ -380,10 +378,12 @@ if __name__ == "__main__":
                         with (mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool):
 
                             first_run = False
+                            control_iORG_signals = [None] * len(stim_dataset.query_loc)
                             control_iORG_summary = [None] * len(stim_dataset.query_loc)
                             control_pop_iORG_summary = [None] * len(stim_dataset.query_loc)
                             control_pop_iORG_summary_pooled = [None] * len(stim_dataset.query_loc)
                             control_framestamps = [None] * len(stim_dataset.query_loc)
+                            control_framestamps_pooled = [None] * len(stim_dataset.query_loc)
 
                             pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
                                 stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
@@ -419,12 +419,12 @@ if __name__ == "__main__":
 
                                 control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
                                 control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                control_iORG_signals = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
+                                control_iORG_sigs = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
 
-                                for c, control_data in enumerate(control_datasets):
-                                    control_pop_iORG_N[c, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
-                                    control_iORG_signals[c, :, control_data.framestamps] = control_data.iORG_signals[q].T
-                                    control_pop_iORG_summaries[c, control_data.framestamps] = control_data.summarized_iORGs[q]
+                                for cd, control_data in enumerate(control_datasets):
+                                    control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
+                                    control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
+                                    control_pop_iORG_summaries[cd, control_data.framestamps] = control_data.summarized_iORGs[q]
 
                                 # Summarize each of the cells' iORGs
                                 # *** Removed for now, may add later.
@@ -438,11 +438,16 @@ if __name__ == "__main__":
                                 #                                                                np.arange(max_frmstamp + 1),
                                 #                                                                summary_method=sum_method,
                                 #                                                                window_size=sum_window)
-
+                                control_iORG_signals[q] = control_iORG_sigs
                                 control_pop_iORG_summary[q] = control_pop_iORG_summaries
+                                control_framestamps[q] = []
+                                for r in range(control_pop_iORG_summary[q].shape[0]):
+                                    control_framestamps[q].append(np.flatnonzero(np.isfinite(control_pop_iORG_summaries[r, :])))
+
                                 control_pop_iORG_summary_pooled[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
                                                                                axis=0) / np.nansum(control_pop_iORG_N, axis=0)
-                                control_framestamps[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary_pooled[q]))
+                                control_framestamps_pooled[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary_pooled[q]))
+
 
                                 # First write the control data to a file.
                                 control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.name) + "_" + str(mode) +
@@ -480,8 +485,9 @@ if __name__ == "__main__":
                                 plt.subplot(1, how_many, ind)
                                 ind += 1
                             if disp_stim:
+                                dispinds = np.isfinite(stim_pop_summary)
                                 plt.title("Stimulus iORG")
-                                plt.plot(stim_framestamps / stim_dataset.framerate, stim_pop_summary, label=str(stim_vidnum))
+                                plt.plot(stim_framestamps[dispinds] / stim_dataset.framerate, stim_pop_summary[dispinds], label=str(stim_vidnum))
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
                                 # plt.xlim((0, 4))
@@ -491,8 +497,8 @@ if __name__ == "__main__":
                             if disp_cont and control_datasets and plt.gca().get_title() != "Control iORGs": # The last bit ensures we don't spam the subplots with control data.
                                 plt.title("Control iORGs")
                                 for r in range(control_pop_iORG_summary[q].shape[0]):
-                                    plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary[q][r, control_framestamps[q]], label=str(control_vidnums[r]))
-                                plt.plot(control_framestamps[q] / stim_dataset.framerate, control_pop_iORG_summary_pooled[q][control_framestamps[q]], 'k--', linewidth=4)
+                                    plt.plot(control_framestamps[q][r] / stim_dataset.framerate, control_pop_iORG_summary[q][r, control_framestamps[q][r]], label=str(control_vidnums[r]))
+                                plt.plot(control_framestamps_pooled[q] / stim_dataset.framerate, control_pop_iORG_summary_pooled[q][control_framestamps_pooled[q]], 'k--', linewidth=4)
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
                                 # plt.xlim((0, 4))
@@ -501,8 +507,9 @@ if __name__ == "__main__":
                                 plt.subplot(1, how_many, ind)
                                 ind += 1
                             if disp_rel:
+                                dispinds = np.isfinite(stim_dataset.summarized_iORGs[q])
                                 plt.title("Stimulus relative to control iORG via " + sum_control)
-                                plt.plot(stim_framestamps/stim_dataset.framerate, stim_dataset.summarized_iORGs[q], label=str(stim_vidnum))
+                                plt.plot(stim_framestamps[dispinds]/stim_dataset.framerate, stim_dataset.summarized_iORGs[q][dispinds], label=str(stim_vidnum))
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
                                 # plt.xlim((0, 4))
@@ -605,9 +612,9 @@ if __name__ == "__main__":
                     pooled_framerate = np.full((len(stim_datasets),), np.nan)
                     iORG_frmstmp = np.arange(max_frmstamp + 1)
 
-                    stim_iORG_summaries = []
+
                     if uniform_datasets:
-                        stim_iORG_summaries = np.full((len(stim_datasets), stim_datasets[0].query_loc[q].shape[0], max_frmstamp + 1), np.nan)
+                        stim_iORG_signals[q] = np.full((len(stim_datasets), stim_datasets[0].query_loc[q].shape[0], max_frmstamp + 1), np.nan)
                         stim_iORG_summary[q] = np.full((stim_datasets[0].query_loc[q].shape[0], max_frmstamp + 1), np.nan)
 
                     for d, stim_dataset in enumerate(stim_datasets):
@@ -618,7 +625,7 @@ if __name__ == "__main__":
                         # If all stimulus datasets are uniform,
                         # we can also summarize individual iORGs by combining a cells' iORGs across acquisitions.
                         if uniform_datasets:
-                            stim_iORG_summaries[d, :, stim_dataset.framestamps] = stim_dataset.iORG_signals[q].T
+                            stim_iORG_signals[q][d, :, stim_dataset.framestamps] = stim_dataset.iORG_signals[q].T
 
                     pooled_framerate = np.unique(pooled_framerate)
                     if len(pooled_framerate) != 1:
@@ -631,6 +638,29 @@ if __name__ == "__main__":
 
                     stimtrain = stimtrain[0]
 
+                    # Debug - to look at individual cell raw traces.
+                    query_ind = "none"
+                    if query_ind == query_loc_names[q]:
+                        for c in range(stim_iORG_signals[q].shape[1]):
+
+                            cell_loc = stim_datasets[0].query_loc[q][c,:]
+                            avg_image = stim_datasets[0].avg_image_data
+                            plt.figure("Debug: View raw cell signals for cell: "+str(c)+ " at: " + str(cell_loc))
+                            plt.subplot(1,2,1)
+                            plt.imshow(avg_image, cmap='gray')
+                            plt.plot(cell_loc[0], cell_loc[1], "r*", markersize=6)
+                            plt.subplot(1,2,2)
+                            for s in range(stim_iORG_signals[q][:, c, :].shape[0]):
+                                sig = stim_iORG_signals[q][s, c, :]
+                                plt.plot(iORG_frmstmp[np.isfinite(sig)]/pooled_framerate, sig[np.isfinite(sig)])
+                            for s in range(control_iORG_signals[q][:, c, :].shape[0]):
+                                sig = control_iORG_signals[q][s, c, :]
+                                plt.plot(iORG_frmstmp[np.isfinite(sig)] / pooled_framerate, sig[np.isfinite(sig)], 'k')
+                            plt.xlim((1,5))
+                            plt.ylim((-150,150))
+                            plt.show(block=False)
+                            plt.waitforbuttonpress()
+                            plt.close()
 
                     ''' *** Pool the summarized population iORGs *** '''
                     with warnings.catch_warnings():
@@ -711,15 +741,15 @@ if __name__ == "__main__":
                             plt.figure(overlap_label)
                             display_dict[mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
 
-                        for c in range(stim_iORG_summaries.shape[1]):
-                            tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_summaries[:, c, :]), axis=1))
+                        for c in range(stim_iORG_signals[q].shape[1]):
+                            tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q][:, c, :]), axis=1))
                             idx = all_query_status[folder][mode][q].index[c]
                             all_query_status[folder][mode][q].loc[idx, "Num Viable iORGs"] = tot_sig
 
                             # If we have more signals than our cutoff, then continue with the summary.
                             if tot_sig >= sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
                                 all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = True
-                                stim_iORG_summary[q][c, :], _ = summarize_iORG_signals(stim_iORG_summaries[:, c, :], all_frmstmp,
+                                stim_iORG_summary[q][c, :], _ = summarize_iORG_signals(stim_iORG_signals[q][:, c, :], all_frmstmp,
                                                                                        summary_method=sum_method,
                                                                                        window_size=sum_window)
 

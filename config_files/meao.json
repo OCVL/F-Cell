@@ -32,11 +32,13 @@
         "width": -1,
         "height": -1
       },
-      "alignment_reference_modality": "CalculatedSplit",
-      "modalities": ["DarkField"],
+      "alignment_reference_modality": null,
+      "modalities": ["Confocal"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
+      "intra_stack_xform": "affine",
+      "inter_stack_xform": "affine",
       "flat_field": false,
       "custom": {
         "dewarp": "ocvl"
@@ -70,9 +72,9 @@
         "rescale_std": 35
       },
       "segmentation": {
-        "refine_to_ref": true,
-        "refine_to_vid": true,
-        "radius": "auto",
+        "refine_to_ref": false,
+        "refine_to_vid": false,
+        "radius": 1,
         "shape": "disk",
         "summary": "mean"
       },
@@ -81,17 +83,17 @@
         "units": "time",
         "start": -0.2,
         "stop": 0.2,
-        "fraction": 0.5
+        "fraction": 0.2
       },
       "standardization": {
         "method": "mean_sub",
         "type": "stim-relative",
         "units": "time",
-        "start": -1
+        "start": -2
       },
       "summary": {
         "method": "rms",
-        "control": "subtraction",
+        "control": "none",
         "metrics": {
           "type": ["aur", "amplitude", "imp_time", "rec_amp"],
           "measured": "stim-relative",

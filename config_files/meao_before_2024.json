@@ -59,7 +59,7 @@
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": ["760nm"],
+      "modalities": ["DarkField", "Direct"],
       "output_folder": "Results",
       "normalization": {
         "method": "score",
@@ -69,8 +69,8 @@
       },
       "segmentation": {
         "refine_to_ref": true,
-        "refine_to_vid": true,
-        "radius": "auto",
+        "refine_to_vid": false,
+        "radius": 2,
         "shape": "disk",
         "summary": "mean"
       },
@@ -85,7 +85,7 @@
         "method": "mean_sub",
         "type": "stim-relative",
         "units": "time",
-        "start": -1
+        "start": -2
       },
       "summary": {
         "method": "rms",
@@ -101,8 +101,8 @@
       },
       "gaus_blur": 0.0,
       "mask_roi": {
-        "r": 0,
-        "c": 0,
+        "r": -1,
+        "c": -1,
         "width": -1,
         "height": -1
       }
@@ -114,15 +114,15 @@
         "relative": true
       },
       "pop_summary_seq": {
-        "stimulus": true,
-        "relative": true,
+        "stimulus": false,
+        "relative": false,
         "num_in_seq": 8
       },
       "indiv_summary": {
-        "overlap": true,
-        "histogram": true,
-        "cumulative_histogram": true,
-        "map_overlay": true
+        "overlap": false,
+        "histogram": false,
+        "cumulative_histogram": false,
+        "map_overlay": false
       },
       "saveas": ["png", "svg"],
       "pause_per_folder": true
