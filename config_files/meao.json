@@ -54,7 +54,7 @@
       "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_piped.csv",
       "fields_to_load": {
         "framestamps": "FrameStamps",
-        "stim_train": "StimulusOn"
+        "stimulus_sequence": "StimulusOn"
       }
     },
     "recursive_search": true,
