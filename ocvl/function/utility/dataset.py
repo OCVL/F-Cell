@@ -335,10 +335,10 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
 
                     # Dewarp our mask too.
                     for f in range(dataset.num_frames):
-                        # norm_frame = dataset.video_data[..., f].astype("float32") / dataset.video_data[..., f].max()
-                        # norm_frame[norm_frame == 0] = np.nan
+                        norm_frame = dataset.mask_data[..., f].astype("float32")
+                        norm_frame[norm_frame == 0] = np.nan
 
-                        dataset.mask_data[..., f] = cv2.remap(dataset.mask_data[..., f],
+                        dataset.mask_data[..., f] = cv2.remap(norm_frame,
                                                               map_mesh_x, map_mesh_y,
                                                               interpolation=cv2.INTER_NEAREST)
 
@@ -395,7 +395,7 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
     if correct_torsion is not None and correct_torsion:
         align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, mask_dat,
                                                                      reference_idx=dataset.reference_frame_idx,
-                                                                     dropthresh=0, justalign=True)
+                                                                     dropthresh=0, justalign=True, transformtype="rigid")
 
         # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
         og_dtype = dataset.video_data.dtype
