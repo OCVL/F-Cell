@@ -140,19 +140,38 @@ if __name__ == "__main__":
 
     x_orientmap = np.atan2(dIx_dy, dIx_dx)
     y_orientmap = np.atan2(dIy_dy, dIy_dx)
-    combo_orientmap = np.atan2((dIx_dy + dIy_dx) , (dIx_dx - dIy_dy))
+    combo_orientmap = np.atan((dIx_dy + dIy_dx) , (dIx_dx - dIy_dy))
 
     mean_sphere_lens_power[np.isnan(mean_sphere_lens_power)] = 0
-    combo_orientmap[np.isnan(combo_orientmap)] = 0
-    combo_orientmap = combo_orientmap*(180 / np.pi)
+    #combo_orientmap[np.isnan(combo_orientmap)] = 0
+    #combo_orientmap = combo_orientmap*(180 / np.pi)
 
-    leftside = np.vstack((np.hstack((np.ones_like(combo_orientmap), np.sin(combo_orientmap)**2)),
-                          np.hstack((np.ones_like(combo_orientmap), np.cos(combo_orientmap)**2)),
-                          np.hstack((np.zeros_like(combo_orientmap), (-np.sin(combo_orientmap)*np.cos(combo_orientmap)) )) ))
-    rightside = np.vstack((dIx_dx, dIy_dy, (dIx_dy + dIy_dx)/2))
-    rightside[np.isnan(rightside)] = 0
-    SC = np.linalg.pinv(leftside) @ rightside
-    SC_lsq = np.linalg.lstsq(leftside, rightside, rcond=None)[0]
+    S = np.full_like(combo_orientmap, np.nan).flatten()
+    C = np.full_like(combo_orientmap, np.nan).flatten()
+
+    combo_orientflat = combo_orientmap.flatten()
+    dIx_dx_flat = dIx_dx.flatten()
+    dIy_dy_flat = dIy_dy.flatten()
+    dIx_dy_dIy_dx_flat = ((dIx_dy + dIy_dx)/2).flatten()
+    #dIx_dy_dIy_dx_flat = dIx_dy.flatten()
+
+    for i in range(len(combo_orientflat)):
+
+        leftside = np.vstack((np.hstack((1, np.sin(combo_orientflat[i]) ** 2)),
+                              np.hstack((1, np.cos(combo_orientflat[i]) ** 2)),
+                              np.hstack((0, (-np.sin(combo_orientflat[i]) * np.cos(combo_orientflat[i]))))))
+        rightside = np.vstack((dIx_dx_flat[i], dIy_dy_flat[i], dIx_dy_dIy_dx_flat[i]))
+
+        if np.all(np.isfinite(leftside)) and np.all(np.isfinite(rightside)):
+            SC_lsq = np.linalg.lstsq(leftside, rightside, rcond=None)[0]
+            S[i] = SC_lsq[0][0]
+            C[i] = SC_lsq[1][0]
+
+
+
+    S = np.reshape(S, combo_orientmap.shape)
+    C = np.reshape(C, combo_orientmap.shape)
+
 
     plt.figure("Dominant Orientation")
     plt.subplot(1, 3, 1)
@@ -160,7 +179,7 @@ if __name__ == "__main__":
     plt.subplot(1, 3, 2)
     plt.hist(y_orientmap.flatten() * (180 / np.pi), bins=180)
     plt.subplot(1, 3, 3)
-    plt.hist(combo_orientmap.flatten(), bins=180)
+    plt.hist(combo_orientmap.flatten()* (180 / np.pi), bins=180)
 
 
     plt.figure("Derivatives")
@@ -182,12 +201,12 @@ if __name__ == "__main__":
 
 
     plt.figure("Most negative and most positive meridia")
-    # plt.subplot(1, 2, 1)
-    plt.imshow(SC_lsq, cmap='gray')
-    # plt.subplot(1, 2, 2)
-    # plt.imshow(SC_lsq[720:,:], cmap='gray')
+    plt.subplot(1, 2, 1)
+    plt.imshow(S, cmap='gray')
+    plt.subplot(1, 2, 2)
+    plt.imshow(S+C, cmap='gray')
     plt.show(block=False)
-    # plt.waitforbuttonpress()
+    plt.waitforbuttonpress()
 
     horz_split_path = Path(horz_split_fName)
     horz_split_path = horz_split_path.parent.joinpath("Results", horz_split_path.stem + "_meansphere.tif")
