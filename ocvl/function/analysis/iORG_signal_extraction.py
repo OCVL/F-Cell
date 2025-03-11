@@ -11,7 +11,7 @@ from skimage.morphology import disk
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
-    SummaryParams, PipelineParams
+    SummaryParams, Pipeline
 from scipy.spatial.distance import pdist, squareform
 
 def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stimtrain_frame_stamps=None):
@@ -27,7 +27,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
 
 
     # If the user has a mask definition, then make sure we invalidate cells outside of it.
-    mask_roi = analysis_params.get(PipelineParams.MASK_ROI)
+    mask_roi = analysis_params.get(Pipeline.MASK_ROI)
     if mask_roi is not None:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
 

@@ -15,9 +15,9 @@ from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, PipeStages
-from ocvl.function.utility.json_format_constants import PipelineParams, MetaTags, DataFormatType, DataTags, AcquisiTags, \
+from ocvl.function.utility.json_format_constants import Pipeline, MetaTags, DataFormatType, DataTags, AcquisiTags, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
-    MetricTags
+    MetricTags, Analysis
 
 from datetime import datetime, date, time, timezone
 
@@ -86,16 +86,16 @@ if __name__ == "__main__":
     root.geometry('%dx%d+%d+%d' % (w, h, x, y))
     root.update()
 
-    piped_dat_format = dat_form.get("pipelined")
-    processed_dat_format = dat_form.get("processed")
-    pipeline_params = processed_dat_format.get("pipeline_params")
-    analysis_params = piped_dat_format.get("analysis_params")
-    display_params = piped_dat_format.get("display_params")
-    modes_of_interest = analysis_params.get(PipelineParams.MODALITIES)
+    analysis_dat_format = dat_form.get(Analysis.NAME)
+    preanalysis_dat_format = dat_form.get(Pipeline.NAME)
+    pipeline_params = preanalysis_dat_format.get(Pipeline.PARAMS)
+    analysis_params = analysis_dat_format.get(Analysis.PARAMS)
+    display_params = analysis_dat_format.get(DisplayParams.NAME)
+    modes_of_interest = analysis_params.get(Pipeline.MODALITIES)
 
     metadata_params = None
-    if piped_dat_format.get(MetaTags.METATAG) is not None:
-        metadata_params = piped_dat_format.get(MetaTags.METATAG)
+    if analysis_dat_format.get(MetaTags.METATAG) is not None:
+        metadata_params = analysis_dat_format.get(MetaTags.METATAG)
         metadata_form = metadata_params.get(DataFormatType.METADATA)
 
     # If we've selected modalities of interest, only process those; otherwise, process them all.
@@ -103,13 +103,13 @@ if __name__ == "__main__":
         modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
         print("NO MODALITIES SELECTED! Processing them all....")
 
-    grouping = pipeline_params.get(PipelineParams.GROUP_BY)
+    grouping = pipeline_params.get(Pipeline.GROUP_BY)
     if grouping is not None:
         for row in allData.itertuples():
             #print(grouping.format_map(row._asdict()))
-            allData.loc[row.Index, PipelineParams.GROUP_BY] = grouping.format_map(row._asdict())
+            allData.loc[row.Index, Pipeline.GROUP_BY] = grouping.format_map(row._asdict())
 
-        groups = allData[PipelineParams.GROUP_BY].unique().tolist()
+        groups = allData[Pipeline.GROUP_BY].unique().tolist()
     else:
         groups = [""]  # If we don't have any groups, then just make the list an empty string.
 
@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
-    control_params = piped_dat_format.get(ControlParams.NAME, dict())
+    control_params = analysis_dat_format.get(ControlParams.NAME, dict())
     control_loc = control_params.get(ControlParams.LOCATION, "implicit")
     control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     saveas_ext = display_params.get(DisplayParams.SAVEAS, "png")
 
 
-    output_folder = analysis_params.get(PipelineParams.OUTPUT_FOLDER)
+    output_folder = analysis_params.get(Pipeline.OUTPUT_FOLDER)
     if output_folder is None:
         output_folder = PurePath("Results")
     else:
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     # We like to use (LocX,LocY), but this is by no means the only way.
     for group in groups:
         if group != "":
-            group_datasets = allData.loc[allData[PipelineParams.GROUP_BY] == group]
+            group_datasets = allData.loc[allData[Pipeline.GROUP_BY] == group]
         else:
             group_datasets = allData
 

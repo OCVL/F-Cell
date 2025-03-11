@@ -1,5 +1,8 @@
 from enum import StrEnum
 
+class ConfigFields(StrEnum):
+    VERSION = "version",
+    DESCRIPTION = "description"
 
 class DataFormatType(StrEnum):
     FORMAT_TYPE = "Data_Type"
@@ -56,7 +59,9 @@ class AcquisiTags(StrEnum):
     META_PATH = "Metadata_Path",
     STIM_PRESENT = "Stimulus_Present"
 
-class PipelineParams(StrEnum):
+class Pipeline(StrEnum):
+    NAME = "preanalysis"
+    PARAMS = "pipeline_params"
     GAUSSIAN_BLUR = "gaus_blur",
     MASK_ROI = "mask_roi",
     TRIM = "trim",
@@ -66,6 +71,13 @@ class PipelineParams(StrEnum):
     CUSTOM = "custom"
     OUTPUT_FOLDER = "output_folder"
     GROUP_BY = "group_by"
+
+class Analysis(StrEnum):
+    NAME = "analysis"
+    PARAMS = "analysis_params"
+
+class DebugParams(StrEnum):
+    CELL_VIABILITY = "cell_viability"
 
 class NormParams(StrEnum):
     NAME = "normalization"
@@ -110,7 +122,6 @@ class SummaryParams(StrEnum):
     PRESTIM = "prestim"
     POSTSTIM = "poststim"
     INDIV_CUTOFF = "indiv_cutoff"
-
 
 class ControlParams(StrEnum):
     NAME = "control"
