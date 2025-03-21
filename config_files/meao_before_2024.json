@@ -53,13 +53,13 @@
         "framestamps": "FrameStamps"
       }
     },
-    "recursive_search": false,
+    "recursive_search": true,
     "control": {
       "location": "folder",
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": ["DarkField", "Direct"],
+      "modalities": ["760nm"],
       "output_folder": "Results",
       "normalization": {
         "method": "score",
@@ -70,7 +70,7 @@
       "segmentation": {
         "refine_to_ref": true,
         "refine_to_vid": false,
-        "radius": 2,
+        "radius": "auto",
         "shape": "disk",
         "summary": "mean"
       },
@@ -89,7 +89,7 @@
       },
       "summary": {
         "method": "rms",
-        "control": "none",
+        "control": "subtraction",
         "metrics": {
           "type": ["aur", "amplitude", "imp_time", "rec_amp"],
           "measured": "stim-relative",
@@ -121,11 +121,11 @@
       "indiv_summary": {
         "overlap": false,
         "histogram": false,
-        "cumulative_histogram": false,
+        "cumulative_histogram": true,
         "map_overlay": false
       },
       "saveas": ["png", "svg"],
-      "pause_per_folder": true
+      "pause_per_folder": false
     }
   }
 

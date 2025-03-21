@@ -64,7 +64,7 @@ if __name__ == "__main__":
         quit()
 
     # Grab all the folders/data here.
-    dat_form, allData = parse_file_metadata(json_fName, pName, "pipelined")
+    dat_form, allData = parse_file_metadata(json_fName, pName, Analysis.NAME)
 
     x = root.winfo_screenwidth() / 2 - 128
     y = root.winfo_screenheight() / 2 - 128

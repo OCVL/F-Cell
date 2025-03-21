@@ -153,8 +153,10 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
                                 entry = pd.DataFrame.from_dict([file_info])
 
                                 allFiles.append(entry)
-
-            return dat_form, pd.concat(allFiles, ignore_index=True)
+            if allFiles:
+                return dat_form, pd.concat(allFiles, ignore_index=True)
+            else:
+                return None
         else:
             return None
 

@@ -570,6 +570,10 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
 
     :return: a NxM numpy matrix of standardized temporal profiles
     """
+
+    req_framenums = int(np.floor(len(std_indices)*critical_fraction))
+    prestim_frmstmp, _, std_indices = np.intersect1d(std_indices, framestamps, return_indices=True)
+
     if len(std_indices) == 0:
         warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
         return temporal_signals
@@ -581,11 +585,11 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
         # Standardize using Autoscaling preceded by a linear fit to remove
         # any residual low-frequency changes
         for i in range(temporal_signals.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+
             prestim_profile = np.squeeze(temporal_signals[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
-            if np.sum(goodind) >= np.floor(len(goodind)*critical_fraction):
+            if np.sum(goodind) >= req_framenums:
                 thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
                 fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
 
@@ -595,7 +599,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
 
                 temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
             else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)*critical_fraction)+")"
+                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)/req_framenums)+")"
                 valid_stdization[i] = False
                 temporal_signals[i, :] = np.nan
 
@@ -604,11 +608,11 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
         # https://www.sciencedirect.com/science/article/pii/S0003267003000941
         # this scaling is defined as autoscaling divided by the CoV.
         for i in range(temporal_signals.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+
             prestim_profile = np.squeeze(temporal_signals[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
-            if np.sum(goodind) >= np.floor(len(goodind)*critical_fraction):
+            if np.sum(goodind) >= req_framenums:
                 thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
                 fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
 
@@ -619,39 +623,39 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                 temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
                                          (prestim_std / prestim_nofit_mean)
             else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)*critical_fraction)+")"
+                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)/req_framenums)+")"
                 valid_stdization[i] = False
                 temporal_signals[i, :] = np.nan
 
     elif method == "relative_change":
         # Make our output a representation of the relative change of the signal
         for i in range(temporal_signals.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+
             prestim_profile = np.squeeze(temporal_signals[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
-            if np.sum(goodind) >= np.floor(len(goodind)*critical_fraction):
+            if np.sum(goodind) >= req_framenums:
                 prestim_mean = np.nanmean(prestim_profile[goodind])
                 temporal_signals[i, :] -= prestim_mean
                 temporal_signals[i, :] /= prestim_mean
                 temporal_signals[i, :] *= 100
             else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)*critical_fraction)+")"
+                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)/req_framenums)+")"
                 valid_stdization[i] = False
                 temporal_signals[i, :] = np.nan
 
     elif method == "mean_sub":
         # Make our output just a prestim mean-subtracted signal.
         for i in range(temporal_signals.shape[0]):
-            prestim_frmstmp = np.squeeze(framestamps[std_indices])
+
             prestim_profile = np.squeeze(temporal_signals[i, std_indices])
             goodind = np.isfinite(prestim_profile) # Removes nans, infs, etc.
 
-            if np.sum(goodind) >= np.floor(len(goodind)*critical_fraction):
+            if np.sum(goodind) >= req_framenums:
                 prestim_mean = np.nanmean(prestim_profile[goodind])
                 temporal_signals[i, :] -= prestim_mean
             else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)*critical_fraction)+")"
+                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(len(goodind)/req_framenums)+")"
                 valid_stdization[i] = False
                 temporal_signals[i, :] = np.nan
 
