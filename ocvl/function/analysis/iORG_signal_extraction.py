@@ -576,7 +576,9 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
 
     if len(std_indices) == 0:
         warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
-        return temporal_signals
+        query_status = np.full(temporal_signals.shape[0], "No eligible prestimulus data.", dtype=object)
+        valid_stdization = np.full(temporal_signals.shape[0], False, dtype=bool)
+        return temporal_signals, valid_stdization, query_status
 
     query_status = np.full(temporal_signals.shape[0], "Included", dtype=object)
     valid_stdization = np.full(temporal_signals.shape[0], True, dtype=bool)
@@ -599,7 +601,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
 
                 temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
             else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(np.sum(goodind)/req_framenums)+")"
+                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
                 valid_stdization[i] = False
                 temporal_signals[i, :] = np.nan
 
@@ -623,7 +625,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                 temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
                                          (prestim_std / prestim_nofit_mean)
             else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(np.sum(goodind)/req_framenums)+")"
+                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
                 valid_stdization[i] = False
                 temporal_signals[i, :] = np.nan
 
@@ -640,7 +642,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                 temporal_signals[i, :] /= prestim_mean
                 temporal_signals[i, :] *= 100
             else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(np.sum(goodind)/req_framenums)+")"
+                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " + "{:.2f}".format(np.sum(goodind)/req_framenums)+")"
                 valid_stdization[i] = False
                 temporal_signals[i, :] = np.nan
 
@@ -655,7 +657,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                 prestim_mean = np.nanmean(prestim_profile[goodind])
                 temporal_signals[i, :] -= prestim_mean
             else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +str(critical_fraction)+", had " +str(np.sum(goodind)/req_framenums)+")"
+                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
                 valid_stdization[i] = False
                 temporal_signals[i, :] = np.nan
 

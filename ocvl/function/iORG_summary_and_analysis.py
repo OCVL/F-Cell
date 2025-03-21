@@ -200,8 +200,8 @@ if __name__ == "__main__":
                         query_loc_names[q] = " "
 
                 first = True
+                # If we detected query locations, then initialize this folder and mode with their metadata.
                 all_query_status[folder][mode] = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & query_locations).sum())]
-
 
                 pb["maximum"] = len(data_vidnums)
                 # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
@@ -223,6 +223,29 @@ if __name__ == "__main__":
                                                         rescale_mean=res_mean, rescale_std=res_stddev)
 
                         group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
+
+                        # Check to see if our dataset's number of query locations matches the ones we thought we found
+                        # (can happen if the query location format doesn't match, but dataset was able to find a candidate)
+                        if len(all_query_status[folder][mode]) < len(dataset.query_loc):
+                            # If we have too few, then tack on some extra dataframes so we can track these found query locations, and add them to our database, using the dataset as a basis.
+                            base_name = group_datasets[slice_of_life & only_vids].copy()
+                            base_name.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
+
+                            for i in range(len(dataset.query_loc) - len(all_query_status[folder][mode])):
+                                base_name.loc[0,AcquisiTags.DATA_PATH] = dataset.query_coord_paths[i]
+                                base_name.loc[0,DataTags.QUERYLOC] = "Auto_Detected_" +str(i)
+
+                                # Update the database, and update all of our logical indices
+                                group_datasets = pd.concat([group_datasets, base_name], ignore_index=True)
+                                reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+                                query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+                                only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+                                this_mode = (group_datasets[DataTags.MODALITY] == mode)
+                                slice_of_life = folder_mask & this_mode
+                                folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
+
+                                all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
+                                query_loc_names.append(base_name.loc[0,DataTags.QUERYLOC])
 
 
                         if control_loc == "folder" and folder.name == control_folder:

@@ -446,12 +446,6 @@ class Dataset:
         self.reference_frame_idx = None
         self.stimtrain_frame_stamps = stimseq
 
-
-        self.query_loc = query_locations
-        self.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in query_locations]
-        self.iORG_signals = [None] * len(query_locations)
-        self.summarized_iORGs = [None] * len(query_locations)
-
         self.video_data = video_data
         self.mask_data = mask_data
         self.avg_image_data = avg_image_data
@@ -493,10 +487,14 @@ class Dataset:
                 if not imname and stage is PipeStages.PIPELINED:
                     warnings.warn("Unable to detect viable average image file. Dataset functionality may be limited.")
                     self.image_path = None
+                else:
+                    print(Fore.YELLOW + "Automatically detected the average image "+ str(imname.name) +". **Please verify your image format string**: " )
+                    self.image_path = imname
+                    self.avg_image_data = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
 
             self.query_coord_paths = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
             # If we don't have query locations associated with this dataset, then try to guess.
-            if self.query_coord_paths is None and not self.query_loc:
+            if self.query_coord_paths is None and not query_locations:
 
                 coordname = None
                 if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
@@ -512,13 +510,20 @@ class Dataset:
                 if coordname is None and stage is PipeStages.PIPELINED:
                     warnings.warn("Unable to detect viable query location file for dataset at: "+ str(self.video_path))
                 elif stage is PipeStages.PIPELINED:
-                    print(Fore.YELLOW+"Automatically detected the query locations: "+str(coordname))
-                    self.query_coord_paths = coordname
-                    match self.query_coord_paths.suffix:
+                    print(Fore.YELLOW+"Automatically detected the query locations: "+str(coordname.name) + ". **Please verify your queryloc format string**" )
+                    # Update our metadata structure, and our internally stored query coord paths.
+                    self.metadata[AcquisiTags.QUERYLOC_PATH] = [coordname]
+                    self.query_coord_paths = [coordname]
+                    match self.query_coord_paths[0].suffix:
                         case ".csv":
-                            self.query_loc = [pd.read_csv(self.query_coord_paths, header=None, encoding="utf-8-sig").to_numpy()]
+                            query_locations = [pd.read_csv(self.query_coord_paths[0], header=None, encoding="utf-8-sig").to_numpy()]
                         case ".txt":
-                            self.query_loc = [pd.read_csv(self.query_coord_paths, sep=None, header=None, encoding="utf-8-sig").to_numpy()]
+                            query_locations = [pd.read_csv(self.query_coord_paths[0], sep=None, header=None, encoding="utf-8-sig").to_numpy()]
+
+            self.query_loc = query_locations
+            self.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in query_locations]
+            self.iORG_signals = [None] * len(query_locations)
+            self.summarized_iORGs = [None] * len(query_locations)
 
 
     def clear_video_data(self):
