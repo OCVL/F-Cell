@@ -470,7 +470,7 @@ class Dataset:
             if not self.prefix:
                 self.prefix = self.video_path.with_suffix("")
 
-            self.image_path = self.metadata.get(AcquisiTags.IMAGE_PATH)
+            self.image_path = self.metadata.get(AcquisiTags.IMAGE_PATH, None)
             # If we don't have supplied definitions of the image associated with this dataset,
             # then guess.
             if self.image_path is None:
@@ -490,6 +490,7 @@ class Dataset:
                 else:
                     print(Fore.YELLOW + "Automatically detected the average image "+ str(imname.name) +". **Please verify your image format string**: " )
                     self.image_path = imname
+                    self.metadata[AcquisiTags.IMAGE_PATH] = self.image_path
                     self.avg_image_data = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
 
             self.query_coord_paths = self.metadata.get(AcquisiTags.QUERYLOC_PATH)

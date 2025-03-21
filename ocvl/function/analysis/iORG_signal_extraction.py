@@ -575,8 +575,9 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     prestim_frmstmp, _, std_indices = np.intersect1d(std_indices, framestamps, return_indices=True)
 
     if len(std_indices) == 0:
-        warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
-        query_status = np.full(temporal_signals.shape[0], "No eligible prestimulus data.", dtype=object)
+        #warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
+        print(Fore.RED+ "Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed for this dataset.")
+        query_status = np.full(temporal_signals.shape[0], "No prestimulus data for standardization.", dtype=object)
         valid_stdization = np.full(temporal_signals.shape[0], False, dtype=bool)
         return temporal_signals, valid_stdization, query_status
 
