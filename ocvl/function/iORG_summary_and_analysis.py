@@ -375,7 +375,7 @@ if __name__ == "__main__":
                     control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
 
                     if (not uniform_datasets or first_run) and control_datasets:
-                        with (mp.Pool(processes=int(np.round(mp.cpu_count() / 2))) as pool):
+                        with (mp.Pool(processes=int(np.round(mp.cpu_count() / 4))) as pool):
 
                             first_run = False
                             control_iORG_signals = [None] * len(stim_dataset.query_loc)
