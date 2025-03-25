@@ -6,6 +6,7 @@ from pathlib import Path, PurePath
 from tkinter import Tk, filedialog, ttk, HORIZONTAL, messagebox
 
 import cv2
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from colorama import Fore
@@ -140,7 +141,8 @@ if __name__ == "__main__":
 
     pop_overlap_params = display_params.get(DisplayParams.POP_SUMMARY_OVERLAP, dict())
     pop_seq_params = display_params.get(DisplayParams.POP_SUMMARY_SEQ, dict())
-    indiv_summary_params = display_params.get(DisplayParams.INDIV_SUMMARY, dict())
+    indiv_overlap_params = display_params.get(DisplayParams.INDIV_SUMMARY_OVERLAP, dict())
+    indiv_summary = display_params.get(DisplayParams.INDIV_SUMMARY, dict())
     saveas_ext = display_params.get(DisplayParams.SAVEAS, "png")
 
 
@@ -198,6 +200,8 @@ if __name__ == "__main__":
                 for q, query_loc_name in enumerate(query_loc_names):
                     if len(query_loc_name) == 0:
                         query_loc_names[q] = " "
+                    else:
+                        query_loc_names[q] = query_loc_name.strip('_- ')
 
                 first = True
                 # If we detected query locations, then initialize this folder and mode with their metadata.
@@ -348,6 +352,9 @@ if __name__ == "__main__":
                 for q, query_loc_name in enumerate(query_loc_names):
                     if len(query_loc_name) == 0:
                         query_loc_names[q] = " "
+                    else:
+                        query_loc_names[q] = query_loc_name.strip('_- ')
+
                 result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                 pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
@@ -521,6 +528,10 @@ if __name__ == "__main__":
                             disp_stim = pop_overlap_params.get(DisplayParams.DISP_STIMULUS, True)
                             disp_cont = pop_overlap_params.get(DisplayParams.DISP_CONTROL, True)
                             disp_rel = pop_overlap_params.get(DisplayParams.DISP_RELATIVE, True)
+
+                            ax_params = pop_overlap_params.get(DisplayParams.AXES, dict())
+                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
+                            ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
                             how_many = disp_stim + disp_cont + disp_rel
 
                             overlap_label = "Query file " + query_loc_names[q] + ": summarized using "+ sum_method+ " of " +mode +" iORGs in "+folder.name
@@ -536,7 +547,8 @@ if __name__ == "__main__":
                                 plt.plot(stim_framestamps[dispinds] / stim_dataset.framerate, stim_pop_summary[dispinds], label=str(stim_vidnum))
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
-                                # plt.xlim((0, 4))
+                                if all(xlimits): plt.xlim(xlimits)
+                                if all(ylimits): plt.ylim(ylimits)
                             if how_many > 1 and disp_cont:
                                 plt.subplot(1, how_many, ind)
                                 ind += 1
@@ -547,8 +559,9 @@ if __name__ == "__main__":
                                 plt.plot(control_framestamps_pooled[q] / stim_dataset.framerate, control_pop_iORG_summary_pooled[q][control_framestamps_pooled[q]], 'k--', linewidth=4)
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
-                                # plt.xlim((0, 4))
-                                plt.legend()
+                                if all(xlimits): plt.xlim(xlimits)
+                                if all(ylimits): plt.ylim(ylimits)
+                                if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
                             if how_many > 1 and disp_rel:
                                 plt.subplot(1, how_many, ind)
                                 ind += 1
@@ -558,14 +571,19 @@ if __name__ == "__main__":
                                 plt.plot(stim_framestamps[dispinds]/stim_dataset.framerate, stim_dataset.summarized_iORGs[q][dispinds], label=str(stim_vidnum))
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
-                                # plt.xlim((0, 4))
+                                if all(xlimits): plt.xlim(xlimits)
+                                if all(ylimits): plt.ylim(ylimits)
 
-                            plt.legend()
+
+                            if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
                             plt.show(block=False)
 
                         # This shows all summaries in temporal sequence.
                         if pop_seq_params:
                             num_in_seq = pop_seq_params.get(DisplayParams.NUM_IN_SEQ, 0)
+                            ax_params = pop_seq_params.get(DisplayParams.AXES, dict())
+                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
+                            ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
 
                             vidnum_seq = np.array(stim_data_vidnums).astype(np.int32)
                             vidnum_seq -= vidnum_seq[0]
@@ -585,6 +603,8 @@ if __name__ == "__main__":
                                 plt.plot(stim_framestamps / stim_dataset.framerate, stim_pop_summary)
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
+                                if all(xlimits): plt.xlim(xlimits)
+                                if all(ylimits): plt.ylim(ylimits)
 
                             if pop_seq_params.get(DisplayParams.DISP_RELATIVE, True):
                                 seq_rel_label = "Query file " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence"
@@ -596,7 +616,10 @@ if __name__ == "__main__":
                                 plt.plot(stim_framestamps/stim_dataset.framerate,stim_dataset.summarized_iORGs[q])
                                 plt.xlabel("Time (s)")
                                 plt.ylabel(sum_method)
+                                if all(xlimits): plt.xlim(xlimits)
+                                if all(ylimits): plt.ylim(ylimits)
 
+                            if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
                             plt.show(block=False)
 
                         metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
@@ -702,8 +725,8 @@ if __name__ == "__main__":
                             for s in range(control_iORG_signals[q][:, c, :].shape[0]):
                                 sig = control_iORG_signals[q][s, c, :]
                                 plt.plot(iORG_frmstmp[np.isfinite(sig)] / pooled_framerate, sig[np.isfinite(sig)], 'k')
-                            plt.xlim((1,5))
-                            plt.ylim((-150,150))
+                            if all(xlimits): plt.xlim(xlimits)
+                            if all(ylimits): plt.ylim(ylimits)
                             plt.show(block=False)
                             plt.waitforbuttonpress()
                             plt.close()
@@ -763,18 +786,24 @@ if __name__ == "__main__":
                         elif metric == "rec_amp":
                             pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.RECOVERY_PERCENT)] = recovery
 
-                    # Display the pooled population data
-                    if pop_overlap_params:
+                    ''' *** Display the pooled population data *** '''
+                    if pop_overlap_params.get(DisplayParams.DISP_POOLED, False):
+                        ax_params = pop_overlap_params.get(DisplayParams.AXES, dict())
+                        xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
+                        ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
+
                         overlap_label = "Pooled data summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
                         plt.figure(overlap_label)
                         display_dict["pooled_" + mode + "_pop_iORG_" + sum_method + "_overlapping"] = overlap_label
                         plt.title("Pooled "+ sum_method +"iORGs relative to control iORG via " + sum_control)
-
                         plt.plot(np.arange(max_frmstamp + 1) / pooled_framerate, stim_pop_iORG_summary[q],
                                  label=query_loc_names[q])
                         plt.xlabel("Time (s)")
                         plt.ylabel(sum_method)
-                        plt.legend()
+                        if all(xlimits): plt.xlim(xlimits)
+                        if all(ylimits): plt.ylim(ylimits)
+
+                        if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
                         plt.show(block=False)
 
                     # If we have a uniform dataset, summarize each cell's iORG too.
@@ -782,7 +811,16 @@ if __name__ == "__main__":
                     if uniform_datasets:
                         all_frmstmp = np.arange(max_frmstamp + 1)
 
-                        if indiv_summary_params.get(DisplayParams.OVERLAP):
+                        if indiv_overlap_params:
+                            disp_stim = indiv_overlap_params.get(DisplayParams.DISP_STIMULUS, True)
+                            disp_cont = indiv_overlap_params.get(DisplayParams.DISP_CONTROL, True)
+                            disp_rel = indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, True)
+                            ax_params = indiv_overlap_params.get(DisplayParams.AXES, dict())
+                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
+                            ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
+
+                            how_many = disp_stim + disp_cont + disp_rel
+
                             overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
                             plt.figure(overlap_label)
                             display_dict[mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
@@ -799,6 +837,31 @@ if __name__ == "__main__":
                                                                                        summary_method=sum_method,
                                                                                        window_size=sum_window)
 
+                                if indiv_overlap_params:
+                                    plt.figure(overlap_label)
+                                    ind = 1
+                                    if how_many > 1 and disp_stim:
+                                        plt.subplot(1, how_many, ind)
+                                        ind += 1
+                                    if disp_stim:
+                                        plt.title("Stimulus iORG")
+                                        plt.plot(all_frmstmp/pooled_framerate, stim_iORG_summary[q][c, :])
+                                        plt.xlabel("Time (s)")
+                                        plt.ylabel(sum_method)
+                                        if all(xlimits): plt.xlim(xlimits)
+                                        if all(ylimits): plt.ylim(ylimits)
+                                    if how_many > 1 and disp_cont:
+                                        plt.subplot(1, how_many, ind)
+                                        ind += 1
+                                    if disp_cont and control_datasets and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
+                                        plt.title("Control iORGs")
+                                        plt.plot(all_frmstmp/pooled_framerate, control_pop_iORG_summary_pooled[q])
+                                        plt.xlabel("Time (s)")
+                                        plt.ylabel(sum_method)
+                                        if all(xlimits): plt.xlim(xlimits)
+                                        if all(ylimits): plt.ylim(ylimits)
+
+                                # Calculate the relativized individual cell iORGs
                                 if sum_control == "subtraction" and control_datasets:
                                     stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] - control_pop_iORG_summary_pooled[q]
                                 elif sum_control == "division" and control_datasets:
@@ -806,8 +869,19 @@ if __name__ == "__main__":
                                 else:
                                     stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :]
 
-                                if indiv_summary_params.get(DisplayParams.OVERLAP):
-                                    plt.plot(all_frmstmp, stim_iORG_summary[q][c, :])
+                                if indiv_overlap_params:
+                                    plt.figure(overlap_label)
+                                    if how_many > 1 and disp_rel:
+                                        plt.subplot(1, how_many, ind)
+                                        ind += 1
+                                    if disp_rel:
+                                        if sum_control != "none":
+                                            plt.title("Stimulus relative to control iORG via " + sum_control)
+                                        plt.plot(all_frmstmp/pooled_framerate, stim_iORG_summary[q][c, :])
+                                        plt.xlabel("Time (s)")
+                                        plt.ylabel(sum_method)
+                                        if all(xlimits): plt.xlim(xlimits)
+                                        if all(ylimits): plt.ylim(ylimits)
 
                                 finite_iORG = np.isfinite(stim_iORG_summary[q][c, :])
                                 iORG_summary = stim_iORG_summary[q][c, finite_iORG]
@@ -835,8 +909,9 @@ if __name__ == "__main__":
                                 for metric in metrics_type:
                                     if metric == "aur":
                                         indiv_iORG_result[q].loc[thisind, MetricTags.AUR] = aur
-                                    elif metric == "amplitude":
+                                    elif metric == "amp":
                                         indiv_iORG_result[q].loc[thisind, MetricTags.AMPLITUDE] = amplitude
+                                    elif metric == "logamp":
                                         indiv_iORG_result[q].loc[thisind,  MetricTags.LOG_AMPLITUDE] = np.log(amplitude)
                                     elif metric == "imp_time":
                                         indiv_iORG_result[q].loc[thisind, MetricTags.IMPLICT_TIME] = implicit_time
@@ -859,7 +934,10 @@ if __name__ == "__main__":
                                     title="File: " + str(indiv_respath) + " is unable to be written.",
                                     message="The result file may be open. Close the file, then try to write again?")
 
-                        if indiv_summary_params.get(DisplayParams.HISTOGRAM):
+                        if indiv_summary.get(DisplayParams.HISTOGRAM):
+                            ax_params = indiv_summary.get(DisplayParams.AXES, dict())
+                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
+
                             overlap_label = "Individual-Cell iORGs metric histograms from " + mode + " iORGs in " + folder.name
                             plt.figure(overlap_label)
                             display_dict[mode + "_indiv_iORG_" + sum_method + "_metric_histograms"] = overlap_label
@@ -868,20 +946,27 @@ if __name__ == "__main__":
                             subind = 1
                             for metric in list(MetricTags):
                                 if indiv_iORG_result[q].loc[:, metric].count() != 0:
-                                    metric_res = indiv_iORG_result[q].loc[:, metric]
+                                    metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
+
                                     plt.subplot(numsub, 1, subind)
-                                    metric_res = metric_res.to_numpy()
-
-                                    # histbins = np.arange(start=np.nanmin(metric_res.flatten()), stop=np.nanmax(metric_res.flatten()), step=1)
-                                    # plt.hist(metric_res, bins=histbins)
-                                    plt.hist(metric_res, bins=50, label=query_loc_names[q])
-                                    plt.title(metric)
-                                    plt.legend()
-
                                     subind += 1
+
+                                    if all(xlimits) and ax_params.get(DisplayParams.XSTEP):
+                                        histbins = np.arange(start=xlimits[0], stop=xlimits[1], step=ax_params.get(DisplayParams.XSTEP))
+                                        plt.hist(metric_res, bins=histbins, label=query_loc_names[q])
+                                    else:
+                                        plt.hist(metric_res, bins=ax_params.get(DisplayParams.NBINS, 50), label=query_loc_names[q])
+
+                                    plt.title(metric)
+                                    if all(xlimits): plt.xlim(xlimits)
+                                    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+
                                     plt.show(block=False)
 
-                        if indiv_summary_params.get(DisplayParams.CUMULATIVE_HISTOGRAM):
+                        if indiv_summary.get(DisplayParams.CUMULATIVE_HISTOGRAM):
+                            ax_params = indiv_summary.get(DisplayParams.AXES, dict())
+                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
+
                             overlap_label = "Individual-Cell iORGs metric cumulative histograms from " + mode + " iORGs in " + folder.name
                             plt.figure(overlap_label)
                             display_dict[mode + "_indiv_iORG_" + sum_method + "_metric_cumul_histograms"] = overlap_label
@@ -890,34 +975,57 @@ if __name__ == "__main__":
                             subind = 1
                             for metric in list(MetricTags):
                                 if indiv_iORG_result[q].loc[:, metric].count() != 0:
-                                    metric_res = indiv_iORG_result[q].loc[:, metric]
-                                    plt.subplot(numsub, 1, subind)
-                                    plt.hist(metric_res, bins=50, label=query_loc_names[q], density=True, histtype="step", cumulative=True)
-                                    plt.title(metric)
-                                    plt.legend()
+                                    metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
 
+                                    plt.subplot(numsub, 1, subind)
                                     subind += 1
+
+                                    if all(xlimits) and ax_params.get(DisplayParams.XSTEP):
+                                        histbins = np.arange(start=xlimits[0], stop=xlimits[1], step=ax_params.get(DisplayParams.XSTEP))
+                                        plt.hist(metric_res, bins=histbins, label=query_loc_names[q], density=True, histtype="step",
+                                                 cumulative=True)
+                                    else:
+                                        plt.hist(metric_res, bins=ax_params.get(DisplayParams.NBINS, 50),
+                                                 label=query_loc_names[q], density=True, histtype="step",
+                                                 cumulative=True)
+
+                                    plt.title(metric)
+                                    if all(xlimits): plt.xlim(xlimits)
+                                    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+
                                     plt.show(block=False)
 
-                        if indiv_summary_params.get(DisplayParams.MAP_OVERLAY):
-                            label = "Individual iORG LOG "+sum_method+" from " + mode + " in query location: " + query_loc_names[q] + " in " + folder.name
-                            plt.figure(label)
-                            display_dict[mode + "_indiv_iORG_" + sum_method + "_log_amplitude_overlay_" + query_loc_names[q]] = label
+                        if indiv_summary.get(DisplayParams.MAP_OVERLAY):
+                            ax_params = indiv_summary.get(DisplayParams.AXES, dict())
 
-                            refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
-                            plt.title(label)
-                            plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
+                            for metric in list(MetricTags):
+                                if indiv_iORG_result[q].loc[:, metric].count() != 0:
+                                    label = "Individual iORG "+metric+" from " + mode + " using query locations: " + query_loc_names[q] + " in " + folder.name
+                                    plt.figure(label)
+                                    display_dict[mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q]] = label
 
-                            metric_res = indiv_iORG_result[q].loc[:, MetricTags.AMPLITUDE].values.astype(np.float32)
-                            coords = np.array(indiv_iORG_result[q].loc[:, MetricTags.AMPLITUDE].index.to_list())
+                                    refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
+                                    plt.title(label)
+                                    plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
 
-                            binned_res, edges = np.histogram(np.log(metric_res), bins=np.arange(start=1.5, stop=4.5, step=0.05))
-                            mapper = plt.cm.ScalarMappable( cmap=plt.get_cmap("viridis", len(edges)))
-                            bininds = np.digitize(np.log(metric_res), bins=edges)
-                            bininds[np.isnan(metric_res)] = 0
+                                    metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
+                                    coords = np.array(indiv_iORG_result[q].loc[:, metric].index.to_list())
 
-                            plt.scatter(coords[:,0], coords[:,1], s=10, c=mapper.to_rgba(bininds))
-                            plt.show(block=False)
+                                    if ax_params.get(DisplayParams.XMIN, None) and ax_params.get(DisplayParams.XMAX, None) and ax_params.get(DisplayParams.XSTEP, None):
+                                        histbins = np.arange(start=ax_params.get(DisplayParams.XMIN),
+                                                             stop=ax_params.get(DisplayParams.XMAX),
+                                                             step=ax_params.get(DisplayParams.XSTEP))
+                                    else:
+                                        histbins = np.arange(start=np.nanpercentile(metric_res, 1), stop=np.nanpercentile(metric_res, 99),
+                                                             step=(np.nanpercentile(metric_res, 99)-np.nanpercentile(metric_res, 1))/100)
+
+
+                                    normmap = mpl.colors.Normalize(vmin=histbins[0], vmax=histbins[-1], clip=True)
+                                    mapper = plt.cm.ScalarMappable( cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")), norm=normmap)
+
+                                    plt.scatter(coords[:,0], coords[:,1], s=10, c=mapper.to_rgba(metric_res))
+                                    plt.colorbar(mapper, ax=plt.gca(), label=metric)
+                                    plt.show(block=False)
 
 
                         # label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
@@ -966,7 +1074,8 @@ if __name__ == "__main__":
                 for fname, figname in display_dict.items():
                     plt.show(block=False)
                     plt.figure(figname)
-                    plt.gcf().set_size_inches(10, 4)
+                    plt.gcf().set_size_inches(10, 10)
+                    plt.draw()
                     for ext in saveas_ext:
                         plt.savefig(result_folder.joinpath(fname+"."+ext), dpi=300)
                     plt.close(figname)

@@ -115,18 +115,50 @@
       "pop_summary_overlap": {
         "stimulus": true,
         "control": true,
-        "relative": true
+        "relative": true,
+        "pooled": true,
+        "axes": {
+          "xmin": 0,
+          "xmax": 4,
+          "ymin": 0,
+          "ymax": 60,
+          "legend": true
+        }
       },
       "pop_summary_seq": {
         "stimulus": false,
         "relative": false,
-        "num_in_seq": 8
+        "num_in_seq": 8,
+        "axes": {
+          "xmin": 0,
+          "xmax": 4,
+          "ymin": 0,
+          "ymax": 60,
+          "legend": true
+        }
+      },
+      "indiv_summary_overlap": {
+        "stimulus": false,
+        "control": false,
+        "relative": false,
+        "axes": {
+          "xmin": null,
+          "xmax": null,
+          "ymin": null,
+          "ymax": null
+        }
       },
       "indiv_summary": {
-        "overlap": false,
-        "histogram": false,
-        "cumulative_histogram": false,
-        "map_overlay": false
+        "histogram": true,
+        "cumulative_histogram": true,
+        "map_overlay": true,
+        "axes": {
+          "xmin": null,
+          "xstep": null,
+          "xmax": null,
+          "cmap": "plasma",
+          "legend": true
+        }
       },
       "saveas": ["png", "svg"],
       "pause_per_folder": true
