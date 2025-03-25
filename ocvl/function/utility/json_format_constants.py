@@ -132,7 +132,8 @@ class MetricTags(StrEnum):
     AUR = "Response Area Under Curve"
     LOG_AMPLITUDE = "Log Amplitude"
     AMPLITUDE = "Amplitude"
-    IMPLICT_TIME = "Implict Time"
+    AMP_IMPLICIT_TIME = "Amplitude Implicit Time"
+    HALFAMP_IMPLICIT_TIME = "Half Amplitude Implicit Time"
     RECOVERY_PERCENT = "Recovery Fraction"
 
 class DisplayParams(StrEnum):

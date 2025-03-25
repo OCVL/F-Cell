@@ -654,17 +654,20 @@ if __name__ == "__main__":
                             iORG_frmstmp = np.insert(iORG_frmstmp, next_highest, metrics_poststim[-1])
                             poststim = np.append(poststim, next_highest)
 
-                        amplitude, implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp, stim_dataset.framerate,
+                        amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp, stim_dataset.framerate,
                                                                                       prestim, poststim)
 
                         for metric in metrics_type:
                             if metric == "aur":
                                 pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.AUR)] = aur
-                            elif metric == "amplitude":
+                            elif metric == "amp":
                                 pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.AMPLITUDE)] = amplitude
+                            elif metric == "logamp":
                                 pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.LOG_AMPLITUDE)] = np.log(amplitude)
-                            elif metric == "imp_time":
-                                pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.IMPLICT_TIME)] = implicit_time
+                            elif metric == "amp_imp_time":
+                                pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.AMP_IMPLICIT_TIME)] = amp_implicit_time
+                            elif metric == "halfamp_imp_time":
+                                pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.HALFAMP_IMPLICIT_TIME)] = halfamp_implicit_time
                             elif metric == "rec_amp":
                                 pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.RECOVERY_PERCENT)] = recovery
 
@@ -772,17 +775,20 @@ if __name__ == "__main__":
                         iORG_frmstmp = np.insert(iORG_frmstmp, next_highest, metrics_poststim[-1])
                         poststim = np.append(poststim, next_highest)
 
-                    amplitude, implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp,
+                    amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp,
                                                                                   pooled_framerate,
                                                                                   prestim, poststim)
                     for metric in metrics_type:
                         if metric == "aur":
                             pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AUR)] = aur
-                        elif metric == "amplitude":
+                        elif metric == "amp":
                             pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AMPLITUDE)] = amplitude
+                        elif metric == "logamp":
                             pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.LOG_AMPLITUDE)] = np.log(amplitude)
-                        elif metric == "imp_time":
-                            pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.IMPLICT_TIME)] = implicit_time
+                        elif metric == "amp_imp_time":
+                            pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AMP_IMPLICIT_TIME)] = amp_implicit_time
+                        elif metric == "halfamp_imp_time":
+                            pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.HALFAMP_IMPLICIT_TIME)] = halfamp_implicit_time
                         elif metric == "rec_amp":
                             pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.RECOVERY_PERCENT)] = recovery
 
@@ -901,7 +907,7 @@ if __name__ == "__main__":
                                     iORG_frmstmp = np.insert(iORG_frmstmp, next_highest, metrics_poststim[-1])
                                     poststim = np.append(poststim, next_highest)
 
-                                amplitude, implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp,
+                                amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp,
                                                                                               pooled_framerate,
                                                                                               prestim, poststim)
 
@@ -913,8 +919,10 @@ if __name__ == "__main__":
                                         indiv_iORG_result[q].loc[thisind, MetricTags.AMPLITUDE] = amplitude
                                     elif metric == "logamp":
                                         indiv_iORG_result[q].loc[thisind,  MetricTags.LOG_AMPLITUDE] = np.log(amplitude)
-                                    elif metric == "imp_time":
-                                        indiv_iORG_result[q].loc[thisind, MetricTags.IMPLICT_TIME] = implicit_time
+                                    elif metric == "amp_imp_time":
+                                        indiv_iORG_result[q].loc[thisind, MetricTags.AMP_IMPLICIT_TIME] = amp_implicit_time
+                                    elif metric == "halfamp_imp_time":
+                                        indiv_iORG_result[q].loc[thisind, MetricTags.HALFAMP_IMPLICIT_TIME] = halfamp_implicit_time
                                     elif metric == "rec_amp":
                                         indiv_iORG_result[q].loc[thisind, MetricTags.RECOVERY_PERCENT] = recovery
 

@@ -413,7 +413,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
     if np.all(~finite_data) or len(prestim_window_idx) == 0 or len(poststim_window_idx)==0:
         return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
-               np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
+               np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
 
     if prestim_window_idx is None:
         prestim_window_idx = np.zeros((1,))
@@ -437,6 +437,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
     postfad = np.amax(cum_post_abs_diff_profiles, axis=1)
 
     prestim = temporal_signals[:, prestim_window_idx]
+    prestim_frms = framestamps[prestim_window_idx]
     poststim = temporal_signals[:, poststim_window_idx]
     poststim_frms = framestamps[poststim_window_idx]
 
@@ -458,14 +459,18 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
     recovery = 1 - ((final_val-prestim_val)/amplitude)
 
     # ** Implicit time **
-    implicit_time = np.full_like(amplitude, np.nan)
+    amp_implicit_time = np.full_like(amplitude, np.nan)
+    halfamp_implicit_time = np.full_like(amplitude, np.nan)
     for c in range(temporal_signals.shape[0]):
-        whereabove = np.flatnonzero(poststim[c, :] > poststim_val[c])
+        whereabove_amp = np.flatnonzero(poststim[c, :] > poststim_val[c])
+        halfamp_whereabove = np.flatnonzero(poststim[c, :] > (amplitude[c]/2)+prestim_val[c] )
 
-        if np.any(whereabove) and np.any(np.isfinite(whereabove)):
-            implicit_time[c] = (whereabove[0] + poststim_window_idx[0] - prestim_window_idx[-1]) / framerate
+        if np.any(whereabove_amp) and np.any(np.isfinite(whereabove_amp)):
+            amp_implicit_time[c] = (whereabove_amp[0] + poststim_frms[0] - prestim_frms[-1]) / framerate
+        if np.any(halfamp_whereabove) and np.any(np.isfinite(halfamp_whereabove)):
+            halfamp_implicit_time[c] = (halfamp_whereabove[0] + poststim_frms[0] - prestim_frms[-1]) / framerate
 
-    return amplitude, implicit_time, auc, recovery
+    return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery
 
 def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
 
