@@ -377,7 +377,7 @@ if __name__ == "__main__":
         #
         # plt.figure(112)
         # plt.hist(np.log(cell_power_fad), bins=np.arange(2.25, 5.25, 0.05), density=True, histtype="step",
-        #          cumulative=True, label=loc.name)
+        #          cumulative=True, figure_label=loc.name)
         # plt.title("RMS power logMAD cumulative")
         # plt.legend(loc="best")
         # plt.show(block=False)

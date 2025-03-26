@@ -6,7 +6,6 @@ from pathlib import Path, PurePath
 from tkinter import Tk, filedialog, ttk, HORIZONTAL, messagebox
 
 import cv2
-import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from colorama import Fore
@@ -14,6 +13,8 @@ from matplotlib import pyplot as plt
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
+from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
+    display_iORG_summary_histogram, display_iORG_summary_overlay
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, PipeStages
 from ocvl.function.utility.json_format_constants import Pipeline, MetaTags, DataFormatType, DataTags, AcquisiTags, \
@@ -525,57 +526,13 @@ if __name__ == "__main__":
                         # This shows all summaries overlapping.
                         if pop_overlap_params:
 
-                            disp_stim = pop_overlap_params.get(DisplayParams.DISP_STIMULUS, True)
-                            disp_cont = pop_overlap_params.get(DisplayParams.DISP_CONTROL, True)
-                            disp_rel = pop_overlap_params.get(DisplayParams.DISP_RELATIVE, True)
-
-                            ax_params = pop_overlap_params.get(DisplayParams.AXES, dict())
-                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
-                            ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
-                            how_many = disp_stim + disp_cont + disp_rel
-
                             overlap_label = "Query file " + query_loc_names[q] + ": summarized using "+ sum_method+ " of " +mode +" iORGs in "+folder.name
-                            plt.figure( overlap_label )
                             display_dict[mode+"_pop_iORG_"+ sum_method +"_overlapping_"+query_loc_names[q]+"coords_"+folder.name] = overlap_label
-                            ind = 1
-                            if how_many > 1 and disp_stim:
-                                plt.subplot(1, how_many, ind)
-                                ind += 1
-                            if disp_stim:
-                                dispinds = np.isfinite(stim_pop_summary)
-                                plt.title("Stimulus iORG")
-                                plt.plot(stim_framestamps[dispinds] / stim_dataset.framerate, stim_pop_summary[dispinds], label=str(stim_vidnum))
-                                plt.xlabel("Time (s)")
-                                plt.ylabel(sum_method)
-                                if all(xlimits): plt.xlim(xlimits)
-                                if all(ylimits): plt.ylim(ylimits)
-                            if how_many > 1 and disp_cont:
-                                plt.subplot(1, how_many, ind)
-                                ind += 1
-                            if disp_cont and control_datasets and plt.gca().get_title() != "Control iORGs": # The last bit ensures we don't spam the subplots with control data.
-                                plt.title("Control iORGs")
-                                for r in range(control_pop_iORG_summary[q].shape[0]):
-                                    plt.plot(control_framestamps[q][r] / stim_dataset.framerate, control_pop_iORG_summary[q][r, control_framestamps[q][r]], label=str(control_vidnums[r]))
-                                plt.plot(control_framestamps_pooled[q] / stim_dataset.framerate, control_pop_iORG_summary_pooled[q][control_framestamps_pooled[q]], 'k--', linewidth=4)
-                                plt.xlabel("Time (s)")
-                                plt.ylabel(sum_method)
-                                if all(xlimits): plt.xlim(xlimits)
-                                if all(ylimits): plt.ylim(ylimits)
-                                if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
-                            if how_many > 1 and disp_rel:
-                                plt.subplot(1, how_many, ind)
-                                ind += 1
-                            if disp_rel:
-                                dispinds = np.isfinite(stim_dataset.summarized_iORGs[q])
-                                plt.title("Stimulus relative to control iORG via " + sum_control)
-                                plt.plot(stim_framestamps[dispinds]/stim_dataset.framerate, stim_dataset.summarized_iORGs[q][dispinds], label=str(stim_vidnum))
-                                plt.xlabel("Time (s)")
-                                plt.ylabel(sum_method)
-                                if all(xlimits): plt.xlim(xlimits)
-                                if all(ylimits): plt.ylim(ylimits)
 
-
-                            if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+                            display_iORG_pop_summary(stim_framestamps, stim_pop_summary, stim_dataset.summarized_iORGs[q], stim_vidnum,
+                                                     control_framestamps[q], control_pop_iORG_summary[q], control_vidnums,
+                                                     control_framestamps_pooled[q], control_pop_iORG_summary_pooled[q],
+                                                     stim_dataset.framerate, sum_method, sum_control, overlap_label, pop_overlap_params)
                             plt.show(block=False)
 
                         # This shows all summaries in temporal sequence.
@@ -595,32 +552,22 @@ if __name__ == "__main__":
 
                             if pop_seq_params.get(DisplayParams.DISP_STIMULUS, True):
                                 seq_stim_label = "Query file " + query_loc_names[q] + ": Stimulus iORG temporal sequence of " +mode +" iORGs in "+folder.name
-                                plt.figure(seq_stim_label)
                                 display_dict[mode + "_pop_iORG_" + sum_method + "_sequential_stim_only_" + query_loc_names[q] + "coords_" + folder.name] = seq_stim_label
 
-                                plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
-                                plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
-                                plt.plot(stim_framestamps / stim_dataset.framerate, stim_pop_summary)
-                                plt.xlabel("Time (s)")
-                                plt.ylabel(sum_method)
-                                if all(xlimits): plt.xlim(xlimits)
-                                if all(ylimits): plt.ylim(ylimits)
+                                display_iORG_pop_summary_seq(stim_framestamps, stim_pop_summary, vidnum_seq[v],
+                                                             stim_dataset.framerate, sum_method, seq_stim_label,
+                                                             pop_seq_params)
+                                plt.show(block=False)
 
                             if pop_seq_params.get(DisplayParams.DISP_RELATIVE, True):
                                 seq_rel_label = "Query file " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence"
-                                plt.figure(seq_rel_label)
                                 display_dict[mode + "_pop_iORG_" + sum_method + "_sequential_relative_" + query_loc_names[q] + "coords_" + folder.name] = seq_rel_label
 
-                                plt.subplot(seq_row, 5, (vidnum_seq[v] % num_in_seq) + 1)
-                                plt.title("Acquisition "+ str(vidnum_seq[v] % num_in_seq) + " of " + str(num_in_seq))
-                                plt.plot(stim_framestamps/stim_dataset.framerate,stim_dataset.summarized_iORGs[q])
-                                plt.xlabel("Time (s)")
-                                plt.ylabel(sum_method)
-                                if all(xlimits): plt.xlim(xlimits)
-                                if all(ylimits): plt.ylim(ylimits)
+                                display_iORG_pop_summary_seq(stim_framestamps, stim_dataset.summarized_iORGs[q], vidnum_seq[v],
+                                                             stim_dataset.framerate, sum_method, seq_rel_label,
+                                                             pop_seq_params)
+                                plt.show(block=False)
 
-                            if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
-                            plt.show(block=False)
 
                         metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
                         metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
@@ -644,18 +591,18 @@ if __name__ == "__main__":
 
                         # if we're missing an *end* framestamp in our window, interpolate to find the value there,
                         # and add it temporarily to our signal to make sure things like AUR work correctly.
-                        iORG_summary = stim_dataset.summarized_iORGs[q][stim_dataset.framestamps]
-                        iORG_frmstmp = stim_dataset.framestamps
-                        if not np.any(iORG_frmstmp[poststim] == metrics_poststim[-1]):
-                            inter_val = np.interp(metrics_poststim[-1], iORG_frmstmp, iORG_summary)
+                        finite_iORG_summary = stim_dataset.summarized_iORGs[q][stim_dataset.framestamps]
+                        finite_iORG_frmstmp = stim_dataset.framestamps
+                        if not np.any(finite_iORG_frmstmp[poststim] == metrics_poststim[-1]):
+                            inter_val = np.interp(metrics_poststim[-1], finite_iORG_frmstmp, finite_iORG_summary)
                             # Find where to insert the interpolant and its framestamp
-                            next_highest = np.argmax(iORG_frmstmp > metrics_poststim[-1])
-                            iORG_summary = np.insert(iORG_summary, next_highest, inter_val)
-                            iORG_frmstmp = np.insert(iORG_frmstmp, next_highest, metrics_poststim[-1])
+                            next_highest = np.argmax(finite_iORG_frmstmp > metrics_poststim[-1])
+                            finite_iORG_summary = np.insert(finite_iORG_summary, next_highest, inter_val)
+                            finite_iORG_frmstmp = np.insert(finite_iORG_frmstmp, next_highest, metrics_poststim[-1])
                             poststim = np.append(poststim, next_highest)
 
-                        amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp, stim_dataset.framerate,
-                                                                                      prestim, poststim)
+                        amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(finite_iORG_summary, finite_iORG_frmstmp, stim_dataset.framerate,
+                                                                                                                 prestim, poststim)
 
                         for metric in metrics_type:
                             if metric == "aur":
@@ -682,7 +629,7 @@ if __name__ == "__main__":
                     stimtrain = [None] * len(stim_datasets)
 
                     pooled_framerate = np.full((len(stim_datasets),), np.nan)
-                    iORG_frmstmp = np.arange(max_frmstamp + 1)
+                    finite_iORG_frmstmp = np.arange(max_frmstamp + 1)
 
 
                     if uniform_datasets:
@@ -724,10 +671,10 @@ if __name__ == "__main__":
                             plt.subplot(1,2,2)
                             for s in range(stim_iORG_signals[q][:, c, :].shape[0]):
                                 sig = stim_iORG_signals[q][s, c, :]
-                                plt.plot(iORG_frmstmp[np.isfinite(sig)]/pooled_framerate, sig[np.isfinite(sig)])
+                                plt.plot(finite_iORG_frmstmp[np.isfinite(sig)] / pooled_framerate, sig[np.isfinite(sig)])
                             for s in range(control_iORG_signals[q][:, c, :].shape[0]):
                                 sig = control_iORG_signals[q][s, c, :]
-                                plt.plot(iORG_frmstmp[np.isfinite(sig)] / pooled_framerate, sig[np.isfinite(sig)], 'k')
+                                plt.plot(finite_iORG_frmstmp[np.isfinite(sig)] / pooled_framerate, sig[np.isfinite(sig)], 'k')
                             if all(xlimits): plt.xlim(xlimits)
                             if all(ylimits): plt.ylim(ylimits)
                             plt.show(block=False)
@@ -759,25 +706,25 @@ if __name__ == "__main__":
                                                  dtype=int)
 
                     finite_iORG = np.isfinite(stim_pop_iORG_summary[q])
-                    iORG_summary = stim_pop_iORG_summary[q][finite_iORG]
-                    iORG_frmstmp = iORG_frmstmp[finite_iORG]
+                    finite_iORG_summary = stim_pop_iORG_summary[q][finite_iORG]
+                    finite_iORG_frmstmp = finite_iORG_frmstmp[finite_iORG]
                     # Find the indexes of the framestamps corresponding to our pre and post stim frames;
-                    prestim = np.flatnonzero(np.isin(iORG_frmstmp, metrics_prestim))
-                    poststim = np.flatnonzero(np.isin(iORG_frmstmp, metrics_poststim))
+                    prestim = np.flatnonzero(np.isin(finite_iORG_frmstmp, metrics_prestim))
+                    poststim = np.flatnonzero(np.isin(finite_iORG_frmstmp, metrics_poststim))
 
                     # if we're missing an *end* framestamp in our window, interpolate to find the value there,
                     # and add it temporarily to our signal to make sure things like AUR work correctly.
-                    if not np.any(iORG_frmstmp[poststim] == metrics_poststim[-1]):
-                        inter_val = np.interp(metrics_poststim[-1], iORG_frmstmp, iORG_summary)
+                    if not np.any(finite_iORG_frmstmp[poststim] == metrics_poststim[-1]):
+                        inter_val = np.interp(metrics_poststim[-1], finite_iORG_frmstmp, finite_iORG_summary)
                         # Find where to insert the interpolant and its framestamp
-                        next_highest = np.argmax(iORG_frmstmp > metrics_poststim[-1])
-                        iORG_summary = np.insert(iORG_summary, next_highest, inter_val)
-                        iORG_frmstmp = np.insert(iORG_frmstmp, next_highest, metrics_poststim[-1])
+                        next_highest = np.argmax(finite_iORG_frmstmp > metrics_poststim[-1])
+                        finite_iORG_summary = np.insert(finite_iORG_summary, next_highest, inter_val)
+                        finite_iORG_frmstmp = np.insert(finite_iORG_frmstmp, next_highest, metrics_poststim[-1])
                         poststim = np.append(poststim, next_highest)
 
-                    amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp,
-                                                                                  pooled_framerate,
-                                                                                  prestim, poststim)
+                    amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(finite_iORG_summary, finite_iORG_frmstmp,
+                                                                                                             pooled_framerate,
+                                                                                                             prestim, poststim)
                     for metric in metrics_type:
                         if metric == "aur":
                             pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AUR)] = aur
@@ -794,23 +741,15 @@ if __name__ == "__main__":
 
                     ''' *** Display the pooled population data *** '''
                     if pop_overlap_params.get(DisplayParams.DISP_POOLED, False):
-                        ax_params = pop_overlap_params.get(DisplayParams.AXES, dict())
-                        xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
-                        ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
-
                         overlap_label = "Pooled data summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
-                        plt.figure(overlap_label)
                         display_dict["pooled_" + mode + "_pop_iORG_" + sum_method + "_overlapping"] = overlap_label
-                        plt.title("Pooled "+ sum_method +"iORGs relative to control iORG via " + sum_control)
-                        plt.plot(np.arange(max_frmstamp + 1) / pooled_framerate, stim_pop_iORG_summary[q],
-                                 label=query_loc_names[q])
-                        plt.xlabel("Time (s)")
-                        plt.ylabel(sum_method)
-                        if all(xlimits): plt.xlim(xlimits)
-                        if all(ylimits): plt.ylim(ylimits)
 
-                        if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+                        display_iORG_pop_summary(np.arange(max_frmstamp + 1), stim_pop_iORG_summary[q], stim_vidnum=query_loc_names[q],
+                                                 framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
+                                                 figure_label=overlap_label, params=pop_overlap_params)
                         plt.show(block=False)
+
+                        plt.title("Pooled "+ sum_method +"iORGs relative to control iORG via " + sum_control)
 
                     # If we have a uniform dataset, summarize each cell's iORG too.
                     ''' *** Individual iORG analyses start here *** '''
@@ -818,17 +757,7 @@ if __name__ == "__main__":
                         all_frmstmp = np.arange(max_frmstamp + 1)
 
                         if indiv_overlap_params:
-                            disp_stim = indiv_overlap_params.get(DisplayParams.DISP_STIMULUS, True)
-                            disp_cont = indiv_overlap_params.get(DisplayParams.DISP_CONTROL, True)
-                            disp_rel = indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, True)
-                            ax_params = indiv_overlap_params.get(DisplayParams.AXES, dict())
-                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
-                            ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
-
-                            how_many = disp_stim + disp_cont + disp_rel
-
                             overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
-                            plt.figure(overlap_label)
                             display_dict[mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
 
                         for c in range(stim_iORG_signals[q].shape[1]):
@@ -838,78 +767,50 @@ if __name__ == "__main__":
 
                             # If we have more signals than our cutoff, then continue with the summary.
                             if tot_sig >= sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
+
                                 all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = True
-                                stim_iORG_summary[q][c, :], _ = summarize_iORG_signals(stim_iORG_signals[q][:, c, :], all_frmstmp,
+
+                                cell_iORG_summary, _ = summarize_iORG_signals(stim_iORG_signals[q][:, c, :], all_frmstmp,
                                                                                        summary_method=sum_method,
                                                                                        window_size=sum_window)
 
-                                if indiv_overlap_params:
-                                    plt.figure(overlap_label)
-                                    ind = 1
-                                    if how_many > 1 and disp_stim:
-                                        plt.subplot(1, how_many, ind)
-                                        ind += 1
-                                    if disp_stim:
-                                        plt.title("Stimulus iORG")
-                                        plt.plot(all_frmstmp/pooled_framerate, stim_iORG_summary[q][c, :])
-                                        plt.xlabel("Time (s)")
-                                        plt.ylabel(sum_method)
-                                        if all(xlimits): plt.xlim(xlimits)
-                                        if all(ylimits): plt.ylim(ylimits)
-                                    if how_many > 1 and disp_cont:
-                                        plt.subplot(1, how_many, ind)
-                                        ind += 1
-                                    if disp_cont and control_datasets and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
-                                        plt.title("Control iORGs")
-                                        plt.plot(all_frmstmp/pooled_framerate, control_pop_iORG_summary_pooled[q])
-                                        plt.xlabel("Time (s)")
-                                        plt.ylabel(sum_method)
-                                        if all(xlimits): plt.xlim(xlimits)
-                                        if all(ylimits): plt.ylim(ylimits)
-
                                 # Calculate the relativized individual cell iORGs
                                 if sum_control == "subtraction" and control_datasets:
-                                    stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] - control_pop_iORG_summary_pooled[q]
+                                    stim_iORG_summary[q][c, :] = cell_iORG_summary - control_pop_iORG_summary_pooled[q]
                                 elif sum_control == "division" and control_datasets:
-                                    stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :] / control_pop_iORG_summary_pooled[q]
+                                    stim_iORG_summary[q][c, :] = cell_iORG_summary / control_pop_iORG_summary_pooled[q]
                                 else:
-                                    stim_iORG_summary[q][c, :] = stim_iORG_summary[q][c, :]
+                                    stim_iORG_summary[q][c, :] = cell_iORG_summary
 
+                                ''' *** Display individual iORG summaries  *** '''
                                 if indiv_overlap_params:
-                                    plt.figure(overlap_label)
-                                    if how_many > 1 and disp_rel:
-                                        plt.subplot(1, how_many, ind)
-                                        ind += 1
-                                    if disp_rel:
-                                        if sum_control != "none":
-                                            plt.title("Stimulus relative to control iORG via " + sum_control)
-                                        plt.plot(all_frmstmp/pooled_framerate, stim_iORG_summary[q][c, :])
-                                        plt.xlabel("Time (s)")
-                                        plt.ylabel(sum_method)
-                                        if all(xlimits): plt.xlim(xlimits)
-                                        if all(ylimits): plt.ylim(ylimits)
+                                    display_iORG_pop_summary(all_frmstmp, cell_iORG_summary, stim_iORG_summary[q][c, :], None,
+                                                             all_frmstmp, control_pop_iORG_summary_pooled[q],
+                                                             framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
+                                                             figure_label=overlap_label, params=indiv_overlap_params)
+
 
                                 finite_iORG = np.isfinite(stim_iORG_summary[q][c, :])
-                                iORG_summary = stim_iORG_summary[q][c, finite_iORG]
-                                iORG_frmstmp = all_frmstmp[finite_iORG]
+                                finite_iORG_summary = stim_iORG_summary[q][c, finite_iORG]
+                                finite_iORG_frmstmp = all_frmstmp[finite_iORG]
 
                                 # Find the indexes of the framestamps corresponding to our pre and post stim frames;
-                                prestim = np.flatnonzero(np.isin(iORG_frmstmp, metrics_prestim))
-                                poststim = np.flatnonzero(np.isin(iORG_frmstmp, metrics_poststim))
+                                prestim = np.flatnonzero(np.isin(finite_iORG_frmstmp, metrics_prestim))
+                                poststim = np.flatnonzero(np.isin(finite_iORG_frmstmp, metrics_poststim))
 
                                 # if we're missing an *end* framestamp in our window, interpolate to find the value there,
                                 # and add it temporarily to our signal to make sure things like AUR work correctly.
-                                if not np.any(iORG_frmstmp[poststim] == metrics_poststim[-1]):
-                                    inter_val = np.interp(metrics_poststim[-1], iORG_frmstmp, iORG_summary)
+                                if not np.any(finite_iORG_frmstmp[poststim] == metrics_poststim[-1]):
+                                    inter_val = np.interp(metrics_poststim[-1], finite_iORG_frmstmp, finite_iORG_summary)
                                     # Find where to insert the interpolant and its framestamp
-                                    next_highest = np.argmax(iORG_frmstmp > metrics_poststim[-1])
-                                    iORG_summary = np.insert(iORG_summary, next_highest, inter_val)
-                                    iORG_frmstmp = np.insert(iORG_frmstmp, next_highest, metrics_poststim[-1])
+                                    next_highest = np.argmax(finite_iORG_frmstmp > metrics_poststim[-1])
+                                    finite_iORG_summary = np.insert(finite_iORG_summary, next_highest, inter_val)
+                                    finite_iORG_frmstmp = np.insert(finite_iORG_frmstmp, next_highest, metrics_poststim[-1])
                                     poststim = np.append(poststim, next_highest)
 
-                                amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(iORG_summary, iORG_frmstmp,
-                                                                                              pooled_framerate,
-                                                                                              prestim, poststim)
+                                amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(finite_iORG_summary, finite_iORG_frmstmp,
+                                                                                                                         pooled_framerate,
+                                                                                                                         prestim, poststim)
 
                                 thisind = indiv_iORG_result[q].index[c]
                                 for metric in metrics_type:
@@ -929,6 +830,8 @@ if __name__ == "__main__":
                             else:
                                 all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = False
 
+                        if indiv_overlap_params:
+                            plt.show(block=False)
                         indiv_respath = result_folder.joinpath("indiv_summary_metrics" + str(folder.name) + "_" + str(mode) +
                                                    "_" + query_loc_names[q] + "coords.csv")
 
@@ -943,65 +846,20 @@ if __name__ == "__main__":
                                     message="The result file may be open. Close the file, then try to write again?")
 
                         if indiv_summary.get(DisplayParams.HISTOGRAM):
-                            ax_params = indiv_summary.get(DisplayParams.AXES, dict())
-                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
 
                             overlap_label = "Individual-Cell iORGs metric histograms from " + mode + " iORGs in " + folder.name
-                            plt.figure(overlap_label)
                             display_dict[mode + "_indiv_iORG_" + sum_method + "_metric_histograms"] = overlap_label
 
-                            numsub = np.sum( indiv_iORG_result[q].count() > 0 )
-                            subind = 1
-                            for metric in list(MetricTags):
-                                if indiv_iORG_result[q].loc[:, metric].count() != 0:
-                                    metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
+                            display_iORG_summary_histogram(indiv_iORG_result[q], list(MetricTags), False, query_loc_names[q],
+                                                           overlap_label, indiv_summary)
 
-                                    plt.subplot(numsub, 1, subind)
-                                    subind += 1
-
-                                    if all(xlimits) and ax_params.get(DisplayParams.XSTEP):
-                                        histbins = np.arange(start=xlimits[0], stop=xlimits[1], step=ax_params.get(DisplayParams.XSTEP))
-                                        plt.hist(metric_res, bins=histbins, label=query_loc_names[q])
-                                    else:
-                                        plt.hist(metric_res, bins=ax_params.get(DisplayParams.NBINS, 50), label=query_loc_names[q])
-
-                                    plt.title(metric)
-                                    if all(xlimits): plt.xlim(xlimits)
-                                    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
-
-                                    plt.show(block=False)
 
                         if indiv_summary.get(DisplayParams.CUMULATIVE_HISTOGRAM):
-                            ax_params = indiv_summary.get(DisplayParams.AXES, dict())
-                            xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
-
                             overlap_label = "Individual-Cell iORGs metric cumulative histograms from " + mode + " iORGs in " + folder.name
-                            plt.figure(overlap_label)
                             display_dict[mode + "_indiv_iORG_" + sum_method + "_metric_cumul_histograms"] = overlap_label
 
-                            numsub = np.sum( indiv_iORG_result[q].count() > 0 )
-                            subind = 1
-                            for metric in list(MetricTags):
-                                if indiv_iORG_result[q].loc[:, metric].count() != 0:
-                                    metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
-
-                                    plt.subplot(numsub, 1, subind)
-                                    subind += 1
-
-                                    if all(xlimits) and ax_params.get(DisplayParams.XSTEP):
-                                        histbins = np.arange(start=xlimits[0], stop=xlimits[1], step=ax_params.get(DisplayParams.XSTEP))
-                                        plt.hist(metric_res, bins=histbins, label=query_loc_names[q], density=True, histtype="step",
-                                                 cumulative=True)
-                                    else:
-                                        plt.hist(metric_res, bins=ax_params.get(DisplayParams.NBINS, 50),
-                                                 label=query_loc_names[q], density=True, histtype="step",
-                                                 cumulative=True)
-
-                                    plt.title(metric)
-                                    if all(xlimits): plt.xlim(xlimits)
-                                    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
-
-                                    plt.show(block=False)
+                            display_iORG_summary_histogram(indiv_iORG_result[q], list(MetricTags), True, query_loc_names[q],
+                                                           overlap_label, indiv_summary)
 
                         if indiv_summary.get(DisplayParams.MAP_OVERLAY):
                             ax_params = indiv_summary.get(DisplayParams.AXES, dict())
@@ -1009,38 +867,23 @@ if __name__ == "__main__":
                             for metric in list(MetricTags):
                                 if indiv_iORG_result[q].loc[:, metric].count() != 0:
                                     label = "Individual iORG "+metric+" from " + mode + " using query locations: " + query_loc_names[q] + " in " + folder.name
-                                    plt.figure(label)
                                     display_dict[mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q]] = label
 
                                     refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
-                                    plt.title(label)
-                                    plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
 
                                     metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
                                     coords = np.array(indiv_iORG_result[q].loc[:, metric].index.to_list())
 
-                                    if ax_params.get(DisplayParams.XMIN, None) and ax_params.get(DisplayParams.XMAX, None) and ax_params.get(DisplayParams.XSTEP, None):
-                                        histbins = np.arange(start=ax_params.get(DisplayParams.XMIN),
-                                                             stop=ax_params.get(DisplayParams.XMAX),
-                                                             step=ax_params.get(DisplayParams.XSTEP))
-                                    else:
-                                        histbins = np.arange(start=np.nanpercentile(metric_res, 1), stop=np.nanpercentile(metric_res, 99),
-                                                             step=(np.nanpercentile(metric_res, 99)-np.nanpercentile(metric_res, 1))/100)
+                                    display_iORG_summary_overlay(metric_res, coords, cv2.imread(refim, cv2.IMREAD_GRAYSCALE),
+                                                                 metric, label, indiv_summary)
 
 
-                                    normmap = mpl.colors.Normalize(vmin=histbins[0], vmax=histbins[-1], clip=True)
-                                    mapper = plt.cm.ScalarMappable( cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")), norm=normmap)
 
-                                    plt.scatter(coords[:,0], coords[:,1], s=10, c=mapper.to_rgba(metric_res))
-                                    plt.colorbar(mapper, ax=plt.gca(), label=metric)
-                                    plt.show(block=False)
-
-
-                        # label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
-                        # plt.figure(label)
-                        # display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = label
+                        # figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
+                        # plt.figure(figure_label)
+                        # display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = figure_label
                         # refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
-                        # plt.title(label)
+                        # plt.title(figure_label)
                         # plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
                         # viability = all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"]
                         #
