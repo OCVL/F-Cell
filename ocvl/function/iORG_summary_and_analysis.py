@@ -94,6 +94,13 @@ if __name__ == "__main__":
     display_params = analysis_dat_format.get(DisplayParams.NAME)
     modes_of_interest = analysis_params.get(Pipeline.MODALITIES)
 
+    subject_IDs = allData['IDnum'].unique()
+
+    if np.size(subject_IDs) > 1:
+        warnings.warn("MORE THAN 1 SUBJECT ID DETECTED!! Labeling outputs with first ID")
+
+
+
     metadata_params = None
     if analysis_dat_format.get(MetaTags.METATAG) is not None:
         metadata_params = analysis_dat_format.get(MetaTags.METATAG)
