@@ -98,12 +98,12 @@ if __name__ == "__main__":
     if 'IDnum' in allData:
         subject_IDs = allData['IDnum'].unique()
 
+
         if np.size(subject_IDs) > 1:
             warnings.warn("MORE THAN 1 SUBJECT ID DETECTED!! Labeling outputs with first ID")
     else:
         warnings.warn("NO SUBJECT ID FIELD DETECTED IN allData! Labeling outputs with dummy subject ID")
         subject_IDs = [''] #Trying empty subject ID
-
 
 
     metadata_params = None
@@ -538,7 +538,7 @@ if __name__ == "__main__":
                         if pop_overlap_params:
 
                             overlap_label = "Query file " + query_loc_names[q] + ": summarized using "+ sum_method+ " of " +mode +" iORGs in "+folder.name
-                            display_dict[mode+"_pop_iORG_"+ sum_method +"_overlapping_"+query_loc_names[q]+"coords_"+folder.name] = overlap_label
+                            display_dict[str(subject_IDs[0]) + "_" + mode+"_pop_iORG_"+ sum_method +"_overlapping_"+query_loc_names[q]+"coords_"+folder.name] = overlap_label
 
                             display_iORG_pop_summary(stim_framestamps, stim_pop_summary, stim_dataset.summarized_iORGs[q], stim_vidnum,
                                                      control_framestamps[q], control_pop_iORG_summary[q], control_vidnums,
@@ -563,7 +563,7 @@ if __name__ == "__main__":
 
                             if pop_seq_params.get(DisplayParams.DISP_STIMULUS, True):
                                 seq_stim_label = "Query file " + query_loc_names[q] + ": Stimulus iORG temporal sequence of " +mode +" iORGs in "+folder.name
-                                display_dict[mode + "_pop_iORG_" + sum_method + "_sequential_stim_only_" + query_loc_names[q] + "coords_" + folder.name] = seq_stim_label
+                                display_dict[str(subject_IDs[0]) + "_" + mode + "_pop_iORG_" + sum_method + "_sequential_stim_only_" + query_loc_names[q] + "coords_" + folder.name] = seq_stim_label
 
                                 display_iORG_pop_summary_seq(stim_framestamps, stim_pop_summary, vidnum_seq[v],
                                                              stim_dataset.framerate, sum_method, seq_stim_label,
@@ -572,7 +572,7 @@ if __name__ == "__main__":
 
                             if pop_seq_params.get(DisplayParams.DISP_RELATIVE, True):
                                 seq_rel_label = "Query file " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence"
-                                display_dict[mode + "_pop_iORG_" + sum_method + "_sequential_relative_" + query_loc_names[q] + "coords_" + folder.name] = seq_rel_label
+                                display_dict[str(subject_IDs[0]) + "_" + mode + "_pop_iORG_" + sum_method + "_sequential_relative_" + query_loc_names[q] + "coords_" + folder.name] = seq_rel_label
 
                                 display_iORG_pop_summary_seq(stim_framestamps, stim_dataset.summarized_iORGs[q], vidnum_seq[v],
                                                              stim_dataset.framerate, sum_method, seq_rel_label,
@@ -753,7 +753,7 @@ if __name__ == "__main__":
                     ''' *** Display the pooled population data *** '''
                     if pop_overlap_params.get(DisplayParams.DISP_POOLED, False):
                         overlap_label = "Pooled data summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
-                        display_dict["pooled_" + mode + "_pop_iORG_" + sum_method + "_overlapping"] = overlap_label
+                        display_dict[str(subject_IDs[0]) + "_" + "pooled_" + mode + "_pop_iORG_" + sum_method + "_overlapping"] = overlap_label
 
                         display_iORG_pop_summary(np.arange(max_frmstamp + 1), stim_pop_iORG_summary[q], stim_vidnum=query_loc_names[q],
                                                  framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
@@ -769,7 +769,7 @@ if __name__ == "__main__":
 
                         if indiv_overlap_params:
                             overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
-                            display_dict[mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
+                            display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
 
                         for c in range(stim_iORG_signals[q].shape[1]):
                             tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q][:, c, :]), axis=1))
@@ -859,7 +859,7 @@ if __name__ == "__main__":
                         if indiv_summary.get(DisplayParams.HISTOGRAM):
 
                             overlap_label = "Individual-Cell iORGs metric histograms from " + mode + " iORGs in " + folder.name
-                            display_dict[mode + "_indiv_iORG_" + sum_method + "_metric_histograms"] = overlap_label
+                            display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_metric_histograms"] = overlap_label
 
                             display_iORG_summary_histogram(indiv_iORG_result[q], list(MetricTags), False, query_loc_names[q],
                                                            overlap_label, indiv_summary)
@@ -867,7 +867,7 @@ if __name__ == "__main__":
 
                         if indiv_summary.get(DisplayParams.CUMULATIVE_HISTOGRAM):
                             overlap_label = "Individual-Cell iORGs metric cumulative histograms from " + mode + " iORGs in " + folder.name
-                            display_dict[mode + "_indiv_iORG_" + sum_method + "_metric_cumul_histograms"] = overlap_label
+                            display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_metric_cumul_histograms"] = overlap_label
 
                             display_iORG_summary_histogram(indiv_iORG_result[q], list(MetricTags), True, query_loc_names[q],
                                                            overlap_label, indiv_summary)
@@ -878,7 +878,7 @@ if __name__ == "__main__":
                             for metric in list(MetricTags):
                                 if indiv_iORG_result[q].loc[:, metric].count() != 0:
                                     label = "Individual iORG "+metric+" from " + mode + " using query locations: " + query_loc_names[q] + " in " + folder.name
-                                    display_dict[mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q]] = label
+                                    display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q]] = label
 
                                     refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
 
