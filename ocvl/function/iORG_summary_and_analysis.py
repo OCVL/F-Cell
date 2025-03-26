@@ -515,7 +515,7 @@ if __name__ == "__main__":
 
 
                                 # First write the control data to a file.
-                                control_query_status[q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.name) + "_" + str(mode) +
+                                control_query_status[q].to_csv(result_folder.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
                                                            "_" + query_loc_names[q] + "coords_controldata.csv"))
 
                     ''' *** Population iORG analyses here *** '''
@@ -843,7 +843,7 @@ if __name__ == "__main__":
 
                         if indiv_overlap_params:
                             plt.show(block=False)
-                        indiv_respath = result_folder.joinpath("indiv_summary_metrics" + str(folder.name) + "_" + str(mode) +
+                        indiv_respath = result_folder.joinpath(str(subject_IDs[0]) + "_indiv_summary_metrics" + str(folder.name) + "_" + str(mode) +
                                                    "_" + query_loc_names[q] + "coords.csv")
 
                         tryagain = True
@@ -914,12 +914,12 @@ if __name__ == "__main__":
                         #     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
                         # plt.show(block=False)
 
-                    all_query_status[folder][mode][q].to_csv(result_folder.joinpath("query_loc_status_" + str(folder.name) + "_" + str(mode) +
+                    all_query_status[folder][mode][q].to_csv(result_folder.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
                                                "_" + query_loc_names[q] + "coords.csv"))
 
 
 
-                respath = result_folder.joinpath("pop_summary_metrics_" + str(folder.name) + "_" + str(mode) + ".csv")
+                respath = result_folder.joinpath(str(subject_IDs[0]) + "_pop_summary_metrics_" + str(folder.name) + "_" + str(mode) + ".csv")
                 tryagain = True
                 while tryagain:
                     try:
