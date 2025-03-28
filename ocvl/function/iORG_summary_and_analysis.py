@@ -372,7 +372,7 @@ if __name__ == "__main__":
                 first_run = True
                 uniform_datasets = True
                 for d, dataset in enumerate(stim_datasets):
-                    locs = dataset.query_loc
+                    locs = dataset.query_loc.copy()
                     the_timestamps = dataset.stimtrain_frame_stamps
                     max_frmstamp = np.maximum(max_frmstamp, np.amax(dataset.framestamps))
 
@@ -449,7 +449,7 @@ if __name__ == "__main__":
                                 group) + " and folder " + folder.name + "...")
 
                             res = pool.map(extract_control_iORG_summaries, zip(control_data_vidnums, control_datasets, repeat(control_query_status.copy()),
-                                                                                   repeat(analysis_params), repeat(stim_dataset.query_loc),
+                                                                                   repeat(analysis_params), repeat(stim_dataset.query_loc.copy()),
                                                                                  repeat(stim_dataset.stimtrain_frame_stamps)))
 
                             print("...Done.")

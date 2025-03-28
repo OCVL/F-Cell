@@ -154,8 +154,13 @@ def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", 
                              stop=ax_params.get(DisplayParams.XMAX),
                              step=ax_params.get(DisplayParams.XSTEP))
     else:
-        histbins = np.arange(start=np.nanpercentile(values, 1), stop=np.nanpercentile(values, 99),
-                             step=(np.nanpercentile(values, 99) - np.nanpercentile(values, 1)) / 100)
+        starting = np.nanpercentile(values, 1)
+        stopping = np.nanpercentile(values, 99)
+        stepping = (stopping - starting) / 100
+        if stepping != 0:
+            histbins = np.arange(start=starting, stop=stopping, step=stepping)
+        else:
+            histbins = np.array([0, 1])
 
     normmap = mpl.colors.Normalize(vmin=histbins[0], vmax=histbins[-1], clip=True)
     mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
