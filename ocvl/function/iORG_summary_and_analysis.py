@@ -164,6 +164,8 @@ if __name__ == "__main__":
     else:
         output_folder = PurePath(output_folder)
 
+    subfolder_flag = 0
+
     if Pipeline.OUTPUT_SUBFOLDER in analysis_params: #Does the output subfolder field exist in the first place?
         if analysis_params.get(Pipeline.OUTPUT_SUBFOLDER) is True: #Is output subfolder field true (ie does the user want to save to a subfolder?)
             output_subfolder_method = analysis_params.get(Pipeline.OUTPUT_SUBFOLDER_METHOD) #Check subfolder naming method
@@ -171,6 +173,7 @@ if __name__ == "__main__":
                 dt = datetime.now()
                 now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
                 output_dt_subfolder = PurePath(now_timestamp)
+                subfolder_flag = 1
 
     # First break things down by group, defined by the user in the config file.
     # We like to use (LocX,LocY), but this is by no means the only way.
@@ -199,8 +202,12 @@ if __name__ == "__main__":
             if folder.name == output_folder.name:
                 continue
 
-            result_folder = folder.joinpath(output_folder)
-            result_folder.mkdir(exist_ok=True)
+            if subfolder_flag == 1:
+                result_folder = folder.joinpath(output_folder,output_dt_subfolder)
+                result_folder.mkdir(exist_ok=True)
+            else:
+                result_folder = folder.joinpath(output_folder)
+                result_folder.mkdir(exist_ok=True)
 
             folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
@@ -344,7 +351,14 @@ if __name__ == "__main__":
         # Control data is expected to be applied to the WHOLE group.
         for folder in folder_groups:
 
-            result_folder = folder.joinpath(output_folder)
+
+            if subfolder_flag == 1:
+                result_folder = folder.joinpath(output_folder,output_dt_subfolder)
+                result_folder.mkdir(exist_ok=True)
+            else:
+                result_folder = folder.joinpath(output_folder)
+                result_folder.mkdir(exist_ok=True)
+
 
             folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 

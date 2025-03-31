@@ -159,7 +159,7 @@
         }
       },
       "saveas": ["png", "svg"],
-      "pause_per_folder": true
+      "pause_per_folder": false
     }
   }
 
