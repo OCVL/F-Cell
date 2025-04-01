@@ -93,6 +93,7 @@ class SegmentParams(StrEnum):
     RADIUS = "radius"
     SHAPE = "disk"
     SUMMARY = "mean"
+    PIXELWISE = "pixelwise"
 
 class ExclusionParams(StrEnum):
     NAME = "exclusion_criteria"

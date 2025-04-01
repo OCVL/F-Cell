@@ -1,9 +1,13 @@
 import warnings
+from itertools import repeat
 
 import cv2
+import numba
 import numpy as np
 from colorama import Fore
+from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
+from numba import prange
 from numpy.polynomial import Polynomial
 
 from skimage.morphology import disk
@@ -14,10 +18,12 @@ from ocvl.function.utility.json_format_constants import SegmentParams, NormParam
     SummaryParams, Pipeline
 from scipy.spatial.distance import pdist, squareform
 
-def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stimtrain_frame_stamps=None):
+def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None):
 
     if query_loc is None:
         query_loc= dataset.query_loc[0].copy()
+    if query_loc_name is None:
+        query_loc_name= ""
 
     if stimtrain_frame_stamps is None:
         stimtrain_frame_stamps = dataset.stimtrain_frame_stamps
@@ -81,6 +87,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
     seg_shape = seg_params.get(SegmentParams.SHAPE, "disk") # Default: A disk shaped mask over each query coordinate
     seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean") # Default the average of the intensity of the query coordinate
+    seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False) # Default NO pixelwise
 
     excl_params = analysis_params.get(ExclusionParams.NAME, dict())
     excl_type = excl_params.get(ExclusionParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
@@ -100,7 +107,8 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
     sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
 
-    if seg_params.get(SegmentParams.REFINE_TO_REF, True):
+    # If the refine to ref parameter is set to true, and these query points aren't pixelwise.
+    if seg_params.get(SegmentParams.REFINE_TO_REF, True) and query_loc_name != "All Pixels":
         query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc.copy())
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
@@ -111,23 +119,26 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, stim
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
 
-    coorddist = pdist(query_loc, "euclidean")
-    coorddist = squareform(coorddist)
-    coorddist[coorddist == 0] = np.amax(coorddist.flatten())
-    mindist = np.amin(coorddist, axis=-1)
-
     # If not defined, then we default to "auto" which determines it from the spacing of the query points
     segmentation_radius = seg_params.get(SegmentParams.RADIUS, "auto")
-    if segmentation_radius == "auto":
+    if segmentation_radius == "auto" and query_loc_name != "All Pixels":
+        coorddist = pdist(query_loc, "euclidean")
+        coorddist = squareform(coorddist)
+        coorddist[coorddist == 0] = np.amax(coorddist.flatten())
+        mindist = np.amin(coorddist, axis=-1)
+
         segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
 
         segmentation_radius = int(segmentation_radius)
         print("Detected segmentation radius: " + str(segmentation_radius))
-    else:
+    elif segmentation_radius != "auto":
         segmentation_radius = int(segmentation_radius)
         print("Chosen segmentation radius: " + str(segmentation_radius))
+    else:
+        segmentation_radius = 1
+        print("Pixelwise segmentation radius: " + str(segmentation_radius))
 
-    if seg_params.get(SegmentParams.REFINE_TO_VID, True):
+    if seg_params.get(SegmentParams.REFINE_TO_VID, True)  and query_loc_name != "All Pixels":
         query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
                                                               query_loc.copy())
     else:
@@ -575,8 +586,8 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     prestim_frmstmp, _, std_indices = np.intersect1d(std_indices, framestamps, return_indices=True)
 
     if len(std_indices) == 0:
-        #warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
-        print(Fore.RED+ "Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed for this dataset.")
+        warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
+        #print(Fore.RED+ "Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed for this dataset.")
         query_status = np.full(temporal_signals.shape[0], "No prestimulus data for standardization.", dtype=object)
         valid_stdization = np.full(temporal_signals.shape[0], False, dtype=bool)
         return temporal_signals, valid_stdization, query_status
@@ -584,83 +595,120 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     query_status = np.full(temporal_signals.shape[0], "Included", dtype=object)
     valid_stdization = np.full(temporal_signals.shape[0], True, dtype=bool)
 
-    if method == "linear_std":
-        # Standardize using Autoscaling preceded by a linear fit to remove
-        # any residual low-frequency changes
-        for i in range(temporal_signals.shape[0]):
+    if temporal_signals.shape[0] <= 2000:
+        poolsize = 1
+    else:
+        poolsize = int(np.round(mp.cpu_count() / 2))
 
-            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+    with (mp.Pool(processes=poolsize) as pool):
 
-            if np.sum(goodind) >= req_framenums:
-                thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
-                fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
+        if method == "linear_std":
+            # Standardize using Autoscaling preceded by a linear fit to remove
+            # any residual low-frequency changes
+            for i in range(temporal_signals.shape[0]):
 
-                prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
-                prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
-                prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
+                prestim_profile = np.squeeze(temporal_signals[i, std_indices])
+                goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
 
-                temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
-            else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                valid_stdization[i] = False
-                temporal_signals[i, :] = np.nan
+                if np.sum(goodind) >= req_framenums:
+                    thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
+                    fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
 
-    elif method == "linear_vast":
-        # Standardize using variable stability, or VAST scaling, preceeded by a linear fit:
-        # https://www.sciencedirect.com/science/article/pii/S0003267003000941
-        # this scaling is defined as autoscaling divided by the CoV.
-        for i in range(temporal_signals.shape[0]):
+                    prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
+                    prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
+                    prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
 
-            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+                    temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
+                else:
+                    query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
+                    valid_stdization[i] = False
+                    temporal_signals[i, :] = np.nan
 
-            if np.sum(goodind) >= req_framenums:
-                thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
-                fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
+        elif method == "linear_vast":
+            # Standardize using variable stability, or VAST scaling, preceeded by a linear fit:
+            # https://www.sciencedirect.com/science/article/pii/S0003267003000941
+            # this scaling is defined as autoscaling divided by the CoV.
+            for i in range(temporal_signals.shape[0]):
 
-                prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
-                prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
-                prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
+                prestim_profile = np.squeeze(temporal_signals[i, std_indices])
+                goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
 
-                temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
-                                         (prestim_std / prestim_nofit_mean)
-            else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                valid_stdization[i] = False
-                temporal_signals[i, :] = np.nan
+                if np.sum(goodind) >= req_framenums:
+                    thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
+                    fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
 
-    elif method == "relative_change":
-        # Make our output a representation of the relative change of the signal
-        for i in range(temporal_signals.shape[0]):
+                    prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
+                    prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
+                    prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
 
-            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+                    temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
+                                             (prestim_std / prestim_nofit_mean)
+                else:
+                    query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
+                    valid_stdization[i] = False
+                    temporal_signals[i, :] = np.nan
 
-            if np.sum(goodind) >= req_framenums:
-                prestim_mean = np.nanmean(prestim_profile[goodind])
-                temporal_signals[i, :] -= prestim_mean
-                temporal_signals[i, :] /= prestim_mean
-                temporal_signals[i, :] *= 100
-            else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " + "{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                valid_stdization[i] = False
-                temporal_signals[i, :] = np.nan
+        elif method == "relative_change":
+            # Make our output a representation of the relative change of the signal
+            for i in range(temporal_signals.shape[0]):
 
-    elif method == "mean_sub":
-        # Make our output just a prestim mean-subtracted signal.
-        for i in range(temporal_signals.shape[0]):
+                prestim_profile = np.squeeze(temporal_signals[i, std_indices])
+                goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
 
-            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-            goodind = np.array(np.isfinite(prestim_profile)) # Removes nans, infs, etc.
+                if np.sum(goodind) >= req_framenums:
+                    prestim_mean = np.nanmean(prestim_profile[goodind])
+                    temporal_signals[i, :] -= prestim_mean
+                    temporal_signals[i, :] /= prestim_mean
+                    temporal_signals[i, :] *= 100
+                else:
+                    query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " + "{:.2f}".format(np.sum(goodind)/req_framenums)+")"
+                    valid_stdization[i] = False
+                    temporal_signals[i, :] = np.nan
 
-            if np.sum(goodind) >= req_framenums:
-                prestim_mean = np.nanmean(prestim_profile[goodind])
-                temporal_signals[i, :] -= prestim_mean
-            else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                valid_stdization[i] = False
-                temporal_signals[i, :] = np.nan
+        elif method == "mean_sub":
+
+
+            # Make our output just a prestim mean-subtracted signal.
+            # for i in range(temporal_signals.shape[0]):
+            #
+            #     prestim_profile = np.squeeze(temporal_signals[i, std_indices])
+            #     goodind = np.array(np.isfinite(prestim_profile)) # Removes nans, infs, etc.
+            #
+            #     if np.sum(goodind) >= req_framenums:
+            #         prestim_mean = np.nanmean(prestim_profile[goodind])
+            #         temporal_signals[i, :] -= prestim_mean
+            #     else:
+            #         query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
+            #         valid_stdization[i] = False
+            #         temporal_signals[i, :] = np.nan
+
+
+            res = pool.map(mean_sub, zip(range(temporal_signals.shape[0]), temporal_signals, repeat(std_indices), repeat(req_framenums) ))
+
+            temporal_signals, valid_stdization, numgoodind = zip(*res)
+            temporal_signals = np.array(temporal_signals)
+            valid_stdization = np.array(valid_stdization)
+            numgoodind = np.array(numgoodind)
+
+            for i in range(temporal_signals.shape[0]):
+                if not valid_stdization[i]:
+                    query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(numgoodind[i]/req_framenums)+")"
 
     return temporal_signals, valid_stdization, query_status
 
+
+def mean_sub(params):
+    i, temporal_signal, std_indices, req_framenums = params
+    prestim_profile = np.squeeze(temporal_signal[std_indices])
+    goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+    numgoodind = np.sum(goodind)
+
+    if numgoodind >= req_framenums:
+        prestim_mean = np.nanmean(prestim_profile[goodind])
+        temporal_signal -= prestim_mean
+        valid_stdization = True
+    else:
+        valid_stdization = False
+        temporal_signal = np.full_like(temporal_signal, np.nan)
+
+    return temporal_signal, valid_stdization, numgoodind

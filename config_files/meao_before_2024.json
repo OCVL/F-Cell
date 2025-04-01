@@ -72,7 +72,8 @@
         "refine_to_vid": false,
         "radius": "auto",
         "shape": "disk",
-        "summary": "mean"
+        "summary": "mean",
+        "pixelwise": false
       },
       "exclusion_criteria": {
         "type": "stim-relative",

@@ -510,6 +510,8 @@ class Dataset:
 
                 if coordname is None and stage is PipeStages.PIPELINED:
                     warnings.warn("Unable to detect viable query location file for dataset at: "+ str(self.video_path))
+                    self.metadata[AcquisiTags.QUERYLOC_PATH] = []
+                    self.query_coord_paths = []
                 elif stage is PipeStages.PIPELINED:
                     print(Fore.YELLOW+"Automatically detected the query locations: "+str(coordname.name) + ". **Please verify your queryloc format string**" )
                     # Update our metadata structure, and our internally stored query coord paths.

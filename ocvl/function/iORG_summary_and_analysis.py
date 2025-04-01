@@ -19,7 +19,7 @@ from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, PipeStages
 from ocvl.function.utility.json_format_constants import Pipeline, MetaTags, DataFormatType, DataTags, AcquisiTags, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
-    MetricTags, Analysis
+    MetricTags, Analysis, SegmentParams
 
 from datetime import datetime, date, time, timezone
 
@@ -131,6 +131,9 @@ if __name__ == "__main__":
     rescale = norm_params.get(NormParams.NORM_RESCALE,True)  # Default: Rescales the data back into AU to make results easier to interpret
     res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
     res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
+
+    seg_params = analysis_params.get(SegmentParams.NAME, dict())
+    seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.
 
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
@@ -286,6 +289,39 @@ if __name__ == "__main__":
                                 all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
                                 query_loc_names.append(base_entry.loc[0,DataTags.QUERYLOC])
 
+                        # If we can't find any query locations, or if we just want it, default to querying all pixels.
+                        if len(dataset.query_loc) == 0 or seg_pixelwise:
+
+                            xm, ym = np.meshgrid( np.arange(dataset.video_data.shape[1]),
+                                                  np.arange(dataset.video_data.shape[0]), indexing="xy")
+
+                            dataset.query_loc = [np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16)))]
+                            dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
+                            dataset.query_coord_paths.append("All Pixels")
+                            dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("N/A"))
+                            dataset.iORG_signals = [None] * len(query_locations)
+                            dataset.summarized_iORGs = [None] * len(query_locations)
+
+                            # Add them to our database, using the dataset as a basis.
+                            base_entry = group_datasets[slice_of_life & only_vids].copy()
+                            base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
+                            base_entry.loc[0, AcquisiTags.DATASET] = None
+                            base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.metadata[AcquisiTags.QUERYLOC_PATH][-1]
+                            base_entry.loc[0, DataTags.QUERYLOC] = dataset.query_coord_paths[-1]
+
+                            # Update the database, and update all of our logical indices
+                            group_datasets = pd.concat([group_datasets, base_entry], ignore_index=True)
+                            reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+                            query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+                            only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+                            this_mode = (group_datasets[DataTags.MODALITY] == mode)
+                            folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
+                            this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
+                            slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+
+                            all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
+                            query_loc_names.append(base_entry.loc[0, DataTags.QUERYLOC])
+
 
                         if control_loc == "folder" and folder.name == control_folder:
                             # If we're in the control folder, then we're a control video- and we shouldn't extract
@@ -315,7 +351,7 @@ if __name__ == "__main__":
                             mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
                         pb.update()
                         pb_label.update()
-                        print(Fore.WHITE +"Processing query file " + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,Path())[q].name) +
+                        print(Fore.WHITE +"Processing query file " + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,[Path()])[q].name) +
                               " in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
                               + str(group) + " and folder " + folder.name + "...")
 
@@ -325,7 +361,7 @@ if __name__ == "__main__":
                         (dataset.iORG_signals[q],
                          dataset.summarized_iORGs[q],
                          dataset.query_status[q],
-                         dataset.query_loc[q]) = extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=dataset.query_loc[q])
+                         dataset.query_loc[q]) = extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=dataset.query_loc[q], query_loc_name=query_loc_names[q])
 
                     first = False
 
