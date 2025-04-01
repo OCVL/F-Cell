@@ -211,12 +211,15 @@ if __name__ == "__main__":
                 data_vidnums = group_datasets.loc[slice_of_life & only_vids, DataTags.VIDEO_ID].unique().tolist()
 
                 # Make data storage structures for each of our query location lists for checking which query points went into our analysis.
-                query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
-                for q, query_loc_name in enumerate(query_loc_names):
-                    if len(query_loc_name) == 0:
-                        query_loc_names[q] = " "
-                    else:
-                        query_loc_names[q] = query_loc_name.strip('_- ')
+                if not group_datasets.loc[slice_of_life & query_locations].empty:
+                    query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
+                    for q, query_loc_name in enumerate(query_loc_names):
+                        if len(query_loc_name) == 0:
+                            query_loc_names[q] = " "
+                        else:
+                            query_loc_names[q] = query_loc_name.strip('_- ')
+                else:
+                    query_loc_names = []
 
                 first = True
                 # If we detected query locations, then initialize this folder and mode with their metadata.
@@ -291,37 +294,20 @@ if __name__ == "__main__":
 
                         # If we can't find any query locations, or if we just want it, default to querying all pixels.
                         if len(dataset.query_loc) == 0 or seg_pixelwise:
+                            seg_pixelwise = True # Set this to true, if we find that query loc for this dataset is 0
 
                             xm, ym = np.meshgrid( np.arange(dataset.video_data.shape[1]),
                                                   np.arange(dataset.video_data.shape[0]), indexing="xy")
 
-                            dataset.query_loc = [np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16)))]
+                            dataset.query_loc.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))) )
                             dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
                             dataset.query_coord_paths.append("All Pixels")
-                            dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("N/A"))
-                            dataset.iORG_signals = [None] * len(query_locations)
-                            dataset.summarized_iORGs = [None] * len(query_locations)
-
-                            # Add them to our database, using the dataset as a basis.
-                            base_entry = group_datasets[slice_of_life & only_vids].copy()
-                            base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
-                            base_entry.loc[0, AcquisiTags.DATASET] = None
-                            base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.metadata[AcquisiTags.QUERYLOC_PATH][-1]
-                            base_entry.loc[0, DataTags.QUERYLOC] = dataset.query_coord_paths[-1]
-
-                            # Update the database, and update all of our logical indices
-                            group_datasets = pd.concat([group_datasets, base_entry], ignore_index=True)
-                            reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
-                            query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
-                            only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
-                            this_mode = (group_datasets[DataTags.MODALITY] == mode)
-                            folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
-                            this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
-                            slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+                            dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
+                            dataset.iORG_signals = [None] * len(dataset.query_loc)
+                            dataset.summarized_iORGs = [None] * len(dataset.query_loc)
 
                             all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
-                            query_loc_names.append(base_entry.loc[0, DataTags.QUERYLOC])
-
+                            query_loc_names.append(dataset.query_coord_paths[-1])
 
                         if control_loc == "folder" and folder.name == control_folder:
                             # If we're in the control folder, then we're a control video- and we shouldn't extract
@@ -347,12 +333,12 @@ if __name__ == "__main__":
                             all_query_status[folder][mode][q] = all_query_status[folder][mode][q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
 
 
-                        pb_label["text"] = "Processing query file " + query_loc_names[q] + " in dataset #" + str(vidnum) + " from the " + str(
-                            mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
+                        pb_label["text"] = "Processing query locs \"" + query_loc_names[q] + "\" in dataset #" + str(vidnum) + " from the " + str(
+                                            mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
                         pb.update()
                         pb_label.update()
-                        print(Fore.WHITE +"Processing query file " + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,[Path()])[q].name) +
-                              " in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
+                        print(Fore.WHITE +"Processing query locs \"" + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,[Path()])[q].name) +
+                              "\" in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
                               + str(group) + " and folder " + folder.name + "...")
 
                         '''
@@ -396,12 +382,15 @@ if __name__ == "__main__":
                     continue
 
                 # Make data storage structures for our results
-                query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
-                for q, query_loc_name in enumerate(query_loc_names):
-                    if len(query_loc_name) == 0:
-                        query_loc_names[q] = " "
-                    else:
-                        query_loc_names[q] = query_loc_name.strip('_- ')
+                if not group_datasets.loc[slice_of_life & query_locations].empty:
+                    query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
+                    for q, query_loc_name in enumerate(query_loc_names):
+                        if len(query_loc_name) == 0:
+                            query_loc_names[q] = " "
+                        else:
+                            query_loc_names[q] = query_loc_name.strip('_- ')
+                else:
+                    query_loc_names = []
 
                 result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                 pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
@@ -476,7 +465,12 @@ if __name__ == "__main__":
                     control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
 
                     if (not uniform_datasets or first_run) and control_datasets:
-                        with (mp.Pool(processes=int(np.round(mp.cpu_count() / 4))) as pool):
+                        if seg_pixelwise:
+                            poolsize = 1 # We more or less have to do this, otherwise we'll run out of RAM on most systems.
+                        else:
+                            poolsize = int(np.round(mp.cpu_count() / 4))
+
+                        with (mp.Pool(processes=poolsize) as pool):
 
                             first_run = False
                             control_iORG_signals = [None] * len(stim_dataset.query_loc)
