@@ -20,7 +20,8 @@ from ocvl.function.utility.json_format_constants import SegmentParams, NormParam
     SummaryParams, Pipeline
 from scipy.spatial.distance import pdist, squareform
 
-def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None):
+def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
+                                  thread_pool=None):
 
     if query_loc is None:
         query_loc= dataset.query_loc[0].copy()
@@ -151,14 +152,23 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
 
+    if thread_pool is None:
+        if query_loc.shape[0] <= 2000:
+            poolsize = 1
+        else:
+            chunk_size = 250
+            poolsize =  query_loc.shape[0] // chunk_size
+            poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
+            thread_pool = mp.Pool(processes=poolsize)
+
     # Extract the signals
-    start_time = time.perf_counter()
+    # start_time = time.perf_counter()
     iORG_signals, excl_reason = extract_signals(dataset.video_data, query_loc.copy(),
                                                 seg_radius=segmentation_radius,
-                                                seg_mask=seg_shape, summary=seg_summary)
-    end_time = time.perf_counter()
-    elapsed_time = end_time - start_time
-    print(f"Extract: Elapsed time {elapsed_time} seconds")
+                                                seg_mask=seg_shape, summary=seg_summary, pool=thread_pool)
+    # end_time = time.perf_counter()
+    # elapsed_time = end_time - start_time
+    # print(f"Extract: Elapsed time {elapsed_time} seconds")
 
     # Update our audit path.
     valid = np.any(np.isfinite(iORG_signals), axis=1)
@@ -187,13 +197,13 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
         # excl_stop_ind = excl_stop_ind
     crit_region = np.arange(excl_start_ind, excl_stop_ind)
 
-    start_time = time.perf_counter()
+    # start_time = time.perf_counter()
     iORG_signals, valid, excl_reason = exclude_signals(iORG_signals, dataset.framestamps,
                                                        critical_region=crit_region,
                                                        critical_fraction=excl_cutoff_fraction)
-    end_time = time.perf_counter()
-    elapsed_time = end_time - start_time
-    print(f"Exclude: Elapsed time {elapsed_time} seconds")
+    # end_time = time.perf_counter()
+    # elapsed_time = end_time - start_time
+    # print(f"Exclude: Elapsed time {elapsed_time} seconds")
 
     # Update our audit path.
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
@@ -214,31 +224,31 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 
-    start_time = time.perf_counter()
-    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
-    end_time = time.perf_counter()
-    elapsed_time = end_time - start_time
-    print(f"Standardize: Elapsed time {elapsed_time} seconds")
+    # start_time = time.perf_counter()
+    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals, dataset.framestamps, std_indices=std_ind,
+                                                           method=std_meth, pool=thread_pool)
+    # end_time = time.perf_counter()
+    # elapsed_time = end_time - start_time
+    # print(f"Standardize: Elapsed time {elapsed_time} seconds")
 
     # Update our audit path.
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
 
-    start_time = time.perf_counter()
+    # start_time = time.perf_counter()
     summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
                                                                      summary_method=sum_method,
                                                                      window_size=sum_window)
-    end_time = time.perf_counter()
-    elapsed_time = end_time - start_time
-    print(f"Summarize: Elapsed time {elapsed_time} seconds")
+    # end_time = time.perf_counter()
+    # elapsed_time = end_time - start_time
+    # print(f"Summarize: Elapsed time {elapsed_time} seconds")
 
     # Wipe out the signals of the invalid signals.
     iORG_signals[~valid_signals, :] = np.nan
     print(Fore.YELLOW+str(np.sum(~valid_signals)) + "/" + str(valid_signals.shape[0]) + " query locations were removed from consideration.")
 
     return iORG_signals, summarized_iORG, query_status, query_loc
-
 
 
 def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
@@ -335,7 +345,7 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
     return coordinates, includelist, query_status
 
 
-def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None):
+def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None, pool=None):
     """
     This function extracts temporal profiles from a 3D matrix, where the first two dimensions are assumed to
     contain data from a single time point (a single image)
@@ -401,34 +411,37 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     np_coords = np.ndarray(coordinates.shape, dtype=np.int32, buffer=shared_que_block.buf)
     np_coords[:] = coordinates[:]
 
-    if coordinates.shape[0] <= 3000:
-        poolsize = 1
+    if coordinates.shape[0] <= 2000:
         chunk_size = 3000
     else:
         chunk_size = 250
+
+    if pool is None:
         poolsize =  coordinates.shape[0] // chunk_size
+
         poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
+        pool = mp.Pool(processes=poolsize)
 
     goodinds = np.arange(coordinates.shape[0])[includelist]  # Only process the indices that are good.
 
-    with mp.Pool(processes=poolsize) as pool:
-        if seg_mask == "box":
-            mapres = pool.imap(_extract_box, zip(goodinds,
-                                                  repeat(shared_vid_block.name), repeat(im_stack.shape),
-                                                  repeat(shared_que_block.name), repeat(coordinates.shape),
-                                                  repeat(seg_radius), repeat(summary)),
-                               chunksize=chunk_size )
-        elif seg_mask == "disk":
 
-            mapres = pool.imap(_extract_disk, zip(goodinds,
+    if seg_mask == "box":
+        mapres = pool.imap(_extract_box, zip(goodinds,
                                               repeat(shared_vid_block.name), repeat(im_stack.shape),
                                               repeat(shared_que_block.name), repeat(coordinates.shape),
                                               repeat(seg_radius), repeat(summary)),
-                               chunksize=chunk_size )
+                           chunksize=chunk_size )
+    elif seg_mask == "disk":
 
-        for i, data, status in mapres:
-            signal_data[i, :] = data
-            query_status[i] = status
+        mapres = pool.imap(_extract_disk, zip(goodinds,
+                                          repeat(shared_vid_block.name), repeat(im_stack.shape),
+                                          repeat(shared_que_block.name), repeat(coordinates.shape),
+                                          repeat(seg_radius), repeat(summary)),
+                           chunksize=chunk_size )
+
+    for i, data, status in mapres:
+        signal_data[i, :] = data
+        query_status[i] = status
 
     shared_vid_block.close()
     shared_vid_block.unlink()
@@ -644,7 +657,7 @@ def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, vide
         return np.divide(temporal_signals, framewise_norm[None, :])
 
 
-def standardize_signals(temporal_signals, framestamps, std_indices, method="linear_std", critical_fraction=0.3):
+def standardize_signals(temporal_signals, framestamps, std_indices, method="linear_std", critical_fraction=0.3, pool=None):
     """
     This function standardizes each temporal profile (here, the rows of the supplied data) according to the provided
     arguments.
@@ -686,86 +699,88 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
         chunk_size = 3000
     else:
         chunk_size = 250
+
+    if pool is None:
         poolsize =  temporal_signals.shape[0] // chunk_size
         poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
+        pool = mp.Pool(processes=poolsize)
 
-    with (mp.Pool(processes=poolsize) as pool):
 
-        if method == "linear_std":
-            # Standardize using Autoscaling preceded by a linear fit to remove
-            # any residual low-frequency changes
-            for i in range(temporal_signals.shape[0]):
+    if method == "linear_std":
+        # Standardize using Autoscaling preceded by a linear fit to remove
+        # any residual low-frequency changes
+        for i in range(temporal_signals.shape[0]):
 
-                prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-                goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
+            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
 
-                if np.sum(goodind) >= req_framenums:
-                    thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
-                    fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
+            if np.sum(goodind) >= req_framenums:
+                thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
+                fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
 
-                    prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
-                    prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
-                    prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
+                prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
+                prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
+                prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
 
-                    stdized_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
-                else:
-                    query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                    valid_stdization[i] = False
-                    stdized_signals[i, :] = np.nan
+                stdized_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
+            else:
+                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
+                valid_stdization[i] = False
+                stdized_signals[i, :] = np.nan
 
-        elif method == "linear_vast":
-            # Standardize using variable stability, or VAST scaling, preceeded by a linear fit:
-            # https://www.sciencedirect.com/science/article/pii/S0003267003000941
-            # this scaling is defined as autoscaling divided by the CoV.
-            for i in range(temporal_signals.shape[0]):
+    elif method == "linear_vast":
+        # Standardize using variable stability, or VAST scaling, preceeded by a linear fit:
+        # https://www.sciencedirect.com/science/article/pii/S0003267003000941
+        # this scaling is defined as autoscaling divided by the CoV.
+        for i in range(temporal_signals.shape[0]):
 
-                prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-                goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
+            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
 
-                if np.sum(goodind) >= req_framenums:
-                    thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
-                    fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
+            if np.sum(goodind) >= req_framenums:
+                thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
+                fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
 
-                    prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
-                    prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
-                    prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
+                prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
+                prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
+                prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
 
-                    stdized_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
-                                             (prestim_std / prestim_nofit_mean)
-                else:
-                    query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                    valid_stdization[i] = False
-                    stdized_signals[i, :] = np.nan
+                stdized_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
+                                         (prestim_std / prestim_nofit_mean)
+            else:
+                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
+                valid_stdization[i] = False
+                stdized_signals[i, :] = np.nan
 
-        elif method == "relative_change":
-            # Make our output a representation of the relative change of the signal
-            for i in range(temporal_signals.shape[0]):
+    elif method == "relative_change":
+        # Make our output a representation of the relative change of the signal
+        for i in range(temporal_signals.shape[0]):
 
-                prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-                goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
+            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
 
-                if np.sum(goodind) >= req_framenums:
-                    prestim_mean = np.nanmean(prestim_profile[goodind])
-                    stdized_signals[i, :] = np.squeeze(temporal_signals[i, :]) - prestim_mean
-                    stdized_signals[i, :] /= prestim_mean
-                    stdized_signals[i, :] *= 100
-                else:
-                    query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " + "{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                    valid_stdization[i] = False
-                    stdized_signals[i, :] = np.nan
+            if np.sum(goodind) >= req_framenums:
+                prestim_mean = np.nanmean(prestim_profile[goodind])
+                stdized_signals[i, :] = np.squeeze(temporal_signals[i, :]) - prestim_mean
+                stdized_signals[i, :] /= prestim_mean
+                stdized_signals[i, :] *= 100
+            else:
+                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " + "{:.2f}".format(np.sum(goodind)/req_framenums)+")"
+                valid_stdization[i] = False
+                stdized_signals[i, :] = np.nan
 
-        elif method == "mean_sub":
+    elif method == "mean_sub":
 
-            res = pool.imap(_mean_sub, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
-                                          repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
-                                          repeat(std_indices), repeat(req_framenums) ),
-                                          chunksize=chunk_size)
+        res = pool.imap(_mean_sub, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                      repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
+                                      repeat(std_indices), repeat(req_framenums) ),
+                                      chunksize=chunk_size)
 
-            for i, signal, valid, numgoodind in res:
-                stdized_signals[i,: ] = signal
-                valid_stdization[i] = valid
-                if not valid:
-                    query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / req_framenums) + ")"
+        for i, signal, valid, numgoodind in res:
+            stdized_signals[i,: ] = signal
+            valid_stdization[i] = valid
+            if not valid:
+                query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / req_framenums) + ")"
 
     shared_block.close()
     shared_block.unlink()
