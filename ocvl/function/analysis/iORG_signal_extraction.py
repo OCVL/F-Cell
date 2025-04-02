@@ -1,6 +1,7 @@
+import time
 import warnings
 from itertools import repeat
-from multiprocessing import RawArray, shared_memory
+from multiprocessing import RawArray, shared_memory, get_context
 
 import cv2
 import numba
@@ -151,14 +152,20 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
     query_status[to_update] = excl_reason[to_update]
 
     # Extract the signals
+    start_time = time.perf_counter()
     iORG_signals, excl_reason = extract_signals(dataset.video_data, query_loc.copy(),
                                                 seg_radius=segmentation_radius,
                                                 seg_mask=seg_shape, summary=seg_summary)
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    print(f"Extract: Elapsed time {elapsed_time} seconds")
+
     # Update our audit path.
     valid = np.any(np.isfinite(iORG_signals), axis=1)
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
+
 
     # Should only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
     # will be used for, or what critical region/standardization indicies it'll need.
@@ -180,9 +187,14 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
         # excl_stop_ind = excl_stop_ind
     crit_region = np.arange(excl_start_ind, excl_stop_ind)
 
+    start_time = time.perf_counter()
     iORG_signals, valid, excl_reason = exclude_signals(iORG_signals, dataset.framestamps,
                                                        critical_region=crit_region,
                                                        critical_fraction=excl_cutoff_fraction)
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    print(f"Exclude: Elapsed time {elapsed_time} seconds")
+
     # Update our audit path.
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
     valid_signals = valid & valid_signals
@@ -202,15 +214,24 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 
+    start_time = time.perf_counter()
     iORG_signals, valid, excl_reason = standardize_signals(iORG_signals, dataset.framestamps, std_indices=std_ind, method=std_meth)
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    print(f"Standardize: Elapsed time {elapsed_time} seconds")
+
     # Update our audit path.
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
 
+    start_time = time.perf_counter()
     summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
                                                                      summary_method=sum_method,
                                                                      window_size=sum_window)
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    print(f"Summarize: Elapsed time {elapsed_time} seconds")
 
     # Wipe out the signals of the invalid signals.
     iORG_signals[~valid_signals, :] = np.nan
@@ -314,7 +335,7 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
     return coordinates, includelist, query_status
 
 
-def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None, display=False):
+def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None):
     """
     This function extracts temporal profiles from a 3D matrix, where the first two dimensions are assumed to
     contain data from a single time point (a single image)
@@ -371,100 +392,113 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
         signal_data = np.full((seg_radius * 2 + 1, seg_radius * 2 + 1,
                                  im_stack.shape[-1], coordinates.shape[0]), np.nan)
 
-    if seg_mask == "box": # Handle more in the future...
+    # Convert our video and coord lists to shared memory blocks (since we're only reading them)
+    shared_vid_block = shared_memory.SharedMemory(name="video", create=True, size=im_stack.nbytes)
+    np_video = np.ndarray(im_stack.shape, dtype=np.float32, buffer=shared_vid_block.buf)
+    np_video[:] = im_stack[:]
 
-        for i in range(coordinates.shape[0]):
-            if includelist[i]:
-                coord = coordinates[i, :]
-                fullcolumn = im_stack[(coord[1] - seg_radius):(coord[1] + seg_radius + 1),
-                                      (coord[0] - seg_radius):(coord[0] + seg_radius + 1), :]
+    shared_que_block = shared_memory.SharedMemory(name="query", create=True, size=coordinates.nbytes)
+    np_coords = np.ndarray(coordinates.shape, dtype=np.int32, buffer=shared_que_block.buf)
+    np_coords[:] = coordinates[:]
 
-                coldims = fullcolumn.shape
-                coordcolumn = np.reshape(fullcolumn, (coldims[0]*coldims[1], coldims[2]), order="F")
-                #print(coord)
-                # No partial columns allowed. If there are nans in the column, wipe it out entirely.
-                nani = np.any(np.isnan(coordcolumn), axis=0)
-                coordcolumn[:, nani] = np.nan
+    if coordinates.shape[0] <= 3000:
+        poolsize = 1
+        chunk_size = 3000
+    else:
+        chunk_size = 250
+        poolsize =  coordinates.shape[0] // chunk_size
+        poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
 
-                if np.all(np.isnan(coordcolumn.flatten())):
-                    query_status[i] = "Missing Data at Query Location"
-                    continue
+    goodinds = np.arange(coordinates.shape[0])[includelist]  # Only process the indices that are good.
 
-                if summary == "mean":
-                    signal_data[i, nani] = np.nan
-                    signal_data[i, np.invert(nani)] = np.mean(coordcolumn[:, np.invert(nani)], axis=0)
-                elif summary == "median":
-                    signal_data[i, nani] = np.nan
-                    signal_data[i, np.invert(nani)] = np.nanmedian(coordcolumn[:, np.invert(nani)], axis=0)
-                elif summary == "sum":
-                    signal_data[i, nani] = np.nan
-                    signal_data[i, np.invert(nani)] = np.nansum(coordcolumn[:, np.invert(nani)], axis=0)
-                elif summary == "none":
+    with mp.Pool(processes=poolsize) as pool:
+        if seg_mask == "box":
+            mapres = pool.imap(_extract_box, zip(goodinds,
+                                                  repeat(shared_vid_block.name), repeat(im_stack.shape),
+                                                  repeat(shared_que_block.name), repeat(coordinates.shape),
+                                                  repeat(seg_radius), repeat(summary)),
+                               chunksize=chunk_size )
+        elif seg_mask == "disk":
 
-                    signal_data[:, :, nani, i] = 0
-                    signal_data[:, :, np.invert(nani), i] = fullcolumn[:, :, np.invert(nani)]
-
-    elif seg_mask == "disk":
-
-        # Convert our video and coord lists to shared memory blocks (since we're only reading them)
-        shared_vid_block = shared_memory.SharedMemory(name="video", create=True, size=im_stack.nbytes)
-        np_video = np.ndarray(im_stack.shape, dtype=np.float32, buffer=shared_vid_block.buf)
-        np_video[:] = im_stack[:]
-
-        shared_que_block = shared_memory.SharedMemory(name="query", create=True, size=coordinates.nbytes)
-        np_coords = np.ndarray(coordinates.shape, dtype=np.int32, buffer=shared_que_block.buf)
-        np_coords[:] = coordinates[:]
-
-        if coordinates.shape[0] <= 2000:
-            poolsize = 1
-        else:
-            poolsize = int(np.round(mp.cpu_count() / 2))
-
-        with (mp.Pool(processes=poolsize) as pool):
-            goodinds = np.arange(coordinates.shape[0])[includelist] # Only process the indices that are good.
-
-            res = pool.imap(_extract_disk, zip(goodinds,
+            mapres = pool.imap(_extract_disk, zip(goodinds,
                                               repeat(shared_vid_block.name), repeat(im_stack.shape),
                                               repeat(shared_que_block.name), repeat(coordinates.shape),
-                                              repeat(seg_radius), repeat(summary) ), chunksize=coordinates.shape[0]/poolsize)
+                                              repeat(seg_radius), repeat(summary)),
+                               chunksize=chunk_size )
 
-            i, signal_data, query_status = zip(*res)
+        for i, data, status in mapres:
+            signal_data[i, :] = data
+            query_status[i] = status
 
-
-
-        shared_vid_block.close()
-        shared_vid_block.unlink()
-        shared_que_block.close()
-        shared_que_block.unlink()
-
-    if display:
-        plt.figure(1)
-        for i in range(signal_data.shape[0]):
-            plt.plot(signal_data[i, :]-signal_data[i, 0])
-        plt.show()
+    shared_vid_block.close()
+    shared_vid_block.unlink()
+    shared_que_block.close()
+    shared_que_block.unlink()
 
     return signal_data, query_status
+
+def _extract_box(params):
+    i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
+
+    signal_data = np.full((vid_shape[-1], ), np.nan)
+
+    shared_vid_block = shared_memory.SharedMemory(name=vid_name)
+    video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_vid_block.buf)
+
+    shared_que_block = shared_memory.SharedMemory(name=coord_name)
+    coords = np.ndarray(coord_shape, dtype=np.int32, buffer=shared_que_block.buf)
+
+    coord = coords[i, :]
+    fullcolumn = video[(coord[1] - seg_radius):(coord[1] + seg_radius + 1),
+                 (coord[0] - seg_radius):(coord[0] + seg_radius + 1), :]
+
+    coldims = fullcolumn.shape
+    coordcolumn = np.reshape(fullcolumn.copy(), (coldims[0] * coldims[1], coldims[2]), order="F")
+    # print(coord)
+    # No partial columns allowed. If there are nans in the column, wipe it out entirely.
+    nani = np.any(np.isnan(coordcolumn), axis=0)
+    coordcolumn[:, nani] = np.nan
+
+    if np.all(np.isnan(coordcolumn.flatten())):
+        query_status = "Missing Data at Query Location"
+    else:
+        query_status = "Included"
+
+    if summary == "mean":
+        signal_data[nani] = np.nan
+        signal_data[np.invert(nani)] = np.mean(coordcolumn[:, np.invert(nani)], axis=0)
+    elif summary == "median":
+        signal_data[nani] = np.nan
+        signal_data[np.invert(nani)] = np.nanmedian(coordcolumn[:, np.invert(nani)], axis=0)
+    elif summary == "sum":
+        signal_data[nani] = np.nan
+        signal_data[np.invert(nani)] = np.nansum(coordcolumn[:, np.invert(nani)], axis=0)
+
+    shared_vid_block.close()
+    shared_que_block.close()
+
+    return i, signal_data, query_status
 
 def _extract_disk(params):
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
     signal_data = np.full((vid_shape[-1], ), np.nan)
 
-    shared_block = shared_memory.SharedMemory(name=vid_name)
-    np_video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_block.buf)
+    shared_vid_block = shared_memory.SharedMemory(name=vid_name)
+    video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_vid_block.buf)
 
     shared_que_block = shared_memory.SharedMemory(name=coord_name)
-    np_coords = np.ndarray(coord_shape, dtype=np.int32, buffer=shared_que_block.buf)
+    coords = np.ndarray(coord_shape, dtype=np.int32, buffer=shared_que_block.buf)
 
-    coord = np_coords[i, :]
-    fullcolumn = np_video[(coord[1] - seg_radius):(coord[1] + seg_radius + 1),
-                 (coord[0] - seg_radius):(coord[0] + seg_radius + 1), :]
+    coord = coords[i, :]
+    fullcolumn = video[(coord[1] - seg_radius):(coord[1] + seg_radius + 1),
+                       (coord[0] - seg_radius):(coord[0] + seg_radius + 1), :]
     mask = disk(seg_radius + 1, dtype=fullcolumn.dtype)
     mask = mask[1:-1, 1:-1]
     mask = np.repeat(mask[:, :, None], fullcolumn.shape[-1], axis=2)
 
     coldims = fullcolumn.shape
-    coordcolumn = np.reshape(fullcolumn, (coldims[0] * coldims[1], coldims[2]), order="F")
+    coordcolumn = np.reshape(fullcolumn.copy(), (coldims[0] * coldims[1], coldims[2]), order="F")
     mask = np.reshape(mask, (coldims[0] * coldims[1], coldims[2]), order="F")
 
     maskedout = np.where(mask == 0)
@@ -480,7 +514,7 @@ def _extract_disk(params):
     if np.all(np.isnan(coordcolumn.flatten())):
         query_status = "Missing Data at Query Location"
     else:
-        query_status = None
+        query_status = "Included"
 
     if summary == "mean":
         signal_data[nani] = np.nan
@@ -492,10 +526,11 @@ def _extract_disk(params):
         signal_data[nani] = np.nan
         signal_data[np.invert(nani)] = np.nansum(coordcolumn[:, np.invert(nani)], axis=0)
 
-    shared_block.close()
+    shared_vid_block.close()
     shared_que_block.close()
 
     return i, signal_data, query_status
+
 
 def exclude_signals(temporal_signals, framestamps,
                     critical_region=None, critical_fraction=0.5, require_full_signal=False):
@@ -636,18 +671,23 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
         valid_stdization = np.full(temporal_signals.shape[0], False, dtype=bool)
         return temporal_signals, valid_stdization, query_status
 
+    stdized_signals = np.full_like(temporal_signals, np.nan)
     query_status = np.full(temporal_signals.shape[0], "Included", dtype=object)
     valid_stdization = np.full(temporal_signals.shape[0], True, dtype=bool)
+
 
     shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_signals.nbytes)
     np_temporal = np.ndarray(temporal_signals.shape, dtype=temporal_signals.dtype, buffer=shared_block.buf)
     # Copy data to our shared array.
     np_temporal[:] = temporal_signals[:]
 
-    if temporal_signals.shape[0] <= 2000:
+    if temporal_signals.shape[0] <= 3000:
         poolsize = 1
+        chunk_size = 3000
     else:
-        poolsize = int(np.round(mp.cpu_count() / 2))
+        chunk_size = 250
+        poolsize =  temporal_signals.shape[0] // chunk_size
+        poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
 
     with (mp.Pool(processes=poolsize) as pool):
 
@@ -667,11 +707,11 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                     prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
                     prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
 
-                    temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
+                    stdized_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
                 else:
                     query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
                     valid_stdization[i] = False
-                    temporal_signals[i, :] = np.nan
+                    stdized_signals[i, :] = np.nan
 
         elif method == "linear_vast":
             # Standardize using variable stability, or VAST scaling, preceeded by a linear fit:
@@ -690,12 +730,12 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                     prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
                     prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
 
-                    temporal_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
+                    stdized_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
                                              (prestim_std / prestim_nofit_mean)
                 else:
                     query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
                     valid_stdization[i] = False
-                    temporal_signals[i, :] = np.nan
+                    stdized_signals[i, :] = np.nan
 
         elif method == "relative_change":
             # Make our output a representation of the relative change of the signal
@@ -706,34 +746,31 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
 
                 if np.sum(goodind) >= req_framenums:
                     prestim_mean = np.nanmean(prestim_profile[goodind])
-                    temporal_signals[i, :] -= prestim_mean
-                    temporal_signals[i, :] /= prestim_mean
-                    temporal_signals[i, :] *= 100
+                    stdized_signals[i, :] = np.squeeze(temporal_signals[i, :]) - prestim_mean
+                    stdized_signals[i, :] /= prestim_mean
+                    stdized_signals[i, :] *= 100
                 else:
                     query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " + "{:.2f}".format(np.sum(goodind)/req_framenums)+")"
                     valid_stdization[i] = False
-                    temporal_signals[i, :] = np.nan
+                    stdized_signals[i, :] = np.nan
 
         elif method == "mean_sub":
 
             res = pool.imap(_mean_sub, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
                                           repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
                                           repeat(std_indices), repeat(req_framenums) ),
-                                          chunksize=temporal_signals.shape[0]/poolsize)
+                                          chunksize=chunk_size)
 
-            i, temporal_signals, valid_stdization, numgoodind = zip(*res)
-            temporal_signals = np.array(temporal_signals)
-            valid_stdization = np.array(valid_stdization)
-            numgoodind = np.array(numgoodind)
-
-            for i in range(temporal_signals.shape[0]):
-                if not valid_stdization[i]:
-                    query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(numgoodind[i]/req_framenums)+")"
+            for i, signal, valid, numgoodind in res:
+                stdized_signals[i,: ] = signal
+                valid_stdization[i] = valid
+                if not valid:
+                    query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / req_framenums) + ")"
 
     shared_block.close()
     shared_block.unlink()
 
-    return temporal_signals, valid_stdization, query_status
+    return stdized_signals, valid_stdization, query_status
 
 
 def _mean_sub(params):

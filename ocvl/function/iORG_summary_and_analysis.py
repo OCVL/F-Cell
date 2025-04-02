@@ -489,19 +489,44 @@ if __name__ == "__main__":
                                 stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
                                 group) + " and folder " + folder.name + "...")
 
-                            res = pool.map(extract_control_iORG_summaries, zip(control_data_vidnums, control_datasets, repeat(control_query_status.copy()),
-                                                                                   repeat(analysis_params), repeat(stim_dataset.query_loc.copy()),
-                                                                                 repeat(stim_dataset.stimtrain_frame_stamps)))
 
-                            print("...Done.")
+                            # res = pool.map(extract_control_iORG_summaries, zip(control_data_vidnums, control_datasets, repeat(control_query_status.copy()),
+                            #                                                        repeat(analysis_params), repeat(stim_dataset.query_loc.copy()),
+                            #                                                      repeat(stim_dataset.stimtrain_frame_stamps)))
+                            #
+                            # print("...Done.")
+                            #
+                            # # Take all of the results, and collate them for summary iORGs.
+                            # control_vidnums, control_datasets, control_query_status_res = map(list, zip(*res))
+                            #
+                            # for control_query in control_query_status_res:
+                            #     for q in range(len(control_query)):
+                            #         filled_dat = control_query[q].dropna(axis=1, how="all")
+                            #
+                            #         if len(filled_dat.columns) == 1:
+                            #             control_query_status[q][filled_dat.columns[0]] = filled_dat.iloc[:,0]
+                            #         elif len(filled_dat.columns) > 1:
+                            #             warnings.warn("More than one column filled during control iORG summary; results may be inaccurate.")
+                            #         else:
+                            #             warnings.warn("Column missing from control iORG summary.")
 
-                            # Take all of the results, and collate them for summary iORGs.
-                            control_vidnums, control_datasets, control_query_status_res = map(list, zip(*res))
+                            # After we've processed all the control data with the parameters of the stimulus data, combine it
+                            for q in range(len(stim_dataset.query_loc)):
+                                control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                control_iORG_sigs = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
 
-                            for control_query in control_query_status_res:
-                                for q in range(len(control_query)):
-                                    filled_dat = control_query[q].dropna(axis=1, how="all")
+                                for cd, control_data in enumerate(control_datasets):
+                                    # Use the control data, but the query locations and stimulus info from the stimulus data.
+                                    (control_data.iORG_signals[q],
+                                     control_data.summarized_iORGs[q],
+                                     control_query_stat,
+                                     control_data.query_loc[q]) = extract_n_refine_iorg_signals(control_data,
+                                                                                                analysis_params,
+                                                                                                query_loc=stim_dataset.query_loc[q],
+                                                                                                stimtrain_frame_stamps=stim_dataset.stimtrain_frame_stamps)
 
+                                    filled_dat = control_query_stat.dropna(axis=1, how="all")
                                     if len(filled_dat.columns) == 1:
                                         control_query_status[q][filled_dat.columns[0]] = filled_dat.iloc[:,0]
                                     elif len(filled_dat.columns) > 1:
@@ -509,14 +534,6 @@ if __name__ == "__main__":
                                     else:
                                         warnings.warn("Column missing from control iORG summary.")
 
-                            # After we've processed all the control data with the parameters of the stimulus data, combine it
-                            for q in range(len(control_query_status)):
-
-                                control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                control_iORG_sigs = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
-
-                                for cd, control_data in enumerate(control_datasets):
                                     control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
                                     control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
                                     control_pop_iORG_summaries[cd, control_data.framestamps] = control_data.summarized_iORGs[q]
@@ -571,7 +588,7 @@ if __name__ == "__main__":
                             display_dict[str(subject_IDs[0]) + "_" + mode+"_pop_iORG_"+ sum_method +"_overlapping_"+query_loc_names[q]+"coords_"+folder.name] = overlap_label
 
                             display_iORG_pop_summary(stim_framestamps, stim_pop_summary, stim_dataset.summarized_iORGs[q], stim_vidnum,
-                                                     control_framestamps[q], control_pop_iORG_summary[q], control_vidnums,
+                                                     control_framestamps[q], control_pop_iORG_summary[q], control_data_vidnums,
                                                      control_framestamps_pooled[q], control_pop_iORG_summary_pooled[q],
                                                      stim_dataset.framerate, sum_method, sum_control, overlap_label, pop_overlap_params)
                             plt.show(block=False)
