@@ -521,7 +521,10 @@ class Dataset:
                         case ".txt":
                             query_locations = [pd.read_csv(self.query_coord_paths[0], sep=None, header=None, encoding="utf-8-sig").to_numpy()]
 
-            self.query_loc = query_locations
+            self.query_loc = []
+            for queries in query_locations:
+                self.query_loc.append(np.unique(queries, axis=0))
+
             self.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in query_locations]
             self.iORG_signals = [None] * len(query_locations)
             self.summarized_iORGs = [None] * len(query_locations)
