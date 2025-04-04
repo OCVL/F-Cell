@@ -262,6 +262,11 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
                     queryloc_data.append(pd.read_csv(locpath, header=None, encoding="utf-8-sig").to_numpy())
                 case ".txt":
                     queryloc_data.append(pd.read_csv(locpath, sep=None, header=None, encoding="utf-8-sig").to_numpy())
+                case "":
+                    if locpath.name == "All Pixels":
+                        xm, ym = np.meshgrid(np.arange(video_data.shape[1]),np.arange(video_data.shape[0]), indexing="xy")
+
+                        queryloc_data.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
 
     elif MetaTags.QUERY_LOCATIONS in metadata:
         queryloc_data.append(metadata.get(MetaTags.QUERY_LOCATIONS))

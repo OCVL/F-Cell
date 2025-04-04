@@ -295,23 +295,6 @@ if __name__ == "__main__":
                                     all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
                                     query_loc_names.append(base_entry.loc[0,DataTags.QUERYLOC])
 
-                            # If we can't find any query locations, or if we just want it, default to querying all pixels.
-                            if len(dataset.query_loc) == 0 or seg_pixelwise:
-                                seg_pixelwise = True # Set this to true, if we find that query loc for this dataset is 0
-
-                                xm, ym = np.meshgrid( np.arange(dataset.video_data.shape[1]),
-                                                      np.arange(dataset.video_data.shape[0]), indexing="xy")
-
-                                dataset.query_loc.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))) )
-                                dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
-                                dataset.query_coord_paths.append("All Pixels")
-                                dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
-                                dataset.iORG_signals = [None] * len(dataset.query_loc)
-                                dataset.summarized_iORGs = [None] * len(dataset.query_loc)
-
-                                all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
-                                query_loc_names.append(dataset.query_coord_paths[-1])
-
                             if control_loc == "folder" and folder.name == control_folder:
                                 # If we're in the control folder, then we're a control video- and we shouldn't extract
                                 # any iORGs until later as our stimulus deliveries may vary.
@@ -320,6 +303,41 @@ if __name__ == "__main__":
                                 continue
                             else:
                                 group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
+
+                                # If we can't find any query locations, or if we just want it, default to querying all pixels.
+                                if (len(dataset.query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset.query_coord_paths:
+                                    seg_pixelwise = True  # Set this to true, if we find that query loc for this dataset is 0
+
+                                    xm, ym = np.meshgrid(np.arange(dataset.video_data.shape[1]),
+                                                         np.arange(dataset.video_data.shape[0]), indexing="xy")
+
+                                    dataset.query_loc.append(np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
+                                    dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in
+                                                            dataset.query_loc]
+                                    dataset.query_coord_paths.append(Path("All Pixels"))
+                                    dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
+                                    dataset.iORG_signals = [None] * len(dataset.query_loc)
+                                    dataset.summarized_iORGs = [None] * len(dataset.query_loc)
+
+                                    all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
+                                    query_loc_names.append(dataset.query_coord_paths[-1].name)
+
+                                    base_entry = group_datasets[slice_of_life & only_vids].copy()
+                                    base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
+                                    base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
+                                    base_entry.loc[0, DataTags.QUERYLOC] = "All Pixels"
+                                    base_entry.loc[0, AcquisiTags.DATASET] = None
+
+                                    # Update the database, and update all of our logical indices
+                                    group_datasets = pd.concat([group_datasets, base_entry], ignore_index=True)
+                                    reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+                                    query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+                                    only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+                                    this_mode = (group_datasets[DataTags.MODALITY] == mode)
+                                    folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
+                                    this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
+                                    slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+
                         else:
                             for q in range(len(all_query_status[folder][mode])):
                                 all_query_status[folder][mode][q].loc[:, vidnum] = "Dataset Failed To Load"
@@ -387,7 +405,7 @@ if __name__ == "__main__":
                     if not stim_datasets:
                         continue
 
-                    # Make data storage structures for our results
+                    # Make data storage structures for our results.
                     if not group_datasets.loc[slice_of_life & query_locations].empty:
                         query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
                         for q, query_loc_name in enumerate(query_loc_names):
@@ -457,7 +475,7 @@ if __name__ == "__main__":
                     mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(stim_data_vidnums)))
                     for v, stim_vidnum in enumerate(stim_data_vidnums):
 
-                        control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & ~has_stim & query_locations).sum())]
+                        control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & query_locations).sum())]
 
                         this_vid = (group_datasets[DataTags.VIDEO_ID] == stim_vidnum)
 
@@ -495,26 +513,11 @@ if __name__ == "__main__":
                                     stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
                                     group) + " and folder " + folder.name + "...")
 
-
-                                # res = pool.map(extract_control_iORG_summaries, zip(control_data_vidnums, control_datasets, repeat(control_query_status.copy()),
-                                #                                                        repeat(analysis_params), repeat(stim_dataset.query_loc.copy()),
-                                #                                                      repeat(stim_dataset.stimtrain_frame_stamps)))
-                                #
-                                # print("...Done.")
-                                #
-                                # # Take all of the results, and collate them for summary iORGs.
-                                # control_vidnums, control_datasets, control_query_status_res = map(list, zip(*res))
-                                #
-                                # for control_query in control_query_status_res:
-                                #     for q in range(len(control_query)):
-                                #         filled_dat = control_query[q].dropna(axis=1, how="all")
-                                #
-                                #         if len(filled_dat.columns) == 1:
-                                #             control_query_status[q][filled_dat.columns[0]] = filled_dat.iloc[:,0]
-                                #         elif len(filled_dat.columns) > 1:
-                                #             warnings.warn("More than one column filled during control iORG summary; results may be inaccurate.")
-                                #         else:
-                                #             warnings.warn("Column missing from control iORG summary.")
+                                # Prep our control datasets for refilling
+                                for cd, control_data in enumerate(control_datasets):
+                                    control_data.iORG_signals = [None] * len(stim_dataset.query_loc)
+                                    control_data.summarized_iORGs = [None] * len(stim_dataset.query_loc)
+                                    control_data.query_loc = [None] * len(stim_dataset.query_loc)
 
                                 # After we've processed all the control data with the parameters of the stimulus data, combine it
                                 for q in range(len(stim_dataset.query_loc)):
@@ -523,6 +526,7 @@ if __name__ == "__main__":
                                     control_iORG_sigs = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
 
                                     for cd, control_data in enumerate(control_datasets):
+
                                         # Use the control data, but the query locations and stimulus info from the stimulus data.
                                         (control_data.iORG_signals[q],
                                          control_data.summarized_iORGs[q],
@@ -530,6 +534,7 @@ if __name__ == "__main__":
                                          control_data.query_loc[q]) = extract_n_refine_iorg_signals(control_data,
                                                                                                     analysis_params,
                                                                                                     query_loc=stim_dataset.query_loc[q],
+                                                                                                    query_loc_name=query_loc_names[q],
                                                                                                     stimtrain_frame_stamps=stim_dataset.stimtrain_frame_stamps,
                                                                                                     thread_pool=the_pool)
 

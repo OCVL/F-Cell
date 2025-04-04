@@ -411,16 +411,9 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     np_coords = np.ndarray(coordinates.shape, dtype=np.int32, buffer=shared_que_block.buf)
     np_coords[:] = coordinates[:]
 
-    if coordinates.shape[0] <= 2000:
-        chunk_size = 3000
-    else:
-        chunk_size = 250
-
+    chunk_size = 250
     if pool is None:
-        poolsize =  coordinates.shape[0] // chunk_size
-
-        poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
-        pool = mp.Pool(processes=poolsize)
+        pool = mp.Pool(processes=1)
 
     goodinds = np.arange(coordinates.shape[0])[includelist]  # Only process the indices that are good.
 
@@ -565,13 +558,13 @@ def exclude_signals(temporal_signals, framestamps,
     if critical_region is not None:
 
         crit_inds = np.where(np.isin(framestamps, critical_region))[0]
-        crit_remove = 0
+
         good_profiles = np.full((temporal_signals.shape[0],), True)
         for i in range(temporal_signals.shape[0]):
             this_fraction = np.sum(~np.isnan(temporal_signals[i, crit_inds])) / len(critical_region)
 
             if this_fraction < critical_fraction:
-                crit_remove += 1
+
                 temporal_signals[i, :] = np.nan
                 good_profiles[i] = False
 
@@ -585,10 +578,6 @@ def exclude_signals(temporal_signals, framestamps,
                 temporal_signals[i, :] = np.nan
                 good_profiles[i] = False
                 query_status[i] = "Incomplete profile, and the function req. full profiles."
-                crit_remove += 1
-
-    # if critical_region is not None or require_full_signal:
-    #     print(str(crit_remove) + "/" + str(temporal_signals.shape[0]) + " cells were cleared due to missing data at stimulus delivery.")
 
     return temporal_signals, good_profiles, query_status
 
@@ -694,17 +683,10 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     # Copy data to our shared array.
     np_temporal[:] = temporal_signals[:]
 
-    if temporal_signals.shape[0] <= 3000:
-        poolsize = 1
-        chunk_size = 3000
-    else:
-        chunk_size = 250
 
+    chunk_size = 250
     if pool is None:
-        poolsize =  temporal_signals.shape[0] // chunk_size
-        poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
-        pool = mp.Pool(processes=poolsize)
-
+        pool = mp.Pool(processes=1)
 
     if method == "linear_std":
         # Standardize using Autoscaling preceded by a linear fit to remove
