@@ -11,6 +11,7 @@ from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
 from numba import prange
 from numpy.polynomial import Polynomial
+from scipy.spatial import Delaunay
 
 from skimage.morphology import disk
 
@@ -27,13 +28,181 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
         query_loc= dataset.query_loc[0].copy()
     if query_loc_name is None:
         query_loc_name= ""
-
     if stimtrain_frame_stamps is None:
         stimtrain_frame_stamps = dataset.stimtrain_frame_stamps
+    if thread_pool is None:
+        if query_loc.shape[0] <= 2000:
+            poolsize = 1
+        else:
+            chunk_size = 250
+            poolsize = query_loc.shape[0] // chunk_size
+            poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
+            thread_pool = mp.Pool(processes=poolsize)
 
     query_status = np.full(query_loc.shape[0], "Included", dtype=object)
     valid_signals = np.full((query_loc.shape[0]), True)
 
+    # Round the query locations
+    query_loc = np.round(query_loc.copy())
+
+    # Snag all of our parameter dictionaries that we'll use here.
+    # Default to an empty dictionary so that we can query against it with fewer if statements.
+    seg_params = analysis_params.get(SegmentParams.NAME, dict())
+    seg_shape = seg_params.get(SegmentParams.SHAPE, "disk") # Default: A disk shaped mask over each query coordinate
+    seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean") # Default the average of the intensity of the query coordinate
+
+    excl_params = analysis_params.get(ExclusionParams.NAME, dict())
+    excl_type = excl_params.get(ExclusionParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
+    excl_units = excl_params.get(ExclusionParams.UNITS, "time")
+    excl_start = excl_params.get(ExclusionParams.START, -0.2)
+    excl_stop = excl_params.get(ExclusionParams.STOP, 0.2)
+    excl_cutoff_fraction = excl_params.get(ExclusionParams.FRACTION, 0.5)
+
+    std_params = analysis_params.get(STDParams.NAME, dict())
+    std_meth = std_params.get(STDParams.METHOD, "mean_sub") # Default: Subtracts the mean from each iORG signal
+    std_type = std_params.get(STDParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
+    std_units = std_params.get(STDParams.UNITS, "time")
+    std_start = std_params.get(STDParams.START, -1)
+    std_stop = std_params.get(STDParams.STOP, 0)
+
+    sum_params = analysis_params.get(SummaryParams.NAME, dict())
+    sum_method = sum_params.get(SummaryParams.METHOD, "rms")
+    sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
+
+
+    # If the refine to ref parameter is set to true, and these query points aren't pixelwise or xor.
+    if seg_params.get(SegmentParams.REFINE_TO_REF, True) and query_loc_name != "All Pixels" and seg_shape != "xor":
+        query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc.copy())
+    else:
+        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
+        valid = np.full((query_loc.shape[0]), True)
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+
+    if seg_params.get(SegmentParams.REFINE_TO_VID, True) and query_loc_name != "All Pixels" and seg_shape != "xor":
+        query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
+                                                              query_loc.copy())
+    else:
+        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
+        valid = np.full((query_loc.shape[0]), True)
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+
+    # If not defined, then we default to "auto" which determines it from the spacing of the query points
+    # However, if there are too many coordinates (spiking the number
+    segmentation_radius = seg_params.get(SegmentParams.RADIUS, "auto")
+    if segmentation_radius == "auto" and query_loc_name != "All Pixels":
+
+        tri = Delaunay(query_loc, qhull_options="QJ")
+
+        mindist = np.full((query_loc.shape[0],), np.nan)
+        for i in range(query_loc.shape[0]):
+            # Found this on stack overflow. Seriously terribly documented function.
+            index_pointers, indices = tri.vertex_neighbor_vertices
+            result_ids = indices[index_pointers[i]:index_pointers[i + 1]]
+
+            coorddist = pdist(query_loc[result_ids, :], "euclidean")
+            coorddist[coorddist == 0] = np.amax(coorddist.flatten())
+            mindist[i] = np.amin(coorddist.flatten())
+
+
+        # coorddist = pdist(query_loc, "euclidean")
+        # coorddist = squareform(coorddist)
+        # coorddist[coorddist == 0] = np.amax(coorddist.flatten())
+        # mindist = np.amin(coorddist, axis=-1)
+
+        segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
+
+        segmentation_radius = int(segmentation_radius)
+        print("Detected segmentation radius: " + str(segmentation_radius))
+    elif segmentation_radius != "auto":
+        segmentation_radius = int(segmentation_radius)
+        print("Chosen segmentation radius: " + str(segmentation_radius))
+    else:
+        segmentation_radius = 1
+        print("Pixelwise segmentation radius: " + str(segmentation_radius))
+
+    # Extract the signals
+    iORG_signals, excl_reason, coordinates = extract_signals(dataset.video_data, query_loc.copy(),
+                                                seg_radius=segmentation_radius,
+                                                seg_mask=seg_shape, summary=seg_summary, pool=thread_pool)
+    # If we're doing xor, then replace the query locs and
+    # status and with what we determined in the above step.
+    if seg_shape == "xor":
+        valid_signals = np.any(np.isfinite(iORG_signals), axis=1)
+        query_status = excl_reason
+        query_loc = coordinates.copy()
+        del coordinates
+    else:
+        # Update our audit path.
+        valid = np.any(np.isfinite(iORG_signals), axis=1)
+        to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+        valid_signals = valid & valid_signals
+        query_status[to_update] = excl_reason[to_update]
+
+
+    # Should only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
+    # will be used for, or what critical region/standardization indicies it'll need.
+    # Exclude signals that don't pass our criterion
+    if excl_units == "time":
+        excl_start_ind = int(excl_start * dataset.framerate)
+        excl_stop_ind = int(excl_stop * dataset.framerate)
+    else:  # if units == "frames":
+        excl_start_ind = int(excl_start)
+        excl_stop_ind = int(excl_stop)
+
+    if excl_type == "stim-relative":
+        excl_start_ind = stimtrain_frame_stamps[0] + excl_start_ind
+        excl_stop_ind = stimtrain_frame_stamps[1] + excl_stop_ind
+    else:  # if type == "absolute":
+        pass
+        # excl_start_ind = excl_start_ind
+        # excl_stop_ind = excl_stop_ind
+    crit_region = np.arange(excl_start_ind, excl_stop_ind)
+
+
+    iORG_signals, valid, excl_reason = exclude_signals(iORG_signals, dataset.framestamps,
+                                                       critical_region=crit_region,
+                                                       critical_fraction=excl_cutoff_fraction)
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    # Standardize individual signals
+    if std_units == "time":
+        std_start_ind = int(std_start * dataset.framerate)
+        std_stop_ind = int(std_stop * dataset.framerate)
+    else:  # if units == "frames":
+        std_start_ind = int(std_start)
+        std_stop_ind = int(std_stop)
+
+    if std_type == "stim-relative":
+        std_start_ind = stimtrain_frame_stamps[0] + std_start_ind
+        std_stop_ind = stimtrain_frame_stamps[1] + std_stop_ind
+
+    std_ind = np.arange(std_start_ind, std_stop_ind)
+
+    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals, dataset.framestamps, std_indices=std_ind,
+                                                           method=std_meth, pool=thread_pool)
+
+    # Update our audit path.
+    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
+    valid_signals = valid & valid_signals
+    query_status[to_update] = excl_reason[to_update]
+
+    summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
+                                                                     summary_method=sum_method,
+                                                                     window_size=sum_window)
 
     # If the user has a mask definition, then make sure we invalidate cells outside of it.
     mask_roi = analysis_params.get(Pipeline.MASK_ROI)
@@ -81,168 +250,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
 
-    # Round the query locations
-    query_loc = np.round(query_loc.copy())
-    og = query_loc.copy()
-
-    # Snag all of our parameter dictionaries that we'll use here.
-    # Default to an empty dictionary so that we can query against it with fewer if statements.
-    seg_params = analysis_params.get(SegmentParams.NAME, dict())
-    seg_shape = seg_params.get(SegmentParams.SHAPE, "disk") # Default: A disk shaped mask over each query coordinate
-    seg_summary = seg_params.get(SegmentParams.SUMMARY, "mean") # Default the average of the intensity of the query coordinate
-
-    excl_params = analysis_params.get(ExclusionParams.NAME, dict())
-    excl_type = excl_params.get(ExclusionParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
-    excl_units = excl_params.get(ExclusionParams.UNITS, "time")
-    excl_start = excl_params.get(ExclusionParams.START, -0.2)
-    excl_stop = excl_params.get(ExclusionParams.STOP, 0.2)
-    excl_cutoff_fraction = excl_params.get(ExclusionParams.FRACTION, 0.5)
-
-    std_params = analysis_params.get(STDParams.NAME, dict())
-    std_meth = std_params.get(STDParams.METHOD, "mean_sub") # Default: Subtracts the mean from each iORG signal
-    std_type = std_params.get(STDParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
-    std_units = std_params.get(STDParams.UNITS, "time")
-    std_start = std_params.get(STDParams.START, -1)
-    std_stop = std_params.get(STDParams.STOP, 0)
-
-    sum_params = analysis_params.get(SummaryParams.NAME, dict())
-    sum_method = sum_params.get(SummaryParams.METHOD, "rms")
-    sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
-
-    # If the refine to ref parameter is set to true, and these query points aren't pixelwise.
-    if seg_params.get(SegmentParams.REFINE_TO_REF, True) and query_loc_name != "All Pixels":
-        query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc.copy())
-    else:
-        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
-        valid = np.full((query_loc.shape[0]), True)
-
-    # Update our audit path.
-    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
-    valid_signals = valid & valid_signals
-    query_status[to_update] = excl_reason[to_update]
-
-    # If not defined, then we default to "auto" which determines it from the spacing of the query points
-    segmentation_radius = seg_params.get(SegmentParams.RADIUS, "auto")
-    if segmentation_radius == "auto" and query_loc_name != "All Pixels":
-        coorddist = pdist(query_loc, "euclidean")
-        coorddist = squareform(coorddist)
-        coorddist[coorddist == 0] = np.amax(coorddist.flatten())
-        mindist = np.amin(coorddist, axis=-1)
-
-        segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
-
-        segmentation_radius = int(segmentation_radius)
-        print("Detected segmentation radius: " + str(segmentation_radius))
-    elif segmentation_radius != "auto":
-        segmentation_radius = int(segmentation_radius)
-        print("Chosen segmentation radius: " + str(segmentation_radius))
-    else:
-        segmentation_radius = 1
-        print("Pixelwise segmentation radius: " + str(segmentation_radius))
-
-    if seg_params.get(SegmentParams.REFINE_TO_VID, True) and query_loc_name != "All Pixels":
-        query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
-                                                              query_loc.copy())
-    else:
-        excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
-        valid = np.full((query_loc.shape[0]), True)
-
-    # Update our audit path.
-    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
-    valid_signals = valid & valid_signals
-    query_status[to_update] = excl_reason[to_update]
-
-    if thread_pool is None:
-        if query_loc.shape[0] <= 2000:
-            poolsize = 1
-        else:
-            chunk_size = 250
-            poolsize =  query_loc.shape[0] // chunk_size
-            poolsize = poolsize if poolsize <= mp.cpu_count() // 2 else mp.cpu_count() // 2
-            thread_pool = mp.Pool(processes=poolsize)
-
-    # Extract the signals
-    # start_time = time.perf_counter()
-    iORG_signals, excl_reason = extract_signals(dataset.video_data, query_loc.copy(),
-                                                seg_radius=segmentation_radius,
-                                                seg_mask=seg_shape, summary=seg_summary, pool=thread_pool)
-    # end_time = time.perf_counter()
-    # elapsed_time = end_time - start_time
-    # print(f"Extract: Elapsed time {elapsed_time} seconds")
-
-    # Update our audit path.
-    valid = np.any(np.isfinite(iORG_signals), axis=1)
-    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
-    valid_signals = valid & valid_signals
-    query_status[to_update] = excl_reason[to_update]
-
-
-    # Should only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
-    # will be used for, or what critical region/standardization indicies it'll need.
-
-    # Exclude signals that don't pass our criterion
-    if excl_units == "time":
-        excl_start_ind = int(excl_start * dataset.framerate)
-        excl_stop_ind = int(excl_stop * dataset.framerate)
-    else:  # if units == "frames":
-        excl_start_ind = int(excl_start)
-        excl_stop_ind = int(excl_stop)
-
-    if excl_type == "stim-relative":
-        excl_start_ind = stimtrain_frame_stamps[0] + excl_start_ind
-        excl_stop_ind = stimtrain_frame_stamps[1] + excl_stop_ind
-    else:  # if type == "absolute":
-        pass
-        # excl_start_ind = excl_start_ind
-        # excl_stop_ind = excl_stop_ind
-    crit_region = np.arange(excl_start_ind, excl_stop_ind)
-
-    # start_time = time.perf_counter()
-    iORG_signals, valid, excl_reason = exclude_signals(iORG_signals, dataset.framestamps,
-                                                       critical_region=crit_region,
-                                                       critical_fraction=excl_cutoff_fraction)
-    # end_time = time.perf_counter()
-    # elapsed_time = end_time - start_time
-    # print(f"Exclude: Elapsed time {elapsed_time} seconds")
-
-    # Update our audit path.
-    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
-    valid_signals = valid & valid_signals
-    query_status[to_update] = excl_reason[to_update]
-
-    # Standardize individual signals
-    if std_units == "time":
-        std_start_ind = int(std_start * dataset.framerate)
-        std_stop_ind = int(std_stop * dataset.framerate)
-    else:  # if units == "frames":
-        std_start_ind = int(std_start)
-        std_stop_ind = int(std_stop)
-
-    if std_type == "stim-relative":
-        std_start_ind = stimtrain_frame_stamps[0] + std_start_ind
-        std_stop_ind = stimtrain_frame_stamps[1] + std_stop_ind
-
-    std_ind = np.arange(std_start_ind, std_stop_ind)
-
-    # start_time = time.perf_counter()
-    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals, dataset.framestamps, std_indices=std_ind,
-                                                           method=std_meth, pool=thread_pool)
-    # end_time = time.perf_counter()
-    # elapsed_time = end_time - start_time
-    # print(f"Standardize: Elapsed time {elapsed_time} seconds")
-
-    # Update our audit path.
-    to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
-    valid_signals = valid & valid_signals
-    query_status[to_update] = excl_reason[to_update]
-
-    # start_time = time.perf_counter()
-    summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
-                                                                     summary_method=sum_method,
-                                                                     window_size=sum_window)
-    # end_time = time.perf_counter()
-    # elapsed_time = end_time - start_time
-    # print(f"Summarize: Elapsed time {elapsed_time} seconds")
 
     # Wipe out the signals of the invalid signals.
     iORG_signals[~valid_signals, :] = np.nan
@@ -364,7 +371,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     if coordinates is None:
         pass # Todo: create coordinates for every position in the image stack.
 
-    #im_stack = image_stack.astype("float32")
+    coordinates = np.round(coordinates.copy()).astype("int")
 
     im_stack_mask = image_stack == 0
     im_stack_mask = cv2.morphologyEx(im_stack_mask.astype("uint8"), cv2.MORPH_OPEN, np.ones((3, 3)),
@@ -372,6 +379,22 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 
     im_stack = image_stack.astype("float32")
     im_stack[im_stack_mask.astype("bool")] = np.nan  # Anything that is outside our main image area should be made a nan.
+
+    if seg_mask == "xor":
+        coord_mask = np.zeros(image_stack.shape[0:2], dtype="uint8")
+        coord_mask[coordinates[:, 1], coordinates[:, 0]] = 1
+
+        cellradius = disk(seg_radius + 2, dtype=coord_mask.dtype)
+        coord_mask = cv2.morphologyEx(coord_mask, cv2.MORPH_DILATE, kernel=cellradius,
+                                      borderType=cv2.BORDER_CONSTANT, borderValue=0)
+
+        coordinates = np.fliplr(np.argwhere(coord_mask == 0))
+
+        coord_mask = np.repeat(coord_mask[:, :, None], image_stack.shape[-1], axis=2)
+
+        im_stack[coord_mask.astype("bool")] = np.nan  # Mask out anything around our coordinate points.
+        seg_radius = 1 # Make our radius 1 if we're doing xor.
+
 
     im_size = im_stack.shape
     if sigma is not None:
@@ -418,12 +441,12 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     goodinds = np.arange(coordinates.shape[0])[includelist]  # Only process the indices that are good.
 
 
-    if seg_mask == "box":
+    if seg_mask == "box" or seg_mask == "xor":
         mapres = pool.imap(_extract_box, zip(goodinds,
                                               repeat(shared_vid_block.name), repeat(im_stack.shape),
                                               repeat(shared_que_block.name), repeat(coordinates.shape),
                                               repeat(seg_radius), repeat(summary)),
-                           chunksize=chunk_size )
+                                              chunksize=chunk_size )
     elif seg_mask == "disk":
 
         mapres = pool.imap(_extract_disk, zip(goodinds,
@@ -441,7 +464,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     shared_que_block.close()
     shared_que_block.unlink()
 
-    return signal_data, query_status
+    return signal_data, query_status, coordinates
 
 def _extract_box(params):
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
@@ -688,68 +711,36 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     if pool is None:
         pool = mp.Pool(processes=1)
 
-    if method == "linear_std":
+    res = None
+    if method == "std":
+        res = pool.imap(_std, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                      repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
+                                      repeat(std_indices), repeat(req_framenums) ),
+                                      chunksize=chunk_size)
+    elif method == "linear_std":
         # Standardize using Autoscaling preceded by a linear fit to remove
         # any residual low-frequency changes
-        for i in range(temporal_signals.shape[0]):
 
-            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
-
-            if np.sum(goodind) >= req_framenums:
-                thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
-                fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
-
-                prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
-                prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
-                prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
-
-                stdized_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std)
-            else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                valid_stdization[i] = False
-                stdized_signals[i, :] = np.nan
+        res = pool.imap(_linear_std, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                  repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
+                                  repeat(std_indices), repeat(req_framenums), repeat(prestim_frmstmp)),
+                                  chunksize=chunk_size)
 
     elif method == "linear_vast":
         # Standardize using variable stability, or VAST scaling, preceeded by a linear fit:
         # https://www.sciencedirect.com/science/article/pii/S0003267003000941
         # this scaling is defined as autoscaling divided by the CoV.
-        for i in range(temporal_signals.shape[0]):
-
-            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
-
-            if np.sum(goodind) >= req_framenums:
-                thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
-                fitvals = thefit(prestim_frmstmp[goodind]) # The values we'll subtract from the profile
-
-                prestim_nofit_mean = np.nanmean(prestim_profile[goodind])
-                prestim_mean = np.nanmean(prestim_profile[goodind]-fitvals)
-                prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
-
-                stdized_signals[i, :] = ((temporal_signals[i, :] - prestim_nofit_mean) / prestim_std) / \
-                                         (prestim_std / prestim_nofit_mean)
-            else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " +"{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                valid_stdization[i] = False
-                stdized_signals[i, :] = np.nan
+        res = pool.imap(_linear_vast, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                         repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
+                                         repeat(std_indices), repeat(req_framenums), repeat(prestim_frmstmp)),
+                                         chunksize=chunk_size)
 
     elif method == "relative_change":
         # Make our output a representation of the relative change of the signal
-        for i in range(temporal_signals.shape[0]):
-
-            prestim_profile = np.squeeze(temporal_signals[i, std_indices])
-            goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
-
-            if np.sum(goodind) >= req_framenums:
-                prestim_mean = np.nanmean(prestim_profile[goodind])
-                stdized_signals[i, :] = np.squeeze(temporal_signals[i, :]) - prestim_mean
-                stdized_signals[i, :] /= prestim_mean
-                stdized_signals[i, :] *= 100
-            else:
-                query_status[i] = "Incomplete signal for standardization (req'd " +"{:.2f}".format(critical_fraction)+", had " + "{:.2f}".format(np.sum(goodind)/req_framenums)+")"
-                valid_stdization[i] = False
-                stdized_signals[i, :] = np.nan
+        res = pool.imap(_relative_change, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                      repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
+                                      repeat(std_indices), repeat(req_framenums) ),
+                                      chunksize=chunk_size)
 
     elif method == "mean_sub":
 
@@ -758,11 +749,11 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                                       repeat(std_indices), repeat(req_framenums) ),
                                       chunksize=chunk_size)
 
-        for i, signal, valid, numgoodind in res:
-            stdized_signals[i,: ] = signal
-            valid_stdization[i] = valid
-            if not valid:
-                query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / req_framenums) + ")"
+    for i, signal, valid, numgoodind in res:
+        stdized_signals[i,: ] = signal
+        valid_stdization[i] = valid
+        if not valid:
+            query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / req_framenums) + ")"
 
     shared_block.close()
     shared_block.unlink()
@@ -770,23 +761,119 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     return stdized_signals, valid_stdization, query_status
 
 
-def _mean_sub(params):
+def _std(params):
     i, mem_name, signal_shape, the_dtype, std_indices, req_framenums = params
 
     shared_block = shared_memory.SharedMemory(name=mem_name)
-    np_temporal = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+    signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
 
-    prestim_profile = np.squeeze(np_temporal[i, std_indices])
+    prestim_profile = np.squeeze(signals[i, std_indices])
     goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
     numgoodind = np.sum(goodind)
 
     if numgoodind >= req_framenums:
         prestim_mean = np.nanmean(prestim_profile[goodind])
-        temporal_signal = np_temporal[i, :] - prestim_mean
+        prestim_std = np.nanstd(prestim_profile[goodind])
+
+        temporal_signal = ((signals[i, :] - prestim_mean) / prestim_std)
         valid_stdization = True
     else:
         valid_stdization = False
-        temporal_signal = np.full_like(np_temporal[i, :], np.nan)
+        temporal_signal = np.full_like(signals[i, :], np.nan)
+
+    shared_block.close()
+    return i, temporal_signal, valid_stdization, numgoodind
+
+def _linear_std(params):
+    i, mem_name, signal_shape, the_dtype, std_indices, req_framenums, prestim_frmstmp = params
+
+    shared_block = shared_memory.SharedMemory(name=mem_name)
+    signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+    prestim_profile = np.squeeze(signals[i, std_indices])
+    goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+    numgoodind = np.sum(goodind)
+
+    if numgoodind >= req_framenums:
+        thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
+        fitvals = thefit(prestim_frmstmp[goodind])  # The values we'll subtract from the profile
+
+        prestim_mean = np.nanmean(prestim_profile[goodind])
+        prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
+
+        temporal_signal = ((signals[i, :] - prestim_mean) / prestim_std)
+        valid_stdization = True
+    else:
+        valid_stdization = False
+        temporal_signal = np.full_like(signals[i, :], np.nan)
+
+    shared_block.close()
+    return i, temporal_signal, valid_stdization, numgoodind
+
+def _linear_vast(params):
+    i, mem_name, signal_shape, the_dtype, std_indices, req_framenums, prestim_frmstmp = params
+
+    shared_block = shared_memory.SharedMemory(name=mem_name)
+    signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+    prestim_profile = np.squeeze(signals[i, std_indices])
+    goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+    numgoodind = np.sum(goodind)
+
+    if numgoodind >= req_framenums:
+        thefit = Polynomial.fit(prestim_frmstmp[goodind], prestim_profile[goodind], deg=1)
+        fitvals = thefit(prestim_frmstmp[goodind])  # The values we'll subtract from the profile
+
+        prestim_mean = np.nanmean(prestim_profile[goodind])
+        prestim_std = np.nanstd(prestim_profile[goodind]-fitvals)
+
+        temporal_signal = ((signals[i, :] - prestim_mean) / prestim_std) / (prestim_std / prestim_mean)
+        valid_stdization = True
+    else:
+        valid_stdization = False
+        temporal_signal = np.full_like(signals[i, :], np.nan)
+
+    shared_block.close()
+    return i, temporal_signal, valid_stdization, numgoodind
+
+def _relative_change(params):
+    i, mem_name, signal_shape, the_dtype, std_indices, req_framenums = params
+
+    shared_block = shared_memory.SharedMemory(name=mem_name)
+    signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+    prestim_profile = np.squeeze(signals[i, std_indices])
+    goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+    numgoodind = np.sum(goodind)
+
+    if numgoodind >= req_framenums:
+        prestim_mean = np.nanmean(prestim_profile[goodind])
+        temporal_signal = 100* ((signals[i, :] - prestim_mean) / prestim_mean)
+        valid_stdization = True
+    else:
+        valid_stdization = False
+        temporal_signal = np.full_like(signals[i, :], np.nan)
+
+    shared_block.close()
+    return i, temporal_signal, valid_stdization, numgoodind
+
+def _mean_sub(params):
+    i, mem_name, signal_shape, the_dtype, std_indices, req_framenums = params
+
+    shared_block = shared_memory.SharedMemory(name=mem_name)
+    signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+    prestim_profile = np.squeeze(signals[i, std_indices])
+    goodind = np.array(np.isfinite(prestim_profile))  # Removes nans, infs, etc.
+    numgoodind = np.sum(goodind)
+
+    if numgoodind >= req_framenums:
+        prestim_mean = np.nanmean(prestim_profile[goodind])
+        temporal_signal = signals[i, :] - prestim_mean
+        valid_stdization = True
+    else:
+        valid_stdization = False
+        temporal_signal = np.full_like(signals[i, :], np.nan)
 
     shared_block.close()
     return i, temporal_signal, valid_stdization, numgoodind

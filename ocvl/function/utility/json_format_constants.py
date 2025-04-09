@@ -91,7 +91,7 @@ class SegmentParams(StrEnum):
     REFINE_TO_REF = "refine_to_ref"
     REFINE_TO_VID = "refine_to_vid"
     RADIUS = "radius"
-    SHAPE = "disk"
+    SHAPE = "shape"
     SUMMARY = "mean"
     PIXELWISE = "pixelwise"
 
