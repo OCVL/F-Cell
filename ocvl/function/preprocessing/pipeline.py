@@ -37,7 +37,7 @@ from ocvl.function.utility.dataset import parse_file_metadata, load_dataset, \
     preprocess_dataset, initialize_and_load_dataset
 
 from ocvl.function.utility.json_format_constants import DataFormatType, DataTags, MetaTags, Pipeline, AcquisiTags, \
-    ConfigFields
+    ConfigFields, Analysis
 from ocvl.function.utility.resources import save_video
 
 
@@ -277,7 +277,7 @@ if __name__ == "__main__":
                 # pipeline filename structure.
 
                 # Determine the filename for the superaverage using the central-most dataset.
-                pipelined_dat_format = dat_form.get(Pipeline.NAME)
+                pipelined_dat_format = dat_form.get(Analysis.NAME)
                 if pipelined_dat_format is not None:
                     pipe_im_form = pipelined_dat_format.get(DataFormatType.IMAGE)
                     if pipe_im_form is not None:
@@ -338,7 +338,7 @@ if __name__ == "__main__":
             group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, group+"_group_info.csv"), index=False)
 
         dt = datetime.datetime.now()
-        now_timestamp = dt.strftime("%Y%m%d_%H_%M")
+        now_timestamp = dt.strftime("%Y%m%d")
 
         out_json = Path(json_fName).stem + "_" + now_timestamp + ".json"
         out_json = dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, out_json)

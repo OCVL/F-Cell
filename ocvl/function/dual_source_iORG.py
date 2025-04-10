@@ -16,7 +16,7 @@ from ocvl.function.analysis.iORG_signal_extraction import extract_signals, norma
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, wavelet_iORG, extract_texture_profiles, \
     iORG_signal_metrics, pooled_variance
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.dataset import PipeStages
+from ocvl.function.utility.dataset import Stages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_tiff_stack, save_video
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles, densify_temporal_matrix, trim_video
@@ -183,7 +183,7 @@ if __name__ == "__main__":
 
                 # Loading in the pipelined data (calls the load_pipelined_data() fxn
                 dataset = MEAODataset(file.as_posix(), stimtrain_path=stimtrain_fName,
-                                      analysis_modality="760nm", ref_modality="Confocal", stage=PipeStages.PIPELINED)
+                                      analysis_modality="760nm", ref_modality="Confocal", stage=Stages.ANALYSIS)
                 dataset.load_pipelined_data()
 
                 # Initialize the dict for individual cells.

@@ -16,7 +16,7 @@ from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals,
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, PipeStages
+from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages
 from ocvl.function.utility.json_format_constants import Pipeline, MetaTags, DataFormatType, DataTags, AcquisiTags, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
     MetricTags, Analysis, SegmentParams
@@ -240,7 +240,7 @@ if __name__ == "__main__":
                         pb["value"] = v
 
                         # Actually load the dataset, and all its metadata.
-                        dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params, stage=PipeStages.PIPELINED)
+                        dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params, stage=Stages.ANALYSIS)
 
                         if dataset is not None:
                             # Normalize the video to reduce the influence of framewide intensity changes

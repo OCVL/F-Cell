@@ -9,13 +9,13 @@ import pandas as pd
 from os import path
 
 from ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align
-from ocvl.function.utility.dataset import PipeStages
+from ocvl.function.utility.dataset import Stages
 from ocvl.function.utility.resources import load_video
 
 
 class DemotionDataset:
     def __init__(self, video_path="", coord_path=None, stimtrain_path=None,
-                 analysis_modality="confocal", ref_modality="confocal", stage=PipeStages.RAW):
+                 analysis_modality="confocal", ref_modality="confocal", stage=Stages.RAW):
 
         self.analysis_modality = analysis_modality
         self.reference_modality = ref_modality
@@ -70,22 +70,22 @@ class DemotionDataset:
         del self.ref_video_data
 
     def load_data(self):
-        if self.stage is PipeStages.RAW:
+        if self.stage is Stages.RAW:
             self.load_raw_data()
-        elif self.stage is PipeStages.PROCESSED:
+        elif self.stage is Stages.PREANALYSIS:
             self.load_processed_data()
-        elif self.stage is PipeStages.PIPELINED:
+        elif self.stage is Stages.ANALYSIS:
             self.load_pipelined_data()
-        elif self.stage is PipeStages.ANALYSIS_READY:
+        elif self.stage is Stages.ANALYSIS_READY:
             self.load_analysis_ready_data()
 
     def load_analysis_ready_data(self, raw_profiles, postprocessed_profiles=np.empty([1])):
-        if self.stage is PipeStages.ANALYSIS_READY:
+        if self.stage is Stages.ANALYSIS_READY:
             self.raw_profile_data = raw_profiles
             self.postproc_profile_data = postprocessed_profiles
 
     def load_pipelined_data(self):
-        if self.stage is PipeStages.PIPELINED:
+        if self.stage is Stages.ANALYSIS:
             res = load_video(self.video_path)
 
             self.framerate = res.metadict["framerate"]
@@ -137,7 +137,7 @@ class DemotionDataset:
     def load_unpipelined_data(self, force=False):
 
         # Establish our unpipelined filenames
-        if self.stage is not PipeStages.RAW or force:
+        if self.stage is not Stages.RAW or force:
 
             # Load the video data.
             res = load_video(self.video_path)

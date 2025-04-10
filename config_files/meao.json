@@ -33,7 +33,7 @@
         "height": -1
       },
       "alignment_reference_modality": null,
-      "modalities": ["Confocal"],
+      "modalities": ["760nm"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
@@ -63,7 +63,7 @@
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": ["Confocal"],
+      "modalities": ["760nm"],
       "output_folder": "Results",
       "normalization": {
         "method": "score",
@@ -72,11 +72,12 @@
         "rescale_std": 35
       },
       "segmentation": {
-        "refine_to_ref": false,
+        "refine_to_ref": true,
         "refine_to_vid": false,
-        "radius": 1,
+        "radius": "auto",
         "shape": "disk",
-        "summary": "mean"
+        "summary": "mean",
+        "pixelwise": false
       },
       "exclusion_criteria": {
         "type": "stim-relative",
@@ -93,9 +94,9 @@
       },
       "summary": {
         "method": "rms",
-        "control": "none",
+        "control": "subtraction",
         "metrics": {
-          "type": ["aur", "amp", "logamp", "amp_imp_time", "halfamp_imp_time", "rec_amp"],
+          "type": ["amp", "logamp"],
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],

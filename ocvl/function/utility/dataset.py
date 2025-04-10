@@ -21,10 +21,10 @@ from ocvl.function.utility.resources import load_video, save_video, save_tiff_st
 
 stimseq_fName = None
 
-class PipeStages(Enum):
+class Stages(Enum):
     RAW = 0,
-    PROCESSED = 1,
-    PIPELINED = 2,
+    PREANALYSIS = 1,
+    ANALYSIS = 2,
     ANALYSIS_READY = 3
 
 def load_metadata(metadata_params, ext_metadata):
@@ -160,7 +160,7 @@ def parse_file_metadata(config_json_path, pName, group="processed"):
         else:
             return None
 
-def initialize_and_load_dataset(acquisition, metadata_params, stage=PipeStages.PROCESSED):
+def initialize_and_load_dataset(acquisition, metadata_params, stage=Stages.PREANALYSIS):
 
     video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
     mask_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK]
@@ -214,7 +214,7 @@ def initialize_and_load_dataset(acquisition, metadata_params, stage=PipeStages.P
     return dataset
 
 
-def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None, stage=PipeStages.PROCESSED):
+def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None, stage=Stages.PREANALYSIS):
 
     mask_data = None
     metadata = dataset_metadata
@@ -283,7 +283,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
         stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None, encoding="utf-8-sig").to_numpy()
     elif MetaTags.STIMULUS_SEQ in metadata:
         stimulus_sequence = metadata.get(MetaTags.STIMULUS_SEQ)
-    elif stage == PipeStages.PIPELINED:
+    elif stage == Stages.ANALYSIS:
         if Dataset.stimseq_fName is None:
             Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
         stimulus_sequence = np.cumsum(pd.read_csv(Dataset.stimseq_fName, header=None,encoding="utf-8-sig").to_numpy())
@@ -436,7 +436,7 @@ class Dataset:
     stimseq_fName = None
 
     def __init__(self, video_data=None, mask_data=None, avg_image_data=None, metadata=None, query_locations=[],
-                 framestamps=None, stimseq=None, stage=PipeStages.PROCESSED):
+                 framestamps=None, stimseq=None, stage=Stages.PREANALYSIS):
 
         # Paths to the data used here.
         if metadata is None:
@@ -483,7 +483,7 @@ class Dataset:
             # then guess.
             if self.image_path is None:
                 imname = None
-                if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
+                if (stage is Stages.PREANALYSIS or stage is Stages.ANALYSIS) and \
                         self.prefix.with_name(self.prefix.name + ".tif").exists():
 
                         imname = self.prefix.with_name(self.prefix.name + ".tif")
@@ -492,7 +492,7 @@ class Dataset:
                     for filename in self.base_path.glob("*_ALL_ACQ_AVG.tif"):
                         imname = filename
 
-                if not imname and stage is PipeStages.PIPELINED:
+                if not imname and stage is Stages.ANALYSIS:
                     warnings.warn("Unable to detect viable average image file; generating one from video. Dataset functionality may be limited.")
                     self.image_path = None
                     self.avg_image_data, _ = weighted_z_projection(self.video_data, self.mask_data)
@@ -507,7 +507,7 @@ class Dataset:
             if self.query_coord_paths is None and not query_locations:
 
                 coordname = None
-                if (stage is PipeStages.PROCESSED or stage is PipeStages.PIPELINED) and \
+                if (stage is Stages.PREANALYSIS or stage is Stages.ANALYSIS) and \
                         self.prefix.with_name(self.prefix.name + "_coords.csv").exists():
 
                         coordname = self.prefix.with_name(self.prefix.name + "_coords.csv")
@@ -517,11 +517,11 @@ class Dataset:
                     for filename in self.base_path.glob("*_ALL_ACQ_AVG_coords.csv"):
                             coordname = filename
 
-                if coordname is None and stage is PipeStages.PIPELINED:
+                if coordname is None and stage is Stages.ANALYSIS:
                     warnings.warn("Unable to detect viable query location file for dataset at: "+ str(self.video_path))
                     self.metadata[AcquisiTags.QUERYLOC_PATH] = []
                     self.query_coord_paths = []
-                elif stage is PipeStages.PIPELINED:
+                elif stage is Stages.ANALYSIS:
                     print(Fore.YELLOW+"Automatically detected the query locations: "+str(coordname.name) + ". **Please verify your queryloc format string**" )
                     # Update our metadata structure, and our internally stored query coord paths.
                     self.metadata[AcquisiTags.QUERYLOC_PATH] = [coordname]

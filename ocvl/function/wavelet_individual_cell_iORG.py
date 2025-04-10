@@ -17,7 +17,7 @@ from ocvl.function.analysis.iORG_signal_extraction import extract_signals, norma
     refine_coord, refine_coord_to_stack, exclude_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, wavelet_iORG
 from ocvl.function.preprocessing.improc import norm_video
-from ocvl.function.utility.dataset import PipeStages
+from ocvl.function.utility.dataset import Stages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.resources import save_video, save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
@@ -123,7 +123,7 @@ if __name__ == "__main__":
                 print("Processing " + file.name + "...")
                 # Loading in the pipelined data (calls the load_pipelined_data() fxn
                 dataset = MEAODataset(file.as_posix(), stimtrain_path=stimtrain_fName,
-                                      analysis_modality="760nm", ref_modality="760nm", stage=PipeStages.PIPELINED)
+                                      analysis_modality="760nm", ref_modality="760nm", stage=Stages.ANALYSIS)
                 dataset.load_pipelined_data()
 
                 # Initialize the dict for individual cells.
@@ -240,7 +240,7 @@ if __name__ == "__main__":
 
                 # Loading in the pipelined data (calls the load_pipelined_data() fxn
                 dataset = MEAODataset(file.as_posix(), stimtrain_path=stimtrain_fName,
-                                      analysis_modality="760nm", ref_modality="760nm", stage=PipeStages.PIPELINED)
+                                      analysis_modality="760nm", ref_modality="760nm", stage=Stages.ANALYSIS)
                 dataset.load_pipelined_data()
 
                 # Initialize the dict for individual cells.
