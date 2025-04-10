@@ -162,6 +162,21 @@ if __name__ == "__main__":
     metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
     metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
 
+    metrics_tags =[]
+    for metric in metrics_type:
+        # Need to do this in a pythonic way. Honestly it's fucking hideous.
+        if metric == "aur":
+            metrics_tags.append(MetricTags.AUR)
+        elif metric == "amp":
+            metrics_tags.append(MetricTags.AMPLITUDE)
+        elif metric == "logamp":
+            metrics_tags.append(MetricTags.LOG_AMPLITUDE)
+        elif metric == "amp_imp_time":
+            metrics_tags.append(MetricTags.AMP_IMPLICIT_TIME)
+        elif metric == "halfamp_imp_time":
+            metrics_tags.append(MetricTags.HALFAMP_IMPLICIT_TIME)
+        elif metric == "rec_amp":
+            metrics_tags.append(MetricTags.RECOVERY_PERCENT)
 
     pop_overlap_params = display_params.get(DisplayParams.POP_SUMMARY_OVERLAP, dict())
     pop_seq_params = display_params.get(DisplayParams.POP_SUMMARY_SEQ, dict())
@@ -833,8 +848,11 @@ if __name__ == "__main__":
                             all_frmstmp = np.arange(max_frmstamp + 1)
 
                             if indiv_overlap_params:
-                                overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
-                                display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
+                                if indiv_overlap_params.get(DisplayParams.DISP_STIMULUS, False) or \
+                                        indiv_overlap_params.get(DisplayParams.DISP_CONTROL, False) or \
+                                        indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, False):
+                                    overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
+                                    display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
 
                             for c in range(stim_iORG_signals[q].shape[1]):
                                 tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q][:, c, :]), axis=1))
@@ -895,7 +913,7 @@ if __name__ == "__main__":
                                         elif metric == "amp":
                                             indiv_iORG_result[q].loc[thisind, MetricTags.AMPLITUDE] = amplitude[0]
                                         elif metric == "logamp":
-                                            indiv_iORG_result[q].loc[thisind,  MetricTags.LOG_AMPLITUDE] = np.log(amplitude[0])
+                                            indiv_iORG_result[q].loc[thisind, MetricTags.LOG_AMPLITUDE] = np.log(amplitude[0])
                                         elif metric == "amp_imp_time":
                                             indiv_iORG_result[q].loc[thisind, MetricTags.AMP_IMPLICIT_TIME] = amp_implicit_time[0]
                                         elif metric == "halfamp_imp_time":
@@ -926,7 +944,7 @@ if __name__ == "__main__":
                                 overlap_label = "Individual-Cell iORGs metric histograms from " + mode + " iORGs in " + folder.name
                                 display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_metric_histograms"] = overlap_label
 
-                                display_iORG_summary_histogram(indiv_iORG_result[q], list(MetricTags), False, query_loc_names[q],
+                                display_iORG_summary_histogram(indiv_iORG_result[q], metrics_tags, False, query_loc_names[q],
                                                                overlap_label, indiv_summary)
 
 
@@ -934,13 +952,13 @@ if __name__ == "__main__":
                                 overlap_label = "Individual-Cell iORGs metric cumulative histograms from " + mode + " iORGs in " + folder.name
                                 display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_metric_cumul_histograms"] = overlap_label
 
-                                display_iORG_summary_histogram(indiv_iORG_result[q], list(MetricTags), True, query_loc_names[q],
+                                display_iORG_summary_histogram(indiv_iORG_result[q], metrics_tags, True, query_loc_names[q],
                                                                overlap_label, indiv_summary)
 
                             if indiv_summary.get(DisplayParams.MAP_OVERLAY):
                                 ax_params = indiv_summary.get(DisplayParams.AXES, dict())
 
-                                for metric in list(MetricTags):
+                                for metric in metrics_tags:
                                     if indiv_iORG_result[q].loc[:, metric].count() != 0:
                                         label = "Individual iORG "+metric+" from " + mode + " using query locations: " + query_loc_names[q] + " in " + folder.name
                                         display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q]] = label
@@ -991,19 +1009,29 @@ if __name__ == "__main__":
                             pop_iORG_result_datframe.to_csv(respath)
                             tryagain = False
                         except PermissionError:
-                            tryagain=messagebox.askyesno(title="File: " + str(respath) + " is unable to be written.",
+                            tryagain=messagebox.askyesno(title="File: " + str(respath) + " is unable to be saved.",
                                                           message="The result file may be open. Close the file, then try to write again?")
 
                     if display_params.get(DisplayParams.PAUSE_PER_FOLDER, False):
                         plt.waitforbuttonpress()
 
                     # Save the figures to the result folder, if requested.
+                    plt.show(block=False)
                     for fname, figname in display_dict.items():
-                        plt.show(block=False)
                         plt.figure(figname)
-                        plt.gcf().set_size_inches(10, 10)
+                        sublayout = plt.gca().get_gridspec()
+                        plt.gcf().set_size_inches(5*sublayout.ncols, 5*sublayout.nrows)
                         plt.draw()
                         for ext in saveas_ext:
-                            plt.savefig(result_folder.joinpath(fname+"."+ext), dpi=300)
+                            tryagain = True
+                            while tryagain:
+                                try:
+                                    plt.savefig(result_folder.joinpath(fname+"."+ext), dpi=300)
+                                    tryagain = False
+                                except PermissionError:
+                                    tryagain = messagebox.askyesno(
+                                        title="Figure " + str(fname+"."+ext) + " is unable to be saved.",
+                                        message="The figure file may be open. Close the file, then try to write again?")
+
                         plt.close(figname)
 
