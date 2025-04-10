@@ -341,13 +341,16 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
                                                                                 yshifts, xshifts)
 
                     # Dewarp our mask too.
-                    for f in range(dataset.num_frames):
-                        norm_frame = dataset.mask_data[..., f].astype("float32")
-                        norm_frame[norm_frame == 0] = np.nan
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
 
-                        dataset.mask_data[..., f] = cv2.remap(norm_frame,
-                                                              map_mesh_x, map_mesh_y,
-                                                              interpolation=cv2.INTER_NEAREST)
+                        for f in range(dataset.num_frames):
+                            norm_frame = dataset.mask_data[..., f].astype("float32")
+                            norm_frame[norm_frame == 0] = np.nan
+
+                            dataset.mask_data[..., f] = cv2.remap(norm_frame,
+                                                                  map_mesh_x, map_mesh_y,
+                                                                  interpolation=cv2.INTER_NEAREST)
 
     # Trim the video down to a smaller/different size, if desired.
     trim = pipeline_params.get(Pipeline.TRIM)
@@ -490,8 +493,9 @@ class Dataset:
                         imname = filename
 
                 if not imname and stage is PipeStages.PIPELINED:
-                    warnings.warn("Unable to detect viable average image file. Dataset functionality may be limited.")
+                    warnings.warn("Unable to detect viable average image file; generating one from video. Dataset functionality may be limited.")
                     self.image_path = None
+                    self.avg_image_data, _ = weighted_z_projection(self.video_data, self.mask_data)
                 else:
                     print(Fore.YELLOW + "Automatically detected the average image "+ str(imname.name) +". **Please verify your image format string**: " )
                     self.image_path = imname
