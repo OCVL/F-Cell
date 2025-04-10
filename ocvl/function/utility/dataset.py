@@ -248,7 +248,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
         mask_data = (video_data != 0).astype(video_data.dtype)
 
     avg_image_data = None
-    if AcquisiTags.IMAGE_PATH in metadata:
+    if metadata.get(AcquisiTags.IMAGE_PATH) and metadata.get(AcquisiTags.IMAGE_PATH).exists():
         avg_image_data = cv2.imread(metadata.get(AcquisiTags.IMAGE_PATH), cv2.IMREAD_GRAYSCALE)
 
     # For importing the query locations
@@ -256,17 +256,21 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     if AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS not in metadata:
 
         querylocs = metadata.get(AcquisiTags.QUERYLOC_PATH)
-        for locpath in querylocs:
-            match locpath.suffix:
-                case ".csv":
-                    queryloc_data.append(pd.read_csv(locpath, header=None, encoding="utf-8-sig").to_numpy())
-                case ".txt":
-                    queryloc_data.append(pd.read_csv(locpath, sep=None, header=None, encoding="utf-8-sig").to_numpy())
-                case "":
-                    if locpath.name == "All Pixels":
-                        xm, ym = np.meshgrid(np.arange(video_data.shape[1]),np.arange(video_data.shape[0]), indexing="xy")
 
-                        queryloc_data.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
+        for locpath in querylocs:
+            if locpath.exists():
+                match locpath.suffix:
+                    case ".csv":
+                        queryloc_data.append(pd.read_csv(locpath, header=None, encoding="utf-8-sig").to_numpy())
+                    case ".txt":
+                        queryloc_data.append(pd.read_csv(locpath, sep=None, header=None, encoding="utf-8-sig").to_numpy())
+                    case "":
+                        if locpath.name == "All Pixels":
+                            xm, ym = np.meshgrid(np.arange(video_data.shape[1]),np.arange(video_data.shape[0]), indexing="xy")
+
+                            queryloc_data.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
+            else:
+                warnings.warn("Query location path does not exist: "+str(locpath))
 
     elif MetaTags.QUERY_LOCATIONS in metadata:
         queryloc_data.append(metadata.get(MetaTags.QUERY_LOCATIONS))
@@ -279,13 +283,16 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
     # For importing metadata RE: the stimulus delivery
     stimulus_sequence = None
-    if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata:
+    if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH).exists():
         stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None, encoding="utf-8-sig").to_numpy()
-    elif MetaTags.STIMULUS_SEQ in metadata:
+    elif MetaTags.STIMULUS_SEQ in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH).exists():
         stimulus_sequence = np.array(metadata.get(MetaTags.STIMULUS_SEQ), dtype="int")
     elif stage == Stages.ANALYSIS:
-        if Dataset.stimseq_fName is None:
+        while Dataset.stimseq_fName is None:
             Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
+            if Dataset.stimseq_fName is None or not Path(Dataset.stimseq_fName).exists():
+                Dataset.stimseq_fName = None
+
         stimulus_sequence = np.cumsum(pd.read_csv(Dataset.stimseq_fName, header=None,encoding="utf-8-sig").to_numpy())
 
 
