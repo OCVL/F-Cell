@@ -53,20 +53,30 @@ if __name__ == "__main__":
         '%dx%d+%d+%d' % (
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
+    pName = None
+    json_fName = Path()
+    dat_form = dict()
+    allData = pd.DataFrame()
 
-    if not pName:
-        quit()
+    while allData.empty:
+        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
+        if not pName:
+            quit()
 
-    # We should be 3 levels up from here. Kinda jank, will need to change eventually
-    config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+        # We should be 3 levels up from here. Kinda jank, will need to change eventually
+        config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
 
-    json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
-    if not json_fName:
-        quit()
+        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
+        if not json_fName:
+            quit()
 
-    # Grab all the folders/data here.
-    dat_form, allData = parse_file_metadata(json_fName, pName, Analysis.NAME)
+        # Grab all the folders/data here.
+        dat_form, allData = parse_file_metadata(json_fName, pName, Analysis.NAME)
+
+        if allData.empty:
+            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
+            if not tryagain:
+                quit()
 
     x = root.winfo_screenwidth() / 2 - 128
     y = root.winfo_screenheight() / 2 - 128
@@ -97,7 +107,6 @@ if __name__ == "__main__":
 
     if 'IDnum' in allData:
         subject_IDs = allData['IDnum'].unique()
-
 
         if np.size(subject_IDs) > 1:
             warnings.warn("MORE THAN 1 SUBJECT ID DETECTED!! Labeling outputs with first ID")
