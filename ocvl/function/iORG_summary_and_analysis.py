@@ -249,13 +249,13 @@ if __name__ == "__main__":
 
                             group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
 
-                            # If we didn't find an average image in our database, but were able to automagically detect one,
+                            # If we didn't find an average image in our database, but were able to automagically detect or make one,
                             # Then add the automagically detected one to our database.
                             if group_datasets.loc[slice_of_life & reference_images].empty and dataset.avg_image_data is not None:
                                 base_entry = group_datasets[slice_of_life & only_vids].copy()
-                                base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.IMAGE
-                                base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.image_path
-                                base_entry.loc[0, AcquisiTags.DATASET] = None
+                                base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.IMAGE
+                                base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.image_path
+                                base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
                                 # Update the database, and update all of our logical indices
                                 group_datasets = pd.concat([group_datasets, base_entry], ignore_index=True)
