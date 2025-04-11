@@ -59,7 +59,7 @@ class AcquisiTags(StrEnum):
     META_PATH = "Metadata_Path",
     STIM_PRESENT = "Stimulus_Present"
 
-class Pipeline(StrEnum):
+class PreAnalysisPipeline(StrEnum):
     NAME = "preanalysis"
     PARAMS = "pipeline_params"
     GAUSSIAN_BLUR = "gaus_blur",

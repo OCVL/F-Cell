@@ -15,7 +15,7 @@ from scipy.ndimage import gaussian_filter
 
 from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, Pipeline, \
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, PreAnalysisPipeline, \
     ControlParams
 from ocvl.function.utility.resources import load_video, save_video, save_tiff_stack
 
@@ -307,7 +307,7 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
     # First do custom preprocessing steps, e.g. things implemented expressly for and by the OCVL
     # If you would like to "bake in" custom pipeline steps, please contact the OCVL using GitHub's Issues
     # or submit a pull request.
-    custom_steps = pipeline_params.get(Pipeline.CUSTOM)
+    custom_steps = pipeline_params.get(PreAnalysisPipeline.CUSTOM)
     if custom_steps is not None:
         # For "baked in" dewarping- otherwise, data is expected to be dewarped already
         pre_dewarp = custom_steps.get("dewarp")
@@ -360,7 +360,7 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
                                                                   interpolation=cv2.INTER_NEAREST)
 
     # Trim the video down to a smaller/different size, if desired.
-    trim = pipeline_params.get(Pipeline.TRIM)
+    trim = pipeline_params.get(PreAnalysisPipeline.TRIM)
     if trim is not None:
         start_frm = int(trim.get("start_frm",0))
         end_frm = int(trim.get("end_frm",-1))
@@ -388,14 +388,14 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
         align_dat = flat_field(align_dat)
 
     # Gaussian blur the data first before aligning, if requested
-    gausblur = pipeline_params.get(Pipeline.GAUSSIAN_BLUR)
+    gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
     if gausblur is not None and gausblur != 0.0:
         for f in range(align_dat.shape[-1]):
             align_dat[..., f] = gaussian_filter(align_dat[..., f], sigma=gausblur)
         align_dat *= mask_dat
 
     # Then crop the data, if requested
-    mask_roi = pipeline_params.get(Pipeline.MASK_ROI)
+    mask_roi = pipeline_params.get(PreAnalysisPipeline.MASK_ROI)
     if mask_roi is not None:
         r = mask_roi.get("r")
         c = mask_roi.get("c")
@@ -410,7 +410,7 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
 
 
     # Finally, correct for residual torsion if requested
-    correct_torsion = pipeline_params.get(Pipeline.CORRECT_TORSION)
+    correct_torsion = pipeline_params.get(PreAnalysisPipeline.CORRECT_TORSION)
     if correct_torsion is not None and correct_torsion:
         align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, mask_dat,
                                                                      reference_idx=dataset.reference_frame_idx,

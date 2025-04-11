@@ -1,3 +1,4 @@
+import json
 import os
 import multiprocessing as mp
 import warnings
@@ -17,41 +18,26 @@ from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, di
     display_iORG_summary_histogram, display_iORG_summary_overlay
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages
-from ocvl.function.utility.json_format_constants import Pipeline, MetaTags, DataFormatType, DataTags, AcquisiTags, \
+from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
+    AcquisiTags, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
-    MetricTags, Analysis, SegmentParams
+    MetricTags, Analysis, SegmentParams, ConfigFields
 
 from datetime import datetime, date, time, timezone
 
-def extract_control_iORG_summaries(params):
-    control_vidnum, control_dataset, control_query_status, analysis_params, query_locs, stimtrain_frame_stamps = params
-
-    control_query_stat = control_query_status.copy()
-    control_dataset.query_loc = [None] * len(query_locs)
-    control_dataset.iORG_signals = [None] * len(query_locs)
-    control_dataset.summarized_iORGs = [None] * len(query_locs)
-
-    for q in range(len(query_locs)):
-        # Use the control data, but the query locations and stimulus info from the stimulus data.
-        (control_dataset.iORG_signals[q],
-         control_dataset.summarized_iORGs[q],
-         control_query_stat[q].loc[:, control_vidnum],
-         control_dataset.query_loc[q]) = extract_n_refine_iorg_signals(control_dataset, analysis_params,
-                                                                       query_loc=query_locs[q],
-                                                                       stimtrain_frame_stamps=stimtrain_frame_stamps)
-    return control_vidnum, control_dataset, control_query_stat
-
 
 if __name__ == "__main__":
+
+    dt = datetime.now()
+    now_timestamp = dt.strftime("%Y%m%d_%H%M")
+
     root = Tk()
     root.lift()
     w = 1
     h = 1
     x = root.winfo_screenwidth() / 4
     y = root.winfo_screenheight() / 4
-    root.geometry(
-        '%dx%d+%d+%d' % (
-            w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
+    root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
     pName = None
     json_fName = Path()
@@ -80,9 +66,7 @@ if __name__ == "__main__":
 
     x = root.winfo_screenwidth() / 2 - 128
     y = root.winfo_screenheight() / 2 - 128
-    root.geometry(
-        '%dx%d+%d+%d' % (
-            w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
+    root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
     root.update()
 
     pb = ttk.Progressbar(root, orient=HORIZONTAL, length=1024)
@@ -99,11 +83,11 @@ if __name__ == "__main__":
     root.update()
 
     analysis_dat_format = dat_form.get(Analysis.NAME)
-    preanalysis_dat_format = dat_form.get(Pipeline.NAME)
-    pipeline_params = preanalysis_dat_format.get(Pipeline.PARAMS)
+    preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME)
+    pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
     analysis_params = analysis_dat_format.get(Analysis.PARAMS)
     display_params = analysis_dat_format.get(DisplayParams.NAME)
-    modes_of_interest = analysis_params.get(Pipeline.MODALITIES)
+    modes_of_interest = analysis_params.get(PreAnalysisPipeline.MODALITIES)
 
     if 'IDnum' in allData:
         subject_IDs = allData['IDnum'].unique()
@@ -123,15 +107,15 @@ if __name__ == "__main__":
     # If we've selected modalities of interest, only process those; otherwise, process them all.
     if modes_of_interest is None:
         modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
-        print("NO MODALITIES SELECTED! Processing them all....")
+        print("NO MODALITIES SELECTED! Processing all....")
 
-    grouping = pipeline_params.get(Pipeline.GROUP_BY)
+    grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
     if grouping is not None:
         for row in allData.itertuples():
             #print(grouping.format_map(row._asdict()))
-            allData.loc[row.Index, Pipeline.GROUP_BY] = grouping.format_map(row._asdict())
+            allData.loc[row.Index, PreAnalysisPipeline.GROUP_BY] = grouping.format_map(row._asdict())
 
-        groups = allData[Pipeline.GROUP_BY].unique().tolist()
+        groups = allData[PreAnalysisPipeline.GROUP_BY].unique().tolist()
     else:
         groups = [""]  # If we don't have any groups, then just make the list an empty string.
 
@@ -185,7 +169,7 @@ if __name__ == "__main__":
     saveas_ext = display_params.get(DisplayParams.SAVEAS, "png")
 
 
-    output_folder = analysis_params.get(Pipeline.OUTPUT_FOLDER)
+    output_folder = analysis_params.get(PreAnalysisPipeline.OUTPUT_FOLDER)
     if output_folder is None:
         output_folder = PurePath("Results")
     else:
@@ -198,7 +182,7 @@ if __name__ == "__main__":
         # We like to use (LocX,LocY), but this is by no means the only way.
         for group in groups:
             if group != "":
-                group_datasets = allData.loc[allData[Pipeline.GROUP_BY] == group]
+                group_datasets = allData.loc[allData[PreAnalysisPipeline.GROUP_BY] == group]
             else:
                 group_datasets = allData
 
@@ -1001,7 +985,6 @@ if __name__ == "__main__":
                                                    "_" + query_loc_names[q] + "coords.csv"))
 
 
-
                     respath = result_folder.joinpath(str(subject_IDs[0]) + "_pop_summary_metrics_" + str(folder.name) + "_" + str(mode) + ".csv")
                     tryagain = True
                     while tryagain:
@@ -1035,3 +1018,13 @@ if __name__ == "__main__":
 
                         plt.close(figname)
 
+                    # Save the json used to analyze this data, for auditing.
+                    out_json = Path(json_fName).stem + "_ran_at_" + now_timestamp + ".json"
+                    out_json = result_folder.joinpath(out_json)
+
+                    audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
+                                       ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
+                                       Analysis.NAME: analysis_dat_format}
+
+                    with open(out_json, 'w') as f:
+                        json.dump(audit_json_dict, f, indent=2)

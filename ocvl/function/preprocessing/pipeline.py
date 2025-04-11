@@ -36,7 +36,7 @@ from ocvl.function.preprocessing.improc import weighted_z_projection, simple_ima
 from ocvl.function.utility.dataset import parse_file_metadata, load_dataset, \
     preprocess_dataset, initialize_and_load_dataset
 
-from ocvl.function.utility.json_format_constants import DataFormatType, DataTags, MetaTags, Pipeline, AcquisiTags, \
+from ocvl.function.utility.json_format_constants import DataFormatType, DataTags, MetaTags, PreAnalysisPipeline, AcquisiTags, \
     ConfigFields, Analysis
 from ocvl.function.utility.resources import save_video
 
@@ -87,14 +87,14 @@ if __name__ == "__main__":
     with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
 
 
-        preanalysis_dat_format = dat_form.get(Pipeline.NAME)
-        pipeline_params = preanalysis_dat_format.get(Pipeline.PARAMS)
-        modes_of_interest = pipeline_params.get(Pipeline.MODALITIES)
-        alignment_ref_mode = pipeline_params.get(Pipeline.ALIGNMENT_REF_MODE)
+        preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME)
+        pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
+        modes_of_interest = pipeline_params.get(PreAnalysisPipeline.MODALITIES)
+        alignment_ref_mode = pipeline_params.get(PreAnalysisPipeline.ALIGNMENT_REF_MODE)
         if alignment_ref_mode not in modes_of_interest:
             modes_of_interest.append(alignment_ref_mode)
 
-        output_folder = pipeline_params.get(Pipeline.OUTPUT_FOLDER)
+        output_folder = pipeline_params.get(PreAnalysisPipeline.OUTPUT_FOLDER)
         if output_folder is None:
             output_folder = PurePath("Functional Pipeline_"+now_timestamp)
         else:
@@ -155,19 +155,19 @@ if __name__ == "__main__":
         # Remove all entries without associated datasets.
         allData.drop(allData[allData[AcquisiTags.DATASET].isnull()].index, inplace=True)
 
-        grouping = pipeline_params.get(Pipeline.GROUP_BY)
+        grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
         if grouping is not None:
             for row in allData.itertuples():
                 print( grouping.format_map(row._asdict()) )
-                allData.loc[row.Index, Pipeline.GROUP_BY] = grouping.format_map(row._asdict())
+                allData.loc[row.Index, PreAnalysisPipeline.GROUP_BY] = grouping.format_map(row._asdict())
 
-            groups = allData[Pipeline.GROUP_BY].unique().tolist()
+            groups = allData[PreAnalysisPipeline.GROUP_BY].unique().tolist()
         else:
             groups =[""] # If we don't have any groups, then just make the list an empty string.
 
         for group in groups:
             if group != "":
-                group_datasets = allData.loc[allData[Pipeline.GROUP_BY] == group]
+                group_datasets = allData.loc[allData[PreAnalysisPipeline.GROUP_BY] == group]
             else:
                 group_datasets = allData
 
@@ -209,7 +209,7 @@ if __name__ == "__main__":
                 central_dataset = datasets[dist_ref_idx]
 
                 # Gaussian blur the data first before aligning, if requested
-                gausblur = pipeline_params.get(Pipeline.GAUSSIAN_BLUR)
+                gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
                 align_dat = avg_images.copy()
                 if gausblur is not None and gausblur != 0.0:
                     for f in range(avg_images.shape[-1]):
@@ -259,7 +259,7 @@ if __name__ == "__main__":
                     central_dataset = datasets[dist_ref_idx]
 
                     # Gaussian blur the data first before aligning, if requested
-                    gausblur = pipeline_params.get(Pipeline.GAUSSIAN_BLUR)
+                    gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
                     align_dat = avg_images.copy()
                     if gausblur is not None and gausblur != 0.0:
                         for f in range(avg_images.shape[-1]):
@@ -355,7 +355,7 @@ if __name__ == "__main__":
 
         audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
                            ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
-                           Pipeline.NAME : preanalysis_dat_format}
+                           PreAnalysisPipeline.NAME : preanalysis_dat_format}
 
         with open(out_json, 'w') as f:
             json.dump(audit_json_dict, f, indent=2)
