@@ -362,12 +362,14 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
     # Trim the video down to a smaller/different size, if desired.
     trim = pipeline_params.get(Pipeline.TRIM)
     if trim is not None:
-        start_idx = trim.get("start_idx")
-        end_idx = trim.get("end_idx")
-        dataset.video_data = dataset.video_data[..., start_idx:end_idx]
-        dataset.mask_data = dataset.mask_data[..., start_idx:end_idx]
+        start_frm = int(trim.get("start_frm",0))
+        end_frm = int(trim.get("end_frm",-1))
+        goodinds = np.argwhere((dataset.framestamps < end_frm) & (dataset.framestamps >= start_frm))
+        dataset.framestamps = dataset.framestamps[goodinds]
+        dataset.video_data = dataset.video_data[..., goodinds]
+        dataset.mask_data = dataset.mask_data[..., goodinds]
         dataset.num_frames = dataset.video_data.shape[-1]
-        dataset.framestamps = dataset.framestamps[(dataset.framestamps < end_idx) & (dataset.framestamps >= start_idx)]
+
 
     align_dat = reference_dataset.video_data.copy()
     mask_dat = reference_dataset.mask_data.copy()

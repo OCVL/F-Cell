@@ -32,6 +32,10 @@
         "width": -1,
         "height": -1
       },
+      "trim": {
+        "start_frm": 0,
+        "end_frm": -1
+      },
       "alignment_reference_modality": null,
       "modalities": ["760nm"],
       "output_folder": "Functional Pipeline",
