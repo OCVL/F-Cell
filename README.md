@@ -4,21 +4,23 @@
 This repository is where the OCVL does most of its optoretinography (abbreviated to ORG) software development. This software will always be open source, and available to any researcher using it for non-profit work. For the moment, the software is designed around intensity-based optoretinography, or iORG processing. That means that it is capable of processing/analyzing data from any en-face device that produces videos (not volumes), such as scanning laser ophthalmoscopes or line-scan ophthalmoscopes, and their adaptive optics variants (e.g. AO-SLO/AO-LSO/AO-FiO).
 
 ### How it works:
-𝑓(Cell) operates in the following stages, which are detailed in our [wiki](https://github.com/OCVL/F-Cell/wiki):
+𝑓(Cell) operates in the following stages, which are detailed in our [wiki](https://github.com/OCVL/F-Cell/wiki).
 
+
+**NOTE:** Each of the steps with an asterisk preceeding it is optional.
 ```mermaid
 flowchart LR
 
     subgraph preanalysis["Pre-Analysis Pipeline"]
         direction TB
     AA(Load Dataset) --> BB([Parse Tags/Metadata])
-    BB([Parse Tags/Metadata]) --> CC([Perform Custom Steps]) 
-    CC([Perform Custom Steps]) --> DD([Trim Video]) 
-    DD([Trim Video]) --> EE([Flat Field]) 
-    EE([Flat Field]) --> FF([Gaussian Blur]) 
-    FF([Gaussian Blur]) --> GG([Crop Video]) 
-    GG([Crop Video]) --> HH([Intra-Video Torsion Removal])
-    HH([Intra-Video Torsion Removal]) --> II(Data Output and Sorting)
+    BB([Parse Tags/Metadata]) --> CC([*Perform Custom Steps]) 
+    CC([*Perform Custom Steps]) --> DD([*Trim Video]) 
+    DD([*Trim Video]) --> EE([*Flat Field]) 
+    EE([*Flat Field]) --> FF([*Gaussian Blur]) 
+    FF([*Gaussian Blur]) --> GG([*Crop Video]) 
+    GG([*Crop Video]) --> HH([*Intra-Video Torsion Removal])
+    HH([*Intra-Video Torsion Removal]) --> II(Data Output and Sorting)
     end
 
     preanalysis --> analysis
