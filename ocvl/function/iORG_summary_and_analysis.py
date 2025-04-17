@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from colorama import Fore
 from matplotlib import pyplot as plt
+import matplotlib as mpl
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
@@ -27,6 +28,8 @@ from datetime import datetime, date, time, timezone
 
 
 if __name__ == "__main__":
+
+    mpl.rcParams['lines.linewidth'] = 3
 
     dt = datetime.now()
     now_timestamp = dt.strftime("%Y%m%d_%H%M")
