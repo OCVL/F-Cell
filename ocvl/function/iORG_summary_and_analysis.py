@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from colorama import Fore
 from matplotlib import pyplot as plt
+from datetime import datetime
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
@@ -23,7 +24,6 @@ from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, Met
     NormParams, SummaryParams, ControlParams, DisplayParams, \
     MetricTags, Analysis, SegmentParams, ConfigFields
 
-from datetime import datetime, date, time, timezone
 
 
 if __name__ == "__main__":
@@ -176,6 +176,17 @@ if __name__ == "__main__":
         output_folder = PurePath(output_folder)
 
 
+    subfolder_flag = 0
+
+    if Pipeline.OUTPUT_SUBFOLDER in analysis_params: #Does the output subfolder field exist in the first place?
+        if analysis_params.get(Pipeline.OUTPUT_SUBFOLDER) is True: #Is output subfolder field true (ie does the user want to save to a subfolder?)
+            output_subfolder_method = analysis_params.get(Pipeline.OUTPUT_SUBFOLDER_METHOD) #Check subfolder naming method
+            if output_subfolder_method == 'DateTime': #Only supports saving things to a subfolder with a unique timestamp currently
+                dt = datetime.now()
+                now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
+                output_dt_subfolder = PurePath(now_timestamp)
+                subfolder_flag = 1
+
     with (mp.Pool(processes=mp.cpu_count() // 2) as the_pool):
 
         # First break things down by group, defined by the user in the config file.
@@ -191,9 +202,18 @@ if __name__ == "__main__":
             query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
             only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
 
+
+            if subfolder_flag == 1:
+                result_folder = folder.joinpath(output_folder,output_dt_subfolder)
+                result_folder.mkdir(exist_ok=True)
+            else:
+                result_folder = folder.joinpath(output_folder)
+                result_folder.mkdir(exist_ok=True)
+
             # While we're going to process by group, respect the folder structure used by the user here, and only group
             # and analyze things from the same folder
             folder_groups = pd.unique(group_datasets[AcquisiTags.BASE_PATH]).tolist()
+
 
             # Use a nested dictionary to track the query status of all query locations; these will later be used
             # in conjuction with status tracked at the dataset level.
