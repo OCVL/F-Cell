@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 import multiprocessing as mp
 from tkinter import *
-from tkinter import filedialog, ttk
+from tkinter import filedialog, ttk, messagebox
 
 from colorama import Fore
 from scipy.ndimage import gaussian_filter
@@ -36,8 +36,8 @@ from ocvl.function.preprocessing.improc import weighted_z_projection, simple_ima
 from ocvl.function.utility.dataset import parse_file_metadata, load_dataset, \
     preprocess_dataset, initialize_and_load_dataset
 
-from ocvl.function.utility.json_format_constants import DataFormatType, DataTags, MetaTags, Pipeline, AcquisiTags, \
-    ConfigFields
+from ocvl.function.utility.json_format_constants import DataFormatType, DataTags, MetaTags, PreAnalysisPipeline, AcquisiTags, \
+    ConfigFields, Analysis
 from ocvl.function.utility.resources import save_video
 
 
@@ -45,6 +45,9 @@ from ocvl.function.utility.resources import save_video
 # https://mathematica.stackexchange.com/questions/199928/removing-horizontal-noise-artefacts-from-a-sem-image
 
 if __name__ == "__main__":
+
+    dt = datetime.datetime.now()
+    now_timestamp = dt.strftime("%Y%m%d_%H")
 
     root = Tk()
     root.lift()
@@ -56,37 +59,46 @@ if __name__ == "__main__":
         '%dx%d+%d+%d' % (
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", parent=root)
-    #pName = "P:\\RFC_Projects\\F-Cell_Generalization_Test_Data"
-    if not pName:
-        quit()
+    pName = None
+    json_fName = Path()
+    dat_form = dict()
+    allData = pd.DataFrame()
 
+    while allData.empty:
+        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
+        if not pName:
+            quit()
 
-    root.update()
+        # We should be 3 levels up from here. Kinda jank, will need to change eventually
+        config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
 
-    # We should be 3 levels up from here. Kinda jank, will need to change eventually
-    config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
+        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
+        if not json_fName:
+            quit()
 
-    json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
-    if not json_fName:
-        quit()
+        # Grab all the folders/data here.
+        dat_form, allData = parse_file_metadata(json_fName, pName, Analysis.NAME)
+
+        if allData.empty:
+            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
+            if not tryagain:
+                quit()
 
     with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
 
-        dat_form, allData = parse_file_metadata(json_fName, pName, Pipeline.NAME)
 
-        preanalysis_dat_format = dat_form.get(Pipeline.NAME)
-        pipeline_params = preanalysis_dat_format.get(Pipeline.PARAMS)
-        modes_of_interest = pipeline_params.get(Pipeline.MODALITIES)
-        alignment_ref_mode = pipeline_params.get(Pipeline.ALIGNMENT_REF_MODE)
+        preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME)
+        pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
+        modes_of_interest = pipeline_params.get(PreAnalysisPipeline.MODALITIES)
+        alignment_ref_mode = pipeline_params.get(PreAnalysisPipeline.ALIGNMENT_REF_MODE)
         if alignment_ref_mode not in modes_of_interest:
             modes_of_interest.append(alignment_ref_mode)
 
-        output_folder = pipeline_params.get(Pipeline.OUTPUT_FOLDER)
+        output_folder = pipeline_params.get(PreAnalysisPipeline.OUTPUT_FOLDER)
         if output_folder is None:
-            output_folder = PurePath("Functional Pipeline")
+            output_folder = PurePath("Functional Pipeline_"+now_timestamp)
         else:
-            output_folder = PurePath(output_folder)
+            output_folder = PurePath(output_folder+"_"+now_timestamp)
 
         metadata_params = None
         if preanalysis_dat_format.get(MetaTags.METATAG) is not None:
@@ -143,19 +155,19 @@ if __name__ == "__main__":
         # Remove all entries without associated datasets.
         allData.drop(allData[allData[AcquisiTags.DATASET].isnull()].index, inplace=True)
 
-        grouping = pipeline_params.get(Pipeline.GROUP_BY)
+        grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
         if grouping is not None:
             for row in allData.itertuples():
                 print( grouping.format_map(row._asdict()) )
-                allData.loc[row.Index, Pipeline.GROUP_BY] = grouping.format_map(row._asdict())
+                allData.loc[row.Index, PreAnalysisPipeline.GROUP_BY] = grouping.format_map(row._asdict())
 
-            groups = allData[Pipeline.GROUP_BY].unique().tolist()
+            groups = allData[PreAnalysisPipeline.GROUP_BY].unique().tolist()
         else:
             groups =[""] # If we don't have any groups, then just make the list an empty string.
 
         for group in groups:
             if group != "":
-                group_datasets = allData.loc[allData[Pipeline.GROUP_BY] == group]
+                group_datasets = allData.loc[allData[PreAnalysisPipeline.GROUP_BY] == group]
             else:
                 group_datasets = allData
 
@@ -197,7 +209,7 @@ if __name__ == "__main__":
                 central_dataset = datasets[dist_ref_idx]
 
                 # Gaussian blur the data first before aligning, if requested
-                gausblur = pipeline_params.get(Pipeline.GAUSSIAN_BLUR)
+                gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
                 align_dat = avg_images.copy()
                 if gausblur is not None and gausblur != 0.0:
                     for f in range(avg_images.shape[-1]):
@@ -247,7 +259,7 @@ if __name__ == "__main__":
                     central_dataset = datasets[dist_ref_idx]
 
                     # Gaussian blur the data first before aligning, if requested
-                    gausblur = pipeline_params.get(Pipeline.GAUSSIAN_BLUR)
+                    gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
                     align_dat = avg_images.copy()
                     if gausblur is not None and gausblur != 0.0:
                         for f in range(avg_images.shape[-1]):
@@ -277,7 +289,7 @@ if __name__ == "__main__":
                 # pipeline filename structure.
 
                 # Determine the filename for the superaverage using the central-most dataset.
-                pipelined_dat_format = dat_form.get(Pipeline.NAME)
+                pipelined_dat_format = dat_form.get(Analysis.NAME)
                 if pipelined_dat_format is not None:
                     pipe_im_form = pipelined_dat_format.get(DataFormatType.IMAGE)
                     if pipe_im_form is not None:
@@ -337,15 +349,13 @@ if __name__ == "__main__":
             # Outputs the metadata for the group to the group folder
             group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, group+"_group_info.csv"), index=False)
 
-        dt = datetime.datetime.now()
-        now_timestamp = dt.strftime("%Y%m%d_%H_%M")
 
         out_json = Path(json_fName).stem + "_" + now_timestamp + ".json"
         out_json = dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, out_json)
 
         audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
                            ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
-                           Pipeline.NAME : preanalysis_dat_format}
+                           PreAnalysisPipeline.NAME : preanalysis_dat_format}
 
         with open(out_json, 'w') as f:
             json.dump(audit_json_dict, f, indent=2)

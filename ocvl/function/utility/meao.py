@@ -12,13 +12,13 @@ from os import path
 from matplotlib import pyplot
 
 from ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align
-from ocvl.function.utility.dataset import PipeStages
+from ocvl.function.utility.dataset import Stages
 from ocvl.function.utility.resources import load_video, save_video
 
 
 class MEAODataset:
     def __init__(self, video_path="", image_path=None, coord_path=None, stimtrain_path=None,
-                 analysis_modality="760nm", ref_modality="760nm", stage=PipeStages.RAW):
+                 analysis_modality="760nm", ref_modality="760nm", stage=Stages.RAW):
 
         self.analysis_modality = analysis_modality
         self.reference_modality = ref_modality
@@ -43,11 +43,11 @@ class MEAODataset:
 
         if image_path is None:
             imname = None
-            if stage is PipeStages.PROCESSED:
+            if stage is Stages.PREANALYSIS:
                 for filename in glob.glob( path.join(p_name, common_prefix + "_" + self.analysis_modality + "?_extract_reg_avg.tif") ):
                     # print(filename)
                     imname = filename
-            elif stage is PipeStages.PIPELINED:
+            elif stage is Stages.ANALYSIS:
                 # First look for an image associated with this dataset
                 for filename in glob.glob( path.join(p_name, common_prefix + "_" + self.analysis_modality + "?_extract_reg_cropped_piped_avg.tif") ):
                     imname = filename
@@ -73,11 +73,11 @@ class MEAODataset:
 
         if coord_path is None:
             coordname = None
-            if stage is PipeStages.PROCESSED:
+            if stage is Stages.PREANALYSIS:
                 for filename in glob.glob(
                         path.join(p_name, common_prefix + "_" + self.analysis_modality + "?_extract_reg_avg_coords.csv")):
                     coordname = filename
-            elif stage is PipeStages.PIPELINED:
+            elif stage is Stages.ANALYSIS:
                 # First look for an image associated with this dataset
                 for filename in glob.glob(path.join(p_name,
                                                     common_prefix + "_" + self.analysis_modality + "?_extract_reg_cropped_piped_avg_coords.csv")):
@@ -142,13 +142,13 @@ class MEAODataset:
         del self.ref_mask_data
 
     def load_data(self):
-        if self.stage is PipeStages.RAW:
+        if self.stage is Stages.RAW:
             self.load_raw_data()
-        elif self.stage is PipeStages.PROCESSED:
+        elif self.stage is Stages.PREANALYSIS:
             self.load_processed_data()
-        elif self.stage is PipeStages.PIPELINED:
+        elif self.stage is Stages.ANALYSIS:
             self.load_pipelined_data()
-        elif self.stage is PipeStages.ANALYSIS_READY:
+        elif self.stage is Stages.ANALYSIS_READY:
             self.load_analysis_ready_data()
 
     def load_raw_data(self):
@@ -195,14 +195,14 @@ class MEAODataset:
 
 
     def load_analysis_ready_data(self, raw_profiles, postprocessed_profiles=np.empty([1])):
-        if self.stage is PipeStages.ANALYSIS_READY:
+        if self.stage is Stages.ANALYSIS_READY:
             self.raw_profile_data = raw_profiles
             self.postproc_profile_data = postprocessed_profiles
 
     def load_processed_data(self, force=False, clip_top=0):
 
         # Establish our unpipelined filenames
-        if self.stage is not PipeStages.RAW or force:
+        if self.stage is not Stages.RAW or force:
 
             # Load the video data.
             res = load_video(self.video_path)
@@ -353,7 +353,7 @@ class MEAODataset:
 
 
     def load_pipelined_data(self):
-        if self.stage is PipeStages.PIPELINED:
+        if self.stage is Stages.ANALYSIS:
             res = load_video(self.video_path)
 
             self.framerate = res.metadict["framerate"]

@@ -16,9 +16,9 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if params is None:
         params = dict()
 
-    disp_stim = params.get(DisplayParams.DISP_STIMULUS, True) and np.all(stim_pop_summary)
-    disp_cont = params.get(DisplayParams.DISP_CONTROL, True) and np.all(control_pop_iORG_summary)
-    disp_rel = params.get(DisplayParams.DISP_RELATIVE, True) and np.all(relative_pop_summary)
+    disp_stim = params.get(DisplayParams.DISP_STIMULUS, False) and np.all(stim_pop_summary)
+    disp_cont = params.get(DisplayParams.DISP_CONTROL, False) and np.all(control_pop_iORG_summary)
+    disp_rel = params.get(DisplayParams.DISP_RELATIVE, False) and np.all(relative_pop_summary)
 
     ax_params = params.get(DisplayParams.AXES, dict())
     xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))

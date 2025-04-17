@@ -8,21 +8,21 @@ class FormatParser():
     def __init__(self, video_format=None, mask_format=None, image_format=None, metadata_format=None, queryloc_format=None):
         self.formatlocs = dict()
 
-        if video_format is not None:
-            self.vid_parser = parse.compile(video_format)
-        else:
-            self.vid_parser = None
-
         # An optional parser for strings.
         self.optional_parse = TypeBuilder.with_optional(lambda opt_str: str(opt_str))
 
+        if video_format is not None:
+            self.vid_parser = parse.compile(video_format, {"s?":self.optional_parse})
+        else:
+            self.vid_parser = None
+
         if mask_format is not None:
-            self.mask_parser = parse.compile(mask_format)
+            self.mask_parser = parse.compile(mask_format, {"s?":self.optional_parse})
         else:
             self.mask_parser = None
 
         if image_format is not None:
-            self.im_parser = parse.compile(image_format)
+            self.im_parser = parse.compile(image_format, {"s?":self.optional_parse})
         else:
             self.im_parser = None
 
@@ -32,7 +32,7 @@ class FormatParser():
             self.queryloc_parser = None
 
         if metadata_format is not None:
-            self.metadata_parser = parse.compile(metadata_format)
+            self.metadata_parser = parse.compile(metadata_format, {"s?":self.optional_parse})
         else:
             self.metadata_parser = None
 

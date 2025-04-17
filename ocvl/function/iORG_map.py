@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_signals, normalize_signals, standardize_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
-from ocvl.function.utility.dataset import PipeStages
+from ocvl.function.utility.dataset import Stages
 from ocvl.function.utility.meao import MEAODataset
 from ocvl.function.utility.temporal_signal_utils import reconstruct_profiles
 
@@ -101,7 +101,7 @@ if __name__ == "__main__":
                 pb_label.update()
 
                 dataset = MEAODataset(file.as_posix(), analysis_modality="760nm", ref_modality="760nm",
-                                      stimtrain_path=stimtrain_fName, stage=PipeStages.PIPELINED)
+                                      stimtrain_path=stimtrain_fName, stage=Stages.ANALYSIS)
                 dataset.load_pipelined_data()
 
                 if maxnum_cells is not None:
