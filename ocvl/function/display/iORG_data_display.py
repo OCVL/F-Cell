@@ -9,7 +9,7 @@ from ocvl.function.utility.json_format_constants import DisplayParams, MetricTag
 def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_summary=None, stim_vidnum="",
                              control_framestamps=None, control_pop_iORG_summary=None, control_vidnums=None,
                              control_framestamps_pooled=None, control_pop_iORG_summary_pooled=None,
-                             framerate=15.0, sum_method="", sum_control="", figure_label="", params=None):
+                             stim_delivery_frms=None,framerate=15.0, sum_method="", sum_control="", figure_label="", params=None):
 
     if control_vidnums is None:
         control_vidnums = [""]
@@ -46,6 +46,10 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
                                        norm=normmap)
         for l, line in enumerate(the_lines):
             line.set_color(mapper.to_rgba(l))
+
+        if stim_delivery_frms is not None and len(the_lines) == 1:
+            plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
+                              float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
 
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
@@ -92,11 +96,16 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         for l, line in enumerate(the_lines):
             line.set_color(mapper.to_rgba(l))
 
+        if stim_delivery_frms is not None and len(the_lines) == 1:
+            plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
+                              float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+
     if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
 
 
-def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, framerate=15.0, sum_method="",
+def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_delivery_frms=None,
+                                 framerate=15.0, sum_method="",
                                  figure_label="", params=None):
 
     if params is None:
@@ -124,6 +133,11 @@ def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, framerate
                                    norm=normmap)
     for l, line in enumerate(the_lines):
         line.set_color(mapper.to_rgba(l))
+
+    if stim_delivery_frms is not None and len(the_lines) == 1:
+        plt.gca().axvspan(float(stim_delivery_frms[0] / framerate),
+                          float(stim_delivery_frms[1] / framerate), facecolor='g',
+                          alpha=0.5)
 
     if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 

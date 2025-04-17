@@ -29,7 +29,7 @@ from datetime import datetime, date, time, timezone
 
 if __name__ == "__main__":
 
-    mpl.rcParams['lines.linewidth'] = 3
+    mpl.rcParams['lines.linewidth'] = 2.5
 
     dt = datetime.now()
     now_timestamp = dt.strftime("%Y%m%d_%H%M")
@@ -609,6 +609,7 @@ if __name__ == "__main__":
                                 display_iORG_pop_summary(stim_framestamps, stim_pop_summary, stim_dataset.summarized_iORGs[q], stim_vidnum,
                                                          control_framestamps[q], control_pop_iORG_summary[q], control_data_vidnums,
                                                          control_framestamps_pooled[q], control_pop_iORG_summary_pooled[q],
+                                                         stim_dataset.stimtrain_frame_stamps,
                                                          stim_dataset.framerate, sum_method, sum_control, overlap_label, pop_overlap_params)
                                 plt.show(block=False)
 
@@ -631,7 +632,7 @@ if __name__ == "__main__":
                                     seq_stim_label = "Query file " + query_loc_names[q] + ": Stimulus iORG temporal sequence of " +mode +" iORGs in "+folder.name
                                     display_dict[str(subject_IDs[0]) + "_" + mode + "_pop_iORG_" + sum_method + "_sequential_stim_only_" + query_loc_names[q] + "coords_" + folder.name] = seq_stim_label
 
-                                    display_iORG_pop_summary_seq(stim_framestamps, stim_pop_summary, vidnum_seq[v],
+                                    display_iORG_pop_summary_seq(stim_framestamps, stim_pop_summary, vidnum_seq[v], stim_dataset.stimtrain_frame_stamps,
                                                                  stim_dataset.framerate, sum_method, seq_stim_label,
                                                                  pop_seq_params)
                                     plt.show(block=False)
@@ -640,7 +641,7 @@ if __name__ == "__main__":
                                     seq_rel_label = "Query file " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence"
                                     display_dict[str(subject_IDs[0]) + "_" + mode + "_pop_iORG_" + sum_method + "_sequential_relative_" + query_loc_names[q] + "coords_" + folder.name] = seq_rel_label
 
-                                    display_iORG_pop_summary_seq(stim_framestamps, stim_dataset.summarized_iORGs[q], vidnum_seq[v],
+                                    display_iORG_pop_summary_seq(stim_framestamps, stim_dataset.summarized_iORGs[q], vidnum_seq[v], stim_dataset.stimtrain_frame_stamps,
                                                                  stim_dataset.framerate, sum_method, seq_rel_label,
                                                                  pop_seq_params)
                                     plt.show(block=False)
@@ -731,7 +732,7 @@ if __name__ == "__main__":
 
                         stimtrain = np.unique(pd.DataFrame(stimtrain).values.astype(np.int32), axis=0)
                         if stimtrain.shape[0] != 1:
-                            warnings.warn("The framerate of the iORGs analyzed in " + folder.name + " is inconsistent! Pooled results may be incorrect.")
+                            warnings.warn("The stimulus frame train of the iORGs analyzed in " + folder.name + " is inconsistent! Pooled results may be incorrect.")
 
                         stimtrain = stimtrain[0]
 
@@ -823,7 +824,7 @@ if __name__ == "__main__":
                             display_dict[str(subject_IDs[0]) + "_" + "pooled_" + mode + "_pop_iORG_" + sum_method + "_overlapping"] = overlap_label
 
                             display_iORG_pop_summary(np.arange(max_frmstamp + 1), stim_pop_iORG_summary[q], stim_vidnum=query_loc_names[q],
-                                                     framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
+                                                     stim_delivery_frms=stimtrain, framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                      figure_label=overlap_label, params=pop_overlap_params)
                             plt.show(block=False)
 
@@ -867,7 +868,7 @@ if __name__ == "__main__":
                                     if indiv_overlap_params:
                                         display_iORG_pop_summary(all_frmstmp, cell_iORG_summary, stim_iORG_summary[q][c, :], None,
                                                                  all_frmstmp, control_pop_iORG_summary_pooled[q],
-                                                                 framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
+                                                                 stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                                  figure_label=overlap_label, params=indiv_overlap_params)
 
 
