@@ -9,7 +9,7 @@ from ocvl.function.utility.json_format_constants import DisplayParams, MetricTag
 def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_summary=None, stim_vidnum="",
                              control_framestamps=None, control_pop_iORG_summary=None, control_vidnums=None,
                              control_framestamps_pooled=None, control_pop_iORG_summary_pooled=None,
-                             framerate=15.0, sum_method="", sum_control="", figure_label="", params=None):
+                             stim_delivery_frms=None,framerate=15.0, sum_method="", sum_control="", figure_label="", params=None):
 
     if control_vidnums is None:
         control_vidnums = [""]
@@ -39,6 +39,18 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         plt.ylabel(sum_method)
         if all(xlimits): plt.xlim(xlimits)
         if all(ylimits): plt.ylim(ylimits)
+
+        the_lines = plt.gca().get_lines()
+        normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
+        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
+                                       norm=normmap)
+        for l, line in enumerate(the_lines):
+            line.set_color(mapper.to_rgba(l))
+
+        if stim_delivery_frms is not None and len(the_lines) == 1:
+            plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
+                              float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
         ind += 1
@@ -53,7 +65,17 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         plt.ylabel(sum_method)
         if all(xlimits): plt.xlim(xlimits)
         if all(ylimits): plt.ylim(ylimits)
+
+
+        the_lines = plt.gca().get_lines()
+        normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
+        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
+                                       norm=normmap)
+        for l, line in enumerate(the_lines):
+            line.set_color(mapper.to_rgba(l))
+
         if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+
     if how_many > 1 and disp_rel:
         plt.subplot(1, how_many, ind)
         ind += 1
@@ -67,11 +89,23 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if all(xlimits): plt.xlim(xlimits)
         if all(ylimits): plt.ylim(ylimits)
 
+        the_lines = plt.gca().get_lines()
+        normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
+        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
+                                       norm=normmap)
+        for l, line in enumerate(the_lines):
+            line.set_color(mapper.to_rgba(l))
+
+        if stim_delivery_frms is not None and len(the_lines) == 1:
+            plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
+                              float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+
     if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
 
 
-def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, framerate=15.0, sum_method="",
+def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_delivery_frms=None,
+                                 framerate=15.0, sum_method="",
                                  figure_label="", params=None):
 
     if params is None:
@@ -92,6 +126,18 @@ def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, framerate
     plt.ylabel(sum_method)
     if all(xlimits): plt.xlim(xlimits)
     if all(ylimits): plt.ylim(ylimits)
+
+    the_lines = plt.gca().get_lines()
+    normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
+    mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
+                                   norm=normmap)
+    for l, line in enumerate(the_lines):
+        line.set_color(mapper.to_rgba(l))
+
+    if stim_delivery_frms is not None and len(the_lines) == 1:
+        plt.gca().axvspan(float(stim_delivery_frms[0] / framerate),
+                          float(stim_delivery_frms[1] / framerate), facecolor='g',
+                          alpha=0.5)
 
     if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
@@ -133,8 +179,17 @@ def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cum
 
             plt.title(metric)
             if all(xlimits): plt.xlim(xlimits)
-            if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
+
+            the_histos = plt.gca().containers
+            normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_histos), clip=True)
+            mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
+                                           norm=normmap)
+            for l, histy in enumerate(the_histos):
+                for patch in histy.patches:
+                    patch.set_color(mapper.to_rgba(l))
+
+            if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
             plt.show(block=False)
 
 def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", figure_label="", params=None):

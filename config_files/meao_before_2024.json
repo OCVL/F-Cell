@@ -121,6 +121,7 @@
           "xmax": 4,
           "ymin": 0,
           "ymax": 60,
+          "cmap": "plasma",
           "legend": true
         }
       },
@@ -133,6 +134,7 @@
           "xmax": 4,
           "ymin": 0,
           "ymax": 60,
+          "cmap": "plasma",
           "legend": true
         }
       },
@@ -144,7 +146,8 @@
           "xmin": null,
           "xmax": null,
           "ymin": null,
-          "ymax": null
+          "ymax": null,
+          "cmap": "plasma"
         }
       },
       "indiv_summary": {
