@@ -178,14 +178,13 @@ if __name__ == "__main__":
 
     subfolder_flag = 0
 
-    if Pipeline.OUTPUT_SUBFOLDER in analysis_params: #Does the output subfolder field exist in the first place?
-        if analysis_params.get(Pipeline.OUTPUT_SUBFOLDER) is True: #Is output subfolder field true (ie does the user want to save to a subfolder?)
-            output_subfolder_method = analysis_params.get(Pipeline.OUTPUT_SUBFOLDER_METHOD) #Check subfolder naming method
-            if output_subfolder_method == 'DateTime': #Only supports saving things to a subfolder with a unique timestamp currently
-                dt = datetime.now()
-                now_timestamp = dt.strftime("%Y_%m_%d_%H_%M_%S")
-                output_dt_subfolder = PurePath(now_timestamp)
-                subfolder_flag = 1
+    if analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER, True): #Is output subfolder field true (ie does the user want to save to a subfolder?)
+        output_subfolder_method = analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER_METHOD) #Check subfolder naming method
+        if output_subfolder_method == 'DateTime': #Only supports saving things to a subfolder with a unique timestamp currently
+            output_dt_subfolder = PurePath(now_timestamp)
+        else:
+            output_dt_subfolder = PurePath(now_timestamp)
+
 
     with (mp.Pool(processes=mp.cpu_count() // 2) as the_pool):
 
@@ -202,14 +201,6 @@ if __name__ == "__main__":
             query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
             only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
 
-
-            if subfolder_flag == 1:
-                result_folder = folder.joinpath(output_folder,output_dt_subfolder)
-                result_folder.mkdir(exist_ok=True)
-            else:
-                result_folder = folder.joinpath(output_folder)
-                result_folder.mkdir(exist_ok=True)
-
             # While we're going to process by group, respect the folder structure used by the user here, and only group
             # and analyze things from the same folder
             folder_groups = pd.unique(group_datasets[AcquisiTags.BASE_PATH]).tolist()
@@ -225,8 +216,12 @@ if __name__ == "__main__":
                 if folder.name == output_folder.name:
                     continue
 
-                result_folder = folder.joinpath(output_folder)
-                result_folder.mkdir(exist_ok=True)
+                if analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER, True):
+                    result_folder = folder.joinpath(output_folder, output_dt_subfolder)
+                    result_folder.mkdir(exist_ok=True)
+                else:
+                    result_folder = folder.joinpath(output_folder)
+                    result_folder.mkdir(exist_ok=True)
 
                 folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
