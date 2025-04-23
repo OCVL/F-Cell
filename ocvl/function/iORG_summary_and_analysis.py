@@ -33,6 +33,7 @@ if __name__ == "__main__":
 
     dt = datetime.now()
     now_timestamp = dt.strftime("%Y%m%d_%H%M")
+    now_date = dt.strftime("%Y%m%d")
 
     root = Tk()
     root.lift()
@@ -91,7 +92,7 @@ if __name__ == "__main__":
     analysis_params = analysis_dat_format.get(Analysis.PARAMS)
     display_params = analysis_dat_format.get(DisplayParams.NAME)
     modes_of_interest = analysis_params.get(PreAnalysisPipeline.MODALITIES)
-    output_subfolder_method = analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER_METHOD, "DateTime") # Setting the default
+    output_subfolder_method = analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER_METHOD, "None") # Setting the default to None
 
     if 'IDnum' in allData:
         subject_IDs = allData['IDnum'].unique()
@@ -183,17 +184,17 @@ if __name__ == "__main__":
 
     subfolder_flag = 0
 
-    if analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER, True): #Is output subfolder field true (ie does the user want to save to a subfolder?)
-        output_subfolder_method = analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER_METHOD) #Check subfolder naming method
-        if output_subfolder_method == 'DateTime': #Only supports saving things to a subfolder with a unique timestamp currently
-            output_dt_subfolder = PurePath(now_timestamp)
-        else:
-            output_dt_subfolder = PurePath(now_timestamp)
 
-    #if output_subfolder_method is None:
-        # do things
-    #else:
-        # do other things
+    # output_subfolder_method
+    if output_subfolder_method == 'DateTime': #Only supports saving things to a subfolder with a unique timestamp currently
+        output_subfolder = PurePath(now_timestamp)
+    elif output_subfolder_method == 'Date':
+        output_subfolder = PurePath(now_date)
+    elif output_subfolder_method == 'sequential':
+        output_subfolder = PurePath('tmp')
+    else:
+        output_subfolder = None
+
 
 
     with (mp.Pool(processes=mp.cpu_count() // 2) as the_pool):
@@ -226,12 +227,13 @@ if __name__ == "__main__":
                 if folder.name == output_folder.name:
                     continue
 
-                if analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER, True):
-                    result_folder = folder.joinpath(output_folder, output_dt_subfolder)
-                    result_folder.mkdir(exist_ok=True)
-                else:
+                if output_subfolder is None:
                     result_folder = folder.joinpath(output_folder)
                     result_folder.mkdir(exist_ok=True)
+                else:
+                    result_folder = folder.joinpath(output_folder, output_subfolder)
+                    result_folder.mkdir(exist_ok=True)
+
 
                 folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
@@ -414,7 +416,12 @@ if __name__ == "__main__":
             # Control data is expected to be applied to the WHOLE group.
             for folder in folder_groups:
 
-                result_folder = folder.joinpath(output_folder)
+                if output_subfolder is None:
+                    result_folder = folder.joinpath(output_folder)
+                    result_folder.mkdir(exist_ok=True)
+                else:
+                    result_folder = folder.joinpath(output_folder, output_subfolder)
+                    result_folder.mkdir(exist_ok=True)
 
                 folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
