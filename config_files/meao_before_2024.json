@@ -61,8 +61,7 @@
     "analysis_params": {
       "modalities": ["760nm"],
       "output_folder": "Results",
-      "output_subfolder": true,
-      "output_subfolder_method": "DateTime",
+      "output_subfolder_method":"DateTime",
       "normalization": {
         "method": "score",
         "rescaled": true,

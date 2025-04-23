@@ -70,7 +70,6 @@ class PreAnalysisPipeline(StrEnum):
     CORRECT_TORSION = "correct_torsion",
     CUSTOM = "custom"
     OUTPUT_FOLDER = "output_folder"
-    OUTPUT_SUBFOLDER = "output_subfolder"
     OUTPUT_SUBFOLDER_METHOD = "output_subfolder_method"
     GROUP_BY = "group_by"
 

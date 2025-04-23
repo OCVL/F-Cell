@@ -91,6 +91,7 @@ if __name__ == "__main__":
     analysis_params = analysis_dat_format.get(Analysis.PARAMS)
     display_params = analysis_dat_format.get(DisplayParams.NAME)
     modes_of_interest = analysis_params.get(PreAnalysisPipeline.MODALITIES)
+    output_subfolder_method = analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER_METHOD, "DateTime") # Setting the default
 
     if 'IDnum' in allData:
         subject_IDs = allData['IDnum'].unique()
@@ -127,6 +128,7 @@ if __name__ == "__main__":
     rescale = norm_params.get(NormParams.NORM_RESCALE,True)  # Default: Rescales the data back into AU to make results easier to interpret
     res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
     res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
+
 
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
     seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.
@@ -187,6 +189,11 @@ if __name__ == "__main__":
             output_dt_subfolder = PurePath(now_timestamp)
         else:
             output_dt_subfolder = PurePath(now_timestamp)
+
+    #if output_subfolder_method is None:
+        # do things
+    #else:
+        # do other things
 
 
     with (mp.Pool(processes=mp.cpu_count() // 2) as the_pool):
