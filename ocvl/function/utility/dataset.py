@@ -365,8 +365,8 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
         start_frm = int(trim.get("start_frm",0))
         end_frm = int(trim.get("end_frm",-1))
         if end_frm == -1:
-            end_frm = dataset.video_data.shape[-1]
-        goodinds = np.argwhere((dataset.framestamps < end_frm) & (dataset.framestamps >= start_frm)).flatten()
+            end_frm = np.amax(dataset.framestamps)+1
+        goodinds = np.argwhere((dataset.framestamps <= end_frm) & (dataset.framestamps >= start_frm)).flatten()
         dataset.framestamps = dataset.framestamps[goodinds]
         dataset.video_data = dataset.video_data[..., goodinds]
         dataset.mask_data = dataset.mask_data[..., goodinds]
