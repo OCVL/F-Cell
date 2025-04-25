@@ -70,14 +70,14 @@ if __name__ == "__main__":
             quit()
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
-        config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+        config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
 
         json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
         if not json_fName:
             quit()
 
         # Grab all the folders/data here.
-        dat_form, allData = parse_file_metadata(json_fName, pName, Analysis.NAME)
+        dat_form, allData = parse_file_metadata(json_fName, pName, PreAnalysisPipeline.NAME)
 
         if allData.empty:
             tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")

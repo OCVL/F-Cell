@@ -65,6 +65,7 @@ class PreAnalysisPipeline(StrEnum):
     GAUSSIAN_BLUR = "gaus_blur",
     MASK_ROI = "mask_roi",
     TRIM = "trim",
+    FLAT_FIELD = "flat_field",
     MODALITIES = "modalities",
     ALIGNMENT_REF_MODE = "alignment_reference_modality",
     CORRECT_TORSION = "correct_torsion",

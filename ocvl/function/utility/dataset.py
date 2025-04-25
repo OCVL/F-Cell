@@ -364,7 +364,9 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
     if trim is not None:
         start_frm = int(trim.get("start_frm",0))
         end_frm = int(trim.get("end_frm",-1))
-        goodinds = np.argwhere((dataset.framestamps < end_frm) & (dataset.framestamps >= start_frm))
+        if end_frm == -1:
+            end_frm = dataset.video_data.shape[-1]
+        goodinds = np.argwhere((dataset.framestamps < end_frm) & (dataset.framestamps >= start_frm)).flatten()
         dataset.framestamps = dataset.framestamps[goodinds]
         dataset.video_data = dataset.video_data[..., goodinds]
         dataset.mask_data = dataset.mask_data[..., goodinds]
@@ -384,11 +386,11 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
         del amt_data
 
     # Flat field the video for alignment, if desired.
-    if flat_field is not None and flat_field:
+    if pipeline_params.get(PreAnalysisPipeline.FLAT_FIELD, False):
         align_dat = flat_field(align_dat)
 
     # Gaussian blur the data first before aligning, if requested
-    gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
+    gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR, 0.0)
     if gausblur is not None and gausblur != 0.0:
         for f in range(align_dat.shape[-1]):
             align_dat[..., f] = gaussian_filter(align_dat[..., f], sigma=gausblur)
@@ -405,7 +407,6 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
         # Everything outside the roi specified should be zero
         # This approach is RAM intensive, but easy.
         align_dat = align_dat[r:r + height, c:c + width, :]
-
         mask_dat = mask_dat[r:r + height, c:c + width, :]
 
 
