@@ -172,7 +172,7 @@ if __name__ == "__main__":
     saveas_ext = display_params.get(DisplayParams.SAVEAS, "png")
 
 
-    output_folder = analysis_params.get(PreAnalysisPipeline.OUTPUT_FOLDER)
+    output_folder = analysis_params.get(Analysis.OUTPUT_FOLDER)
     if output_folder is None:
         output_folder = PurePath("Results")
     else:
@@ -181,8 +181,8 @@ if __name__ == "__main__":
 
     subfolder_flag = 0
 
-    if analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER, True): #Is output subfolder field true (ie does the user want to save to a subfolder?)
-        output_subfolder_method = analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER_METHOD) #Check subfolder naming method
+    if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True): #Is output subfolder field true (ie does the user want to save to a subfolder?)
+        output_subfolder_method = analysis_params.get(Analysis.OUTPUT_SUBFOLDER_METHOD) #Check subfolder naming method
         if output_subfolder_method == 'DateTime': #Only supports saving things to a subfolder with a unique timestamp currently
             output_dt_subfolder = PurePath(now_timestamp)
         else:
@@ -218,13 +218,6 @@ if __name__ == "__main__":
 
                 if folder.name == output_folder.name:
                     continue
-
-                if analysis_params.get(PreAnalysisPipeline.OUTPUT_SUBFOLDER, True):
-                    result_folder = folder.joinpath(output_folder, output_dt_subfolder)
-                    result_folder.mkdir(exist_ok=True)
-                else:
-                    result_folder = folder.joinpath(output_folder)
-                    result_folder.mkdir(exist_ok=True)
 
                 folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
@@ -407,13 +400,18 @@ if __name__ == "__main__":
             # Control data is expected to be applied to the WHOLE group.
             for folder in folder_groups:
 
-                result_folder = folder.joinpath(output_folder)
-
                 folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
 
                 data_in_folder = group_datasets.loc[folder_mask]
                 pop_iORG_result_datframe = []
                 indiv_iORG_result_datframe = []
+
+                if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
+                    result_folder = folder.joinpath(output_folder, output_dt_subfolder)
+                    result_folder.mkdir(exist_ok=True)
+                else:
+                    result_folder = folder.joinpath(output_folder)
+                    result_folder.mkdir(exist_ok=True)
 
                 # Load each modality
                 for mode in modes_of_interest:
