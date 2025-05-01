@@ -37,8 +37,6 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         plt.plot(stim_framestamps[dispinds] / framerate, stim_pop_summary[dispinds],label=str(stim_vidnum))
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method)
-        if all(xlimits): plt.xlim(xlimits)
-        if all(ylimits): plt.ylim(ylimits)
 
         the_lines = plt.gca().get_lines()
         normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
@@ -50,6 +48,9 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if stim_delivery_frms is not None and len(the_lines) == 1:
             plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
                               float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+
+        if not None in xlimits: plt.xlim(xlimits)
+        if not None in ylimits: plt.ylim(ylimits)
 
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
@@ -63,9 +64,6 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
             plt.plot(control_framestamps_pooled / framerate, control_pop_iORG_summary_pooled[control_framestamps_pooled], 'k--', linewidth=4)
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method)
-        if all(xlimits): plt.xlim(xlimits)
-        if all(ylimits): plt.ylim(ylimits)
-
 
         the_lines = plt.gca().get_lines()
         normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
@@ -74,6 +72,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         for l, line in enumerate(the_lines):
             line.set_color(mapper.to_rgba(l))
 
+        if not None in xlimits: plt.xlim(xlimits)
+        if not None in ylimits: plt.ylim(ylimits)
         if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
     if how_many > 1 and disp_rel:
@@ -86,8 +86,6 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
                  label=str(stim_vidnum))
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method)
-        if all(xlimits): plt.xlim(xlimits)
-        if all(ylimits): plt.ylim(ylimits)
 
         the_lines = plt.gca().get_lines()
         normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
@@ -99,6 +97,9 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if stim_delivery_frms is not None and len(the_lines) == 1:
             plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
                               float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+
+        if not None in xlimits: plt.xlim(xlimits)
+        if not None in ylimits: plt.ylim(ylimits)
 
     if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
@@ -124,8 +125,8 @@ def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_deli
     plt.plot(framestamps / framerate, pop_summary)
     plt.xlabel("Time (s)")
     plt.ylabel(sum_method)
-    if all(xlimits): plt.xlim(xlimits)
-    if all(ylimits): plt.ylim(ylimits)
+    if not None in xlimits: plt.xlim(xlimits)
+    if not None in ylimits: plt.ylim(ylimits)
 
     the_lines = plt.gca().get_lines()
     normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
@@ -163,7 +164,7 @@ def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cum
             plt.subplot(numsub, 1, subind)
             subind += 1
 
-            if all(xlimits) and ax_params.get(DisplayParams.XSTEP):
+            if not None in xlimits and ax_params.get(DisplayParams.XSTEP):
                 histbins = np.arange(start=xlimits[0], stop=xlimits[1], step=ax_params.get(DisplayParams.XSTEP))
                 if not cumulative:
                     plt.hist(metric_res, bins=histbins, label=data_label)
@@ -178,7 +179,7 @@ def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cum
                              density=True, histtype="step", cumulative=True)
 
             plt.title(metric)
-            if all(xlimits): plt.xlim(xlimits)
+            if not None in xlimits: plt.xlim(xlimits)
 
 
             the_histos = plt.gca().containers

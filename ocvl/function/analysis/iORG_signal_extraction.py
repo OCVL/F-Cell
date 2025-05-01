@@ -4,12 +4,12 @@ from itertools import repeat
 from multiprocessing import RawArray, shared_memory, get_context
 
 import cv2
-import numba
+
 import numpy as np
 from colorama import Fore
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
-from numba import prange
+
 from numpy.polynomial import Polynomial
 from scipy.spatial import Delaunay
 
