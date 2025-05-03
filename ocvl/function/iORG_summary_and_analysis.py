@@ -17,15 +17,14 @@ from datetime import datetime
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
-    display_iORG_summary_histogram, display_iORG_summary_overlay
+    display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
     AcquisiTags, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
-    MetricTags, Analysis, SegmentParams, ConfigFields
-
-
+    MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
+from ocvl.function.utility.resources import save_tiff_stack
 
 if __name__ == "__main__":
 
@@ -123,8 +122,8 @@ if __name__ == "__main__":
         groups = [""]  # If we don't have any groups, then just make the list an empty string.
 
     norm_params = analysis_params.get(NormParams.NAME, dict())
-    method = norm_params.get(NormParams.NORM_METHOD,"score")  # Default: Standardizes the video to a unit mean and stddev
-    rescale = norm_params.get(NormParams.NORM_RESCALE,True)  # Default: Rescales the data back into AU to make results easier to interpret
+    norm_method = norm_params.get(NormParams.NORM_METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
+    rescale_norm = norm_params.get(NormParams.NORM_RESCALE, True)  # Default: Rescales the data back into AU to make results easier to interpret
     res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
     res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
 
@@ -166,10 +165,15 @@ if __name__ == "__main__":
             metrics_tags.append(MetricTags.RECOVERY_PERCENT)
 
     pop_overlap_params = display_params.get(DisplayParams.POP_SUMMARY_OVERLAP, dict())
+    debug_params = display_params.get(DebugParams.NAME, dict())
     pop_seq_params = display_params.get(DisplayParams.POP_SUMMARY_SEQ, dict())
     indiv_overlap_params = display_params.get(DisplayParams.INDIV_SUMMARY_OVERLAP, dict())
     indiv_summary = display_params.get(DisplayParams.INDIV_SUMMARY, dict())
     saveas_ext = display_params.get(DisplayParams.SAVEAS, "png")
+
+    # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
+    output_norm_vid = debug_params.get(DebugParams.OUTPUT_NORM_VIDEO, False)
+    plot_indiv_std_orgs = debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False)
 
 
     output_folder = analysis_params.get(Analysis.OUTPUT_FOLDER)
@@ -263,8 +267,18 @@ if __name__ == "__main__":
 
                         if dataset is not None:
                             # Normalize the video to reduce the influence of framewide intensity changes
-                            dataset.video_data = norm_video(dataset.video_data, norm_method=method, rescaled=rescale,
+                            dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method, rescaled=rescale_norm,
                                                             rescale_mean=res_mean, rescale_std=res_stddev)
+
+                            if output_norm_vid:
+                                if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
+                                    result_folder = folder.joinpath(output_folder, output_dt_subfolder)
+                                    result_folder.mkdir(exist_ok=True)
+                                else:
+                                    result_folder = folder.joinpath(output_folder)
+                                    result_folder.mkdir(exist_ok=True)
+
+                                save_tiff_stack(result_folder.joinpath(dataset.video_path[:-4]+"_"+norm_method+"_norm.tif"), dataset.video_data)
 
                             group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
 
@@ -750,28 +764,26 @@ if __name__ == "__main__":
                         stimtrain = stimtrain[0]
 
                         # Debug - to look at individual cell raw traces.
-                        query_ind = "none"
-                        if query_ind == query_loc_names[q]:
-                            for c in range(stim_iORG_signals[q].shape[1]):
+                        if not plot_indiv_std_orgs:
+                            if plot_indiv_std_orgs == "all":
+                                cell_inds = range(stim_iORG_signals[q].shape[1])
+                            else:
+                                cell_inds = plot_indiv_std_orgs
 
-                                cell_loc = stim_datasets[0].query_loc[q][c,:]
-                                avg_image = stim_datasets[0].avg_image_data
-                                plt.figure("Debug: View raw cell signals for cell: "+str(c)+ " at: " + str(cell_loc))
-                                plt.subplot(1,2,1)
-                                plt.imshow(avg_image, cmap='gray')
-                                plt.plot(cell_loc[0], cell_loc[1], "r*", markersize=6)
-                                plt.subplot(1,2,2)
-                                for s in range(stim_iORG_signals[q][:, c, :].shape[0]):
-                                    sig = stim_iORG_signals[q][s, c, :]
-                                    plt.plot(finite_iORG_frmstmp[np.isfinite(sig)] / pooled_framerate, sig[np.isfinite(sig)])
-                                for s in range(control_iORG_signals[q][:, c, :].shape[0]):
-                                    sig = control_iORG_signals[q][s, c, :]
-                                    plt.plot(finite_iORG_frmstmp[np.isfinite(sig)] / pooled_framerate, sig[np.isfinite(sig)], 'k')
-                                if all(xlimits): plt.xlim(xlimits)
-                                if all(ylimits): plt.ylim(ylimits)
-                                plt.show(block=False)
-                                plt.waitforbuttonpress()
-                                plt.close()
+                            for c in cell_inds:
+                                overlap_label = "Debug: View raw " + mode + " iORGs in " + folder.name + " signals for cell: "+str(c)+ " at: " + str(stim_datasets[0].query_loc[q][c,:])
+                                if len(cell_inds) < 10:
+                                    display_dict["raw_" + mode + "_iORGs_" + folder.name + "_"+str(c)+ "_at_" + str(stim_datasets[0].query_loc[q][c,:])] = overlap_label
+
+                                display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
+                                              finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
+                                              stim_datasets[0].avg_image_data, stim_datasets[0].query_loc[q][c,:],
+                                              stim_delivery_frms = stimtrain, framerate = pooled_framerate,
+                                              figure_label = overlap_label, params = pop_overlap_params)
+                                if len(cell_inds) > 10:
+                                    plt.show(block=False)
+                                    plt.waitforbuttonpress()
+                                    plt.close()
 
                         ''' *** Pool the summarized population iORGs *** '''
                         with warnings.catch_warnings():

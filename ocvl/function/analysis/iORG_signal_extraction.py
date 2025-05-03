@@ -16,9 +16,10 @@ from scipy.spatial import Delaunay
 from skimage.morphology import disk
 
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
+from ocvl.function.display.iORG_data_display import display_iORGs
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
-    SummaryParams, PreAnalysisPipeline
+    SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams
 from scipy.spatial.distance import pdist, squareform
 
 def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
@@ -44,6 +45,12 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
 
     # Round the query locations
     query_loc = np.round(query_loc.copy())
+
+    # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
+    display_params = analysis_params.get(DisplayParams.NAME, dict())
+    debug_params = display_params.get(DebugParams.NAME, dict())
+    plot_extracted_orgs = debug_params.get(DebugParams.PLOT_POP_EXTRACTED_ORGS, False)
+    plot_stdize_orgs = debug_params.get(DebugParams.PLOT_POP_STANDARDIZED_ORGS, False)
 
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
@@ -113,12 +120,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
             coorddist[coorddist == 0] = np.amax(coorddist.flatten())
             mindist[i] = np.amin(coorddist.flatten())
 
-
-        # coorddist = pdist(query_loc, "euclidean")
-        # coorddist = squareform(coorddist)
-        # coorddist[coorddist == 0] = np.amax(coorddist.flatten())
-        # mindist = np.amin(coorddist, axis=-1)
-
         segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
 
         segmentation_radius = int(segmentation_radius)
@@ -129,6 +130,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
     else:
         segmentation_radius = 1
         print("Pixelwise segmentation radius: " + str(segmentation_radius))
+
 
     # Extract the signals
     iORG_signals, excl_reason, coordinates = extract_signals(dataset.video_data, query_loc.copy(),
@@ -148,6 +150,13 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
         valid_signals = valid & valid_signals
         query_status[to_update] = excl_reason[to_update]
 
+    if plot_extracted_orgs:
+        display_iORGs(dataset.framestamps, iORG_signals, query_loc_name,
+                      stim_delivery_frms=stimtrain_frame_stamps, framerate=dataset.framerate,
+                      figure_label="Extracted ORG signals", params=debug_params )
+        plt.show(block=False)
+        plt.waitforbuttonpress()
+        plt.close()
 
     # Should only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
     # will be used for, or what critical region/standardization indicies it'll need.
@@ -199,6 +208,15 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
     to_update = ~(~valid_signals | valid)  # Use the inverse of implication to find which ones to update.
     valid_signals = valid & valid_signals
     query_status[to_update] = excl_reason[to_update]
+
+    if plot_stdize_orgs:
+        display_iORGs(dataset.framestamps, iORG_signals, query_loc_name,
+                      stim_delivery_frms=stimtrain_frame_stamps, framerate=dataset.framerate,
+                      figure_label="Standardized ORG signals", params=debug_params )
+        plt.show(block=False)
+        plt.waitforbuttonpress()
+        plt.close()
+
 
     summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
                                                                      summary_method=sum_method,

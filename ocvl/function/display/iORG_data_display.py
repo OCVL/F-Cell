@@ -104,6 +104,83 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
 
+def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums=[""],
+                  control_framestamps=None, control_iORGs=None, control_vidnums=None,
+                  image=None, cell_loc=None,
+                  stim_delivery_frms=None, framerate=15.0, figure_label="", params=None):
+
+    if control_vidnums is None:
+        control_vidnums = [""]
+    if params is None:
+        params = dict()
+
+    disp_im = image is not None and cell_loc is not None
+    disp_stim = params.get(DisplayParams.DISP_STIMULUS, False)
+    disp_cont = params.get(DisplayParams.DISP_CONTROL, False) and control_iORGs is not None
+
+    ax_params = params.get(DisplayParams.AXES, dict())
+    xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
+    ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
+    how_many = np.sum([disp_im, disp_stim, disp_cont])
+
+    plt.figure(figure_label)
+
+    ind = 1
+    if how_many > 1 and disp_im:
+        plt.subplot(1, how_many, ind)
+        ind += 1
+    if disp_im:
+        plt.title("Cell location")
+        plt.imshow(image, cmap='gray')
+        plt.plot(cell_loc[0], cell_loc[1], "*", markersize=6)
+
+    if how_many > 1 and disp_stim:
+        plt.subplot(1, how_many, ind)
+        ind += 1
+    if disp_stim:
+        plt.title("Stimulus iORG")
+        for r in range(stim_iORGs.shape[0]):
+            dispinds = np.isfinite(stim_iORGs)
+            plt.plot(stim_framestamps[dispinds] / framerate, stim_iORGs[dispinds],label=str(stim_vidnums[r]))
+        plt.xlabel("Time (s)")
+        plt.ylabel("A.U.")
+
+        the_lines = plt.gca().get_lines()
+        normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
+        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
+                                       norm=normmap)
+        for l, line in enumerate(the_lines):
+            line.set_color(mapper.to_rgba(l))
+
+        if stim_delivery_frms is not None and len(the_lines) == 1:
+            plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
+                              float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+
+        if not None in xlimits: plt.xlim(xlimits)
+        if not None in ylimits: plt.ylim(ylimits)
+
+    if how_many > 1 and disp_cont:
+        plt.subplot(1, how_many, ind)
+        ind += 1
+    if disp_cont  and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
+        plt.title("Control iORGs")
+        for r in range(control_iORGs.shape[0]):
+            plt.plot(control_framestamps[r] / framerate, control_iORGs[r, control_framestamps[r]], label=str(control_vidnums[r]))
+        plt.xlabel("Time (s)")
+        plt.ylabel("A.U.")
+
+        the_lines = plt.gca().get_lines()
+        normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
+        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
+                                       norm=normmap)
+        for l, line in enumerate(the_lines):
+            line.set_color(mapper.to_rgba(l))
+
+        if not None in xlimits: plt.xlim(xlimits)
+        if not None in ylimits: plt.ylim(ylimits)
+        if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+
+    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
 def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_delivery_frms=None,
                                  framerate=15.0, sum_method="",
@@ -225,3 +302,4 @@ def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", 
     plt.scatter(coordinates[:, 0], coordinates[:, 1], s=10, c=mapper.to_rgba(values))
     plt.colorbar(mapper, ax=plt.gca(), label=colorbar_label)
     plt.show(block=False)
+

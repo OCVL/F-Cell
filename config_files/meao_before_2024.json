@@ -111,6 +111,22 @@
       }
     },
     "display_params": {
+      "debug":{
+        "output_norm_video": true,
+        "plot_pop_extracted_orgs": true,
+        "plot_pop_stdize_orgs": true,
+        "plot_indiv_stdize_orgs": "all",
+        "stimulus": true,
+        "control": true,
+        "axes": {
+          "xmin": 0,
+          "xmax": 10,
+          "ymin": -200,
+          "ymax": 200,
+          "cmap": "plasma",
+          "legend": true
+        }
+      } ,
       "pop_summary_overlap": {
         "stimulus": true,
         "control": true,

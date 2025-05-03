@@ -81,6 +81,11 @@ class Analysis(StrEnum):
     OUTPUT_SUBFOLDER_METHOD = "output_subfolder_method"
 
 class DebugParams(StrEnum):
+    NAME = "debug"
+    OUTPUT_NORM_VIDEO = "output_norm_video"
+    PLOT_POP_EXTRACTED_ORGS = "plot_pop_extracted_orgs"
+    PLOT_POP_STANDARDIZED_ORGS = "plot_pop_stdize_orgs"
+    PLOT_INDIV_STANDARDIZED_ORGS = "plot_indiv_stdize_orgs"
     CELL_VIABILITY = "cell_viability"
 
 class NormParams(StrEnum):
