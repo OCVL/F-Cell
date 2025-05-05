@@ -112,21 +112,21 @@
     },
     "display_params": {
       "debug":{
-        "output_norm_video": true,
-        "plot_pop_extracted_orgs": true,
-        "plot_pop_stdize_orgs": true,
+        "output_norm_video": false,
+        "plot_pop_extracted_orgs": false,
+        "plot_pop_stdize_orgs": false,
         "plot_indiv_stdize_orgs": "all",
         "stimulus": true,
         "control": true,
         "axes": {
           "xmin": 0,
-          "xmax": 10,
-          "ymin": -200,
-          "ymax": 200,
-          "cmap": "plasma",
+          "xmax": 6,
+          "ymin": -255,
+          "ymax": 255,
+          "cmap": "viridis",
           "legend": true
         }
-      } ,
+      },
       "pop_summary_overlap": {
         "stimulus": true,
         "control": true,

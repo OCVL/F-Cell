@@ -278,7 +278,7 @@ if __name__ == "__main__":
                                     result_folder = folder.joinpath(output_folder)
                                     result_folder.mkdir(exist_ok=True)
 
-                                save_tiff_stack(result_folder.joinpath(dataset.video_path[:-4]+"_"+norm_method+"_norm.tif"), dataset.video_data)
+                                save_tiff_stack(result_folder.joinpath(dataset.video_path.stem+"_"+norm_method+"_norm.tif"), dataset.video_data)
 
                             group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
 
@@ -393,7 +393,7 @@ if __name__ == "__main__":
                             (dataset.iORG_signals[q],
                              dataset.summarized_iORGs[q],
                              dataset.query_status[q],
-                             dataset.query_loc[q]) = extract_n_refine_iorg_signals(dataset, analysis_params,
+                             dataset.query_loc[q]) = extract_n_refine_iorg_signals(dataset, analysis_dat_format,#
                                                                                    query_loc=dataset.query_loc[q],
                                                                                    query_loc_name=query_loc_names[q],
                                                                                    thread_pool=the_pool)
@@ -526,18 +526,19 @@ if __name__ == "__main__":
                         # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
                         control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
 
-                        if (not uniform_datasets or first_run) and control_datasets:
+                        if (not uniform_datasets or first_run):
 
                             # Some parameters require us to treat control datasets differently than stimulus datasets.
                             # For example, when using xor segmentation, we want to use the exact same area as the stimulus query points
                             # without doing xor again. So, we adjust them for control analysis.
-                            control_analysis_params = analysis_params.copy()
-                            if control_analysis_params.get(SegmentParams.NAME, dict()):
-                                if control_analysis_params[SegmentParams.NAME].get(SegmentParams.SHAPE) == "xor":
-                                    control_analysis_params[SegmentParams.NAME][SegmentParams.SHAPE] = "disk"
-                                    control_analysis_params[SegmentParams.NAME][SegmentParams.RADIUS] = 1
+                            control_dat_format_params = analysis_dat_format.copy()
+                            if control_dat_format_params.get(Analysis.PARAMS).get(SegmentParams.NAME, dict()):
+                                if control_dat_format_params.get(Analysis.PARAMS)[SegmentParams.NAME].get(SegmentParams.SHAPE) == "xor":
+                                    control_dat_format_params.get(Analysis.PARAMS)[SegmentParams.NAME][SegmentParams.SHAPE] = "disk"
+                                    control_dat_format_params.get(Analysis.PARAMS)[SegmentParams.NAME][SegmentParams.RADIUS] = 1
 
-                            first_run = False
+                            # Initialize these, even if we don't have them, so that they can be correctly handled for being
+                            # None later.
                             control_iORG_signals = [None] * len(stim_dataset.query_loc)
                             control_iORG_summary = [None] * len(stim_dataset.query_loc)
                             control_pop_iORG_summary = [None] * len(stim_dataset.query_loc)
@@ -545,71 +546,74 @@ if __name__ == "__main__":
                             control_framestamps = [None] * len(stim_dataset.query_loc)
                             control_framestamps_pooled = [None] * len(stim_dataset.query_loc)
 
-                            pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
-                                stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
-                                group) + " and folder " + folder.name + "..."
-                            pb.update()
-                            pb_label.update()
-                            print(Fore.GREEN+"Processing query files in control datasets for stim video " + str(
-                                stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
-                                group) + " and folder " + folder.name + "...")
+                            first_run = False
+                            # Only do the below if we have actual control datasets.
+                            if control_datasets:
+                                pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
+                                    stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
+                                    group) + " and folder " + folder.name + "..."
+                                pb.update()
+                                pb_label.update()
+                                print(Fore.GREEN+"Processing query files in control datasets for stim video " + str(
+                                    stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
+                                    group) + " and folder " + folder.name + "...")
 
-                            # Prep our control datasets for refilling
-                            for cd, control_data in enumerate(control_datasets):
-                                control_data.iORG_signals = [None] * len(stim_dataset.query_loc)
-                                control_data.summarized_iORGs = [None] * len(stim_dataset.query_loc)
-                                control_data.query_loc = [None] * len(stim_dataset.query_loc)
-
-                            # After we've processed all the control data with the parameters of the stimulus data, combine it
-                            for q in range(len(stim_dataset.query_loc)):
-                                control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                control_iORG_sigs = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
-
+                                # Prep our control datasets for refilling
                                 for cd, control_data in enumerate(control_datasets):
+                                    control_data.iORG_signals = [None] * len(stim_dataset.query_loc)
+                                    control_data.summarized_iORGs = [None] * len(stim_dataset.query_loc)
+                                    control_data.query_loc = [None] * len(stim_dataset.query_loc)
 
-                                    # Use the control data, but the query locations and stimulus info from the stimulus data.
-                                    (control_data.iORG_signals[q],
-                                     control_data.summarized_iORGs[q],
-                                     control_query_stat,
-                                     control_data.query_loc[q]) = extract_n_refine_iorg_signals(control_data,
-                                                                                                control_analysis_params,
-                                                                                                query_loc=stim_dataset.query_loc[q],
-                                                                                                query_loc_name=query_loc_names[q],
-                                                                                                stimtrain_frame_stamps=stim_dataset.stimtrain_frame_stamps,
-                                                                                                thread_pool=the_pool)
+                                # After we've processed all the control data with the parameters of the stimulus data, combine it
+                                for q in range(len(stim_dataset.query_loc)):
+                                    control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                    control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
+                                    control_iORG_sigs = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
 
-                                    control_query_status[q].loc[:, cd] = control_query_stat
-                                    control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
-                                    control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
-                                    control_pop_iORG_summaries[cd, control_data.framestamps] = control_data.summarized_iORGs[q]
+                                    for cd, control_data in enumerate(control_datasets):
 
-                                    # Summarize each of the cells' iORGs
-                                    # *** Removed for now, may add later.
-                                    # for c in range(control_iORG_signals.shape[1]):
-                                    #     tot_sig = np.nansum(np.any(np.isfinite(control_iORG_signals[:, c, :]), axis=1))
-                                    #     control_query_status[q].loc[c, "Num Viable iORGs"] = tot_sig
-                                    #
-                                    #     if tot_sig > sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
-                                    #         control_query_status[q].loc[c, "Viable for single-cell summary?"] = True
-                                    #         control_iORG_summary[q][c, :], _ = summarize_iORG_signals(control_iORG_signals[:, c, :],
-                                    #                                                                np.arange(max_frmstamp + 1),
-                                    #                                                                summary_method=sum_method,
-                                    #                                                                window_size=sum_window)
-                                control_iORG_signals[q] = control_iORG_sigs
-                                control_pop_iORG_summary[q] = control_pop_iORG_summaries
-                                control_framestamps[q] = []
-                                for r in range(control_pop_iORG_summary[q].shape[0]):
-                                    control_framestamps[q].append(np.flatnonzero(np.isfinite(control_pop_iORG_summaries[r, :])))
+                                        # Use the control data, but the query locations and stimulus info from the stimulus data.
+                                        (control_data.iORG_signals[q],
+                                         control_data.summarized_iORGs[q],
+                                         control_query_stat,
+                                         control_data.query_loc[q]) = extract_n_refine_iorg_signals(control_data,
+                                                                                                    control_dat_format_params,
+                                                                                                    query_loc=stim_dataset.query_loc[q],
+                                                                                                    query_loc_name=query_loc_names[q],
+                                                                                                    stimtrain_frame_stamps=stim_dataset.stimtrain_frame_stamps,
+                                                                                                    thread_pool=the_pool)
 
-                                control_pop_iORG_summary_pooled[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
-                                                                               axis=0) / np.nansum(control_pop_iORG_N, axis=0)
-                                control_framestamps_pooled[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary_pooled[q]))
+                                        control_query_status[q].loc[:, cd] = control_query_stat
+                                        control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
+                                        control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
+                                        control_pop_iORG_summaries[cd, control_data.framestamps] = control_data.summarized_iORGs[q]
+
+                                        # Summarize each of the cells' iORGs
+                                        # *** Removed for now, may add later.
+                                        # for c in range(control_iORG_signals.shape[1]):
+                                        #     tot_sig = np.nansum(np.any(np.isfinite(control_iORG_signals[:, c, :]), axis=1))
+                                        #     control_query_status[q].loc[c, "Num Viable iORGs"] = tot_sig
+                                        #
+                                        #     if tot_sig > sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
+                                        #         control_query_status[q].loc[c, "Viable for single-cell summary?"] = True
+                                        #         control_iORG_summary[q][c, :], _ = summarize_iORG_signals(control_iORG_signals[:, c, :],
+                                        #                                                                np.arange(max_frmstamp + 1),
+                                        #                                                                summary_method=sum_method,
+                                        #                                                                window_size=sum_window)
+                                    control_iORG_signals[q] = control_iORG_sigs
+                                    control_pop_iORG_summary[q] = control_pop_iORG_summaries
+                                    control_framestamps[q] = []
+                                    for r in range(control_pop_iORG_summary[q].shape[0]):
+                                        control_framestamps[q].append(np.flatnonzero(np.isfinite(control_pop_iORG_summaries[r, :])))
+
+                                    control_pop_iORG_summary_pooled[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
+                                                                                   axis=0) / np.nansum(control_pop_iORG_N, axis=0)
+                                    control_framestamps_pooled[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary_pooled[q]))
 
 
-                                # First write the control data to a file.
-                                control_query_status[q].to_csv(result_folder.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
-                                                           "_" + query_loc_names[q] + "coords_controldata.csv"))
+                                    # First write the control data to a file.
+                                    control_query_status[q].to_csv(result_folder.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
+                                                               "_" + query_loc_names[q] + "coords_controldata.csv"))
 
                         ''' *** Population iORG analyses here *** '''
                         for q in range(len(stim_dataset.query_loc)):
@@ -764,7 +768,7 @@ if __name__ == "__main__":
                         stimtrain = stimtrain[0]
 
                         # Debug - to look at individual cell raw traces.
-                        if not plot_indiv_std_orgs:
+                        if plot_indiv_std_orgs:
                             if plot_indiv_std_orgs == "all":
                                 cell_inds = range(stim_iORG_signals[q].shape[1])
                             else:

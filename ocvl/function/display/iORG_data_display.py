@@ -104,13 +104,11 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
 
-def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums=[""],
-                  control_framestamps=None, control_iORGs=None, control_vidnums=None,
+def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
+                  control_framestamps=None, control_iORGs=None, control_vidnums="",
                   image=None, cell_loc=None,
                   stim_delivery_frms=None, framerate=15.0, figure_label="", params=None):
 
-    if control_vidnums is None:
-        control_vidnums = [""]
     if params is None:
         params = dict()
 
@@ -119,9 +117,16 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums=[""],
     disp_cont = params.get(DisplayParams.DISP_CONTROL, False) and control_iORGs is not None
 
     ax_params = params.get(DisplayParams.AXES, dict())
+    show_legend = ax_params.get(DisplayParams.LEGEND, False) and \
+                  isinstance(stim_vidnums, list) and isinstance(control_vidnums, list)
     xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
     ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
     how_many = np.sum([disp_im, disp_stim, disp_cont])
+
+    if not isinstance(stim_vidnums, list):
+        stim_vidnums = [stim_vidnums] * stim_iORGs.shape[0]
+    if disp_cont and not isinstance(control_vidnums, list):
+        control_vidnums = [control_vidnums] * control_iORGs.shape[0]
 
     plt.figure(figure_label)
 
@@ -140,8 +145,8 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums=[""],
     if disp_stim:
         plt.title("Stimulus iORG")
         for r in range(stim_iORGs.shape[0]):
-            dispinds = np.isfinite(stim_iORGs)
-            plt.plot(stim_framestamps[dispinds] / framerate, stim_iORGs[dispinds],label=str(stim_vidnums[r]))
+            dispinds = np.isfinite(stim_iORGs[r])
+            plt.plot(stim_framestamps[dispinds] / framerate, stim_iORGs[r, dispinds],label=str(stim_vidnums[r]))
         plt.xlabel("Time (s)")
         plt.ylabel("A.U.")
 
@@ -158,6 +163,7 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums=[""],
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
+        if show_legend: plt.legend()
 
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
@@ -165,7 +171,8 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums=[""],
     if disp_cont  and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
         plt.title("Control iORGs")
         for r in range(control_iORGs.shape[0]):
-            plt.plot(control_framestamps[r] / framerate, control_iORGs[r, control_framestamps[r]], label=str(control_vidnums[r]))
+            dispinds = np.isfinite(stim_iORGs[r])
+            plt.plot(control_framestamps[dispinds] / framerate, control_iORGs[r, dispinds], label=str(control_vidnums[r]))
         plt.xlabel("Time (s)")
         plt.ylabel("A.U.")
 
@@ -178,9 +185,8 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums=[""],
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
-        if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+        if show_legend: plt.legend()
 
-    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
 def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_delivery_frms=None,
                                  framerate=15.0, sum_method="",

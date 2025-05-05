@@ -19,10 +19,10 @@ from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.display.iORG_data_display import display_iORGs
 from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
-    SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams
+    SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams, Analysis
 from scipy.spatial.distance import pdist, squareform
 
-def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
+def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
                                   thread_pool=None):
 
     if query_loc is None:
@@ -46,8 +46,10 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
     # Round the query locations
     query_loc = np.round(query_loc.copy())
 
+    analysis_params = analysis_dat_format.get(Analysis.PARAMS)
+
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
-    display_params = analysis_params.get(DisplayParams.NAME, dict())
+    display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
     debug_params = display_params.get(DebugParams.NAME, dict())
     plot_extracted_orgs = debug_params.get(DebugParams.PLOT_POP_EXTRACTED_ORGS, False)
     plot_stdize_orgs = debug_params.get(DebugParams.PLOT_POP_STANDARDIZED_ORGS, False)
@@ -153,7 +155,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_params, query_loc=None, quer
     if plot_extracted_orgs:
         display_iORGs(dataset.framestamps, iORG_signals, query_loc_name,
                       stim_delivery_frms=stimtrain_frame_stamps, framerate=dataset.framerate,
-                      figure_label="Extracted ORG signals", params=debug_params )
+                      figure_label=query_loc_name+" extracted ORG signals", params=debug_params )
         plt.show(block=False)
         plt.waitforbuttonpress()
         plt.close()
