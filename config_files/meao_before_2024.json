@@ -115,7 +115,7 @@
         "output_norm_video": false,
         "plot_pop_extracted_orgs": false,
         "plot_pop_stdize_orgs": false,
-        "plot_indiv_stdize_orgs": "all",
+        "plot_indiv_stdize_orgs": false,
         "stimulus": true,
         "control": true,
         "axes": {

@@ -101,7 +101,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
 
-    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+        if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
 
 def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",

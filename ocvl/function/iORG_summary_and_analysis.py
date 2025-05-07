@@ -779,15 +779,23 @@ if __name__ == "__main__":
                                 if len(cell_inds) < 10:
                                     display_dict["raw_" + mode + "_iORGs_" + folder.name + "_"+str(c)+ "_at_" + str(stim_datasets[0].query_loc[q][c,:])] = overlap_label
 
-                                display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
-                                              finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
-                                              stim_datasets[0].avg_image_data, stim_datasets[0].query_loc[q][c,:],
-                                              stim_delivery_frms = stimtrain, framerate = pooled_framerate,
-                                              figure_label = overlap_label, params = pop_overlap_params)
-                                if len(cell_inds) > 10:
-                                    plt.show(block=False)
-                                    plt.waitforbuttonpress()
-                                    plt.close()
+                                if np.any(np.isfinite(stim_iORG_signals[q][:, c, :])):
+                                    if control_iORG_signals[q]:
+                                        display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
+                                                      finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
+                                                      stim_datasets[0].avg_image_data, stim_datasets[0].query_loc[q][c,:],
+                                                      stim_delivery_frms = stimtrain, framerate = pooled_framerate,
+                                                      figure_label = overlap_label, params = debug_params)
+                                    else:
+                                        display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
+                                                      image=stim_datasets[0].avg_image_data, cell_loc=stim_datasets[0].query_loc[q][c,:],
+                                                      stim_delivery_frms = stimtrain, framerate = pooled_framerate,
+                                                      figure_label = overlap_label, params = debug_params)
+
+                                    if len(cell_inds) > 10:
+                                        plt.show(block=False)
+                                        plt.waitforbuttonpress()
+                                        plt.close()
 
                         ''' *** Pool the summarized population iORGs *** '''
                         with warnings.catch_warnings():
