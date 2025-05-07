@@ -10,7 +10,7 @@ from numpy.fft import fftshift
 from scipy import signal
 from matplotlib import patches as ptch
 from scipy.fft import fft
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import UnivariateSpline, Akima1DInterpolator
 from scipy.ndimage import center_of_mass, convolve1d, median_filter
 from scipy.signal import savgol_filter, convolve, freqz
 from skimage.feature import graycomatrix, graycoprops
@@ -452,7 +452,6 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
     for c in range(temporal_signals.shape[0]):
         auc[c] = np.trapezoid(np.abs(poststim[c, np.isfinite(poststim[c,:])]), x=poststim_frms[np.isfinite(poststim[c,:])] / framerate)
 
-
     final_val = np.nanmean(temporal_signals[:, -5:], axis=1)
 
     # ** Recovery percentage **
@@ -462,13 +461,20 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
     amp_implicit_time = np.full_like(amplitude, np.nan)
     halfamp_implicit_time = np.full_like(amplitude, np.nan)
     for c in range(temporal_signals.shape[0]):
-        whereabove_amp = np.flatnonzero(poststim[c, :] > poststim_val[c])
-        halfamp_whereabove = np.flatnonzero(poststim[c, :] > (amplitude[c]/2)+prestim_val[c] )
 
-        if np.any(whereabove_amp) and np.any(np.isfinite(whereabove_amp)):
-            amp_implicit_time[c] = (whereabove_amp[0] + poststim_frms[0] - prestim_frms[-1]) / framerate
-        if np.any(halfamp_whereabove) and np.any(np.isfinite(halfamp_whereabove)):
-            halfamp_implicit_time[c] = (halfamp_whereabove[0] + poststim_frms[0] - prestim_frms[-1]) / framerate
+        finite_frms = poststim_frms[np.isfinite(poststim[c, :])]
+        finite_data = poststim[c, np.isfinite(poststim[c, :])]
+
+        amp_val_interp = Akima1DInterpolator(finite_frms, finite_data-poststim_val[c], method="makima")
+        halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data-((amplitude[c]/2)+prestim_val[c]), method="makima")
+
+        # plt.figure()
+        # plt.plot(np.arange(start=60,stop=70,step=0.1), halfamp_val_interp(np.arange(start=60,stop=70,step=0.1)), "k")
+        # plt.show(block=False)
+        # plt.waitforbuttonpress()
+
+        amp_implicit_time[c] = (amp_val_interp.roots()[0] - prestim_frms[-1]) / framerate
+        halfamp_implicit_time[c] = (halfamp_val_interp.roots()[0] - prestim_frms[-1]) / framerate
 
     return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery
 
