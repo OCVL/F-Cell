@@ -86,6 +86,7 @@ class DebugParams(StrEnum):
     PLOT_POP_EXTRACTED_ORGS = "plot_pop_extracted_orgs"
     PLOT_POP_STANDARDIZED_ORGS = "plot_pop_stdize_orgs"
     PLOT_INDIV_STANDARDIZED_ORGS = "plot_indiv_stdize_orgs"
+    OUTPUT_INDIV_STANDARDIZED_ORGS = "output_indiv_stdize_orgs"
     CELL_VIABILITY = "cell_viability"
 
 class NormParams(StrEnum):

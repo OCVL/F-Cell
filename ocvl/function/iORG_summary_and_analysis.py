@@ -173,7 +173,6 @@ if __name__ == "__main__":
 
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
     output_norm_vid = debug_params.get(DebugParams.OUTPUT_NORM_VIDEO, False)
-    plot_indiv_std_orgs = debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False)
 
 
     output_folder = analysis_params.get(Analysis.OUTPUT_FOLDER)
@@ -768,18 +767,22 @@ if __name__ == "__main__":
                         stimtrain = stimtrain[0]
 
                         # Debug - to look at individual cell raw traces.
-                        if plot_indiv_std_orgs:
-                            if plot_indiv_std_orgs == "all":
+                        if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False) or debug_params.get(DebugParams.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
+                            if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, "all") == "all":
                                 cell_inds = range(stim_iORG_signals[q].shape[1])
                             else:
-                                cell_inds = plot_indiv_std_orgs
+                                cell_inds = debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, 0)
 
                             for c in cell_inds:
-                                overlap_label = "Debug: View raw " + mode + " iORGs in " + folder.name + " signals for cell: "+str(c)+ " at: " + str(stim_datasets[0].query_loc[q][c,:])
+                                overlap_label = "Debug: View stdz " + mode + " iORGs in " + folder.name + " signals for cell: "+str(c)+ " at: " + str(stim_datasets[0].query_loc[q][c,:])
                                 if len(cell_inds) < 10:
-                                    display_dict["raw_" + mode + "_iORGs_" + folder.name + "_"+str(c)+ "_at_" + str(stim_datasets[0].query_loc[q][c,:])] = overlap_label
+                                    display_dict[query_loc_names[q]+"_stdz_" + mode + "_iORGs_" + folder.name + "_"+str(c)+ "_at_" + str(stim_datasets[0].query_loc[q][c,:])] = overlap_label
 
                                 if np.any(np.isfinite(stim_iORG_signals[q][:, c, :])):
+                                    if debug_params.get(DebugParams.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
+                                        sigout = pd.DataFrame(stim_iORG_signals[q][:, c, :], index=stim_data_vidnums)
+                                        sigout.to_csv(result_folder.joinpath(overlap_label+".csv"))
+
                                     if control_iORG_signals[q]:
                                         display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
                                                       finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
