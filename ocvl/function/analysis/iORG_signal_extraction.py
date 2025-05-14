@@ -172,7 +172,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     if excl_type == "stim-relative":
         excl_start_ind = stimtrain_frame_stamps[0] + excl_start_ind
-        excl_stop_ind = stimtrain_frame_stamps[1] + excl_stop_ind
+        excl_stop_ind = stimtrain_frame_stamps[0] + excl_stop_ind
     else:  # if type == "absolute":
         pass
         # excl_start_ind = excl_start_ind
@@ -199,7 +199,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     if std_type == "stim-relative":
         std_start_ind = stimtrain_frame_stamps[0] + std_start_ind
-        std_stop_ind = stimtrain_frame_stamps[1] + std_stop_ind
+        std_stop_ind = stimtrain_frame_stamps[0] + std_stop_ind
 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 

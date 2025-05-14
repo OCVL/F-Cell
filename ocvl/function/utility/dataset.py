@@ -269,6 +269,10 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
                             xm, ym = np.meshgrid(np.arange(video_data.shape[1]),np.arange(video_data.shape[0]), indexing="xy")
 
                             queryloc_data.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
+            elif locpath.name == "All Pixels":
+                xm, ym = np.meshgrid(np.arange(video_data.shape[1]),np.arange(video_data.shape[0]), indexing="xy")
+
+                queryloc_data.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
             else:
                 warnings.warn("Query location path does not exist: "+str(locpath))
 

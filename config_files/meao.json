@@ -43,7 +43,7 @@
       "correct_torsion": true,
       "intra_stack_xform": "affine",
       "inter_stack_xform": "affine",
-      "flat_field": false,
+      "flat_field": true,
       "custom": {
         "dewarp": "ocvl"
       }
@@ -61,7 +61,7 @@
         "stimulus_sequence": "StimulusOn"
       }
     },
-    "recursive_search": true,
+    "recursive_search": false,
     "control": {
       "location": "folder",
       "folder_name": "control"

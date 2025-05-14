@@ -24,7 +24,7 @@ from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, Met
     AcquisiTags, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
     MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
-from ocvl.function.utility.resources import save_tiff_stack
+from ocvl.function.utility.resources import save_tiff_stack, save_video
 
 if __name__ == "__main__":
 
@@ -688,29 +688,15 @@ if __name__ == "__main__":
 
                             if metrics_measured_to == "stim-relative":
                                 metrics_prestim = stim_dataset.stimtrain_frame_stamps[0] + metrics_prestim
-                                metrics_poststim = stim_dataset.stimtrain_frame_stamps[1] + metrics_poststim
+                                metrics_poststim = stim_dataset.stimtrain_frame_stamps[0] + metrics_poststim
 
                             # Make the list of indices that should correspond to pre and post stimulus
                             metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
                             metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
-                            # Find the indexes of the framestamps corresponding to our pre and post stim frames;
-                            prestim = np.flatnonzero(np.isin(stim_dataset.framestamps, metrics_prestim))
-                            poststim = np.flatnonzero(np.isin(stim_dataset.framestamps, metrics_poststim))
 
-                            # if we're missing an *end* framestamp in our window, interpolate to find the value there,
-                            # and add it temporarily to our signal to make sure things like AUR work correctly.
-                            finite_iORG_summary = stim_dataset.summarized_iORGs[q][stim_dataset.framestamps]
-                            finite_iORG_frmstmp = stim_dataset.framestamps
-                            if not np.any(finite_iORG_frmstmp[poststim] == metrics_poststim[-1]):
-                                inter_val = np.interp(metrics_poststim[-1], finite_iORG_frmstmp, finite_iORG_summary)
-                                # Find where to insert the interpolant and its framestamp
-                                next_highest = np.argmax(finite_iORG_frmstmp > metrics_poststim[-1])
-                                finite_iORG_summary = np.insert(finite_iORG_summary, next_highest, inter_val)
-                                finite_iORG_frmstmp = np.insert(finite_iORG_frmstmp, next_highest, metrics_poststim[-1])
-                                poststim = np.append(poststim, next_highest)
-
-                            amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(finite_iORG_summary, finite_iORG_frmstmp, stim_dataset.framerate,
-                                                                                                                     prestim, poststim)
+                            amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(stim_dataset.summarized_iORGs[q][stim_dataset.framestamps],
+                                                                                                                     stim_dataset.framestamps, stim_dataset.framerate,
+                                                                                                                     metrics_prestim, metrics_poststim, the_pool)
 
                             for metric in metrics_type:
                                 if metric == "aur":
@@ -816,7 +802,7 @@ if __name__ == "__main__":
 
                         if metrics_measured_to == "stim-relative":
                             metrics_prestim = stimtrain[0] + metrics_prestim
-                            metrics_poststim = stimtrain[1] + metrics_poststim
+                            metrics_poststim = stimtrain[0] + metrics_poststim
 
                         # Make the list of indices that should correspond to pre and post stimulus
                         metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1,
@@ -824,26 +810,11 @@ if __name__ == "__main__":
                         metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1,
                                                      dtype=int)
 
-                        finite_iORG = np.isfinite(stim_pop_iORG_summary[q])
-                        finite_iORG_summary = stim_pop_iORG_summary[q][finite_iORG]
-                        finite_iORG_frmstmp = finite_iORG_frmstmp[finite_iORG]
-                        # Find the indexes of the framestamps corresponding to our pre and post stim frames;
-                        prestim = np.flatnonzero(np.isin(finite_iORG_frmstmp, metrics_prestim))
-                        poststim = np.flatnonzero(np.isin(finite_iORG_frmstmp, metrics_poststim))
 
-                        # if we're missing an *end* framestamp in our window, interpolate to find the value there,
-                        # and add it temporarily to our signal to make sure things like AUR work correctly.
-                        if not np.any(finite_iORG_frmstmp[poststim] == metrics_poststim[-1]):
-                            inter_val = np.interp(metrics_poststim[-1], finite_iORG_frmstmp, finite_iORG_summary)
-                            # Find where to insert the interpolant and its framestamp
-                            next_highest = np.argmax(finite_iORG_frmstmp > metrics_poststim[-1])
-                            finite_iORG_summary = np.insert(finite_iORG_summary, next_highest, inter_val)
-                            finite_iORG_frmstmp = np.insert(finite_iORG_frmstmp, next_highest, metrics_poststim[-1])
-                            poststim = np.append(poststim, next_highest)
-
-                        amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(finite_iORG_summary, finite_iORG_frmstmp,
+                        amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,
                                                                                                                  pooled_framerate,
-                                                                                                                 prestim, poststim)
+                                                                                                                 metrics_prestim, metrics_poststim, the_pool)
+
                         for metric in metrics_type:
                             if metric == "aur":
                                 pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AUR)] = aur[0]
@@ -882,6 +853,7 @@ if __name__ == "__main__":
                                     overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
                                     display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
 
+
                             for c in range(stim_iORG_signals[q].shape[1]):
                                 tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q][:, c, :]), axis=1))
                                 idx = all_query_status[folder][mode][q].index[c]
@@ -906,51 +878,50 @@ if __name__ == "__main__":
 
                                     ''' *** Display individual iORG summaries  *** '''
                                     if indiv_overlap_params:
-                                        display_iORG_pop_summary(all_frmstmp, cell_iORG_summary, stim_iORG_summary[q][c, :], None,
+                                        if indiv_overlap_params.get(DisplayParams.DISP_STIMULUS, False) or \
+                                                indiv_overlap_params.get(DisplayParams.DISP_CONTROL, False) or \
+                                                indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, False):
+                                            display_iORG_pop_summary(all_frmstmp, cell_iORG_summary, stim_iORG_summary[q][c, :], None,
                                                                  all_frmstmp, control_pop_iORG_summary_pooled[q],
                                                                  stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                                  figure_label=overlap_label, params=indiv_overlap_params)
-
-
-                                    finite_iORG = np.isfinite(stim_iORG_summary[q][c, :])
-                                    finite_iORG_summary = stim_iORG_summary[q][c, finite_iORG]
-                                    finite_iORG_frmstmp = all_frmstmp[finite_iORG]
-
-                                    # Find the indexes of the framestamps corresponding to our pre and post stim frames;
-                                    prestim = np.flatnonzero(np.isin(finite_iORG_frmstmp, metrics_prestim))
-                                    poststim = np.flatnonzero(np.isin(finite_iORG_frmstmp, metrics_poststim))
-
-                                    # if we're missing an *end* framestamp in our window, interpolate to find the value there,
-                                    # and add it temporarily to our signal to make sure things like AUR work correctly.
-                                    if not np.any(finite_iORG_frmstmp[poststim] == metrics_poststim[-1]):
-                                        inter_val = np.interp(metrics_poststim[-1], finite_iORG_frmstmp, finite_iORG_summary)
-                                        # Find where to insert the interpolant and its framestamp
-                                        next_highest = np.argmax(finite_iORG_frmstmp > metrics_poststim[-1])
-                                        finite_iORG_summary = np.insert(finite_iORG_summary, next_highest, inter_val)
-                                        finite_iORG_frmstmp = np.insert(finite_iORG_frmstmp, next_highest, metrics_poststim[-1])
-                                        poststim = np.append(poststim, next_highest)
-
-                                    amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(finite_iORG_summary, finite_iORG_frmstmp,
-                                                                                                                             pooled_framerate,
-                                                                                                                             prestim, poststim)
-
-                                    thisind = indiv_iORG_result[q].index[c]
-                                    for metric in metrics_type:
-                                        if metric == "aur":
-                                            indiv_iORG_result[q].loc[thisind, MetricTags.AUR] = aur[0]
-                                        elif metric == "amp":
-                                            indiv_iORG_result[q].loc[thisind, MetricTags.AMPLITUDE] = amplitude[0]
-                                        elif metric == "logamp":
-                                            indiv_iORG_result[q].loc[thisind, MetricTags.LOG_AMPLITUDE] = np.log(amplitude[0])
-                                        elif metric == "amp_imp_time":
-                                            indiv_iORG_result[q].loc[thisind, MetricTags.AMP_IMPLICIT_TIME] = amp_implicit_time[0]
-                                        elif metric == "halfamp_imp_time":
-                                            indiv_iORG_result[q].loc[thisind, MetricTags.HALFAMP_IMPLICIT_TIME] = halfamp_implicit_time[0]
-                                        elif metric == "rec_amp":
-                                            indiv_iORG_result[q].loc[thisind, MetricTags.RECOVERY_PERCENT] = recovery[0]
-
                                 else:
                                     all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = False
+
+                            # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
+                            res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool)
+
+
+                            # for m, metric in enumerate(res):
+                            #     for c, value in enumerate(metric):
+                            #         thisind = indiv_iORG_result[q].index[c]
+                            #         match m:
+                            #             case 0: # amplitude
+                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.AMPLITUDE] = value
+                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.LOG_AMPLITUDE] = np.log(value)
+                            #             case 1: # amp_implicit_time
+                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.AMP_IMPLICIT_TIME] = value
+                            #             case 2: # halfamp_implicit_time
+                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.HALFAMP_IMPLICIT_TIME] = value
+                            #             case 3: # aur
+                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.AUR] = value
+                            #             case 4: # recovery
+                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.RECOVERY_PERCENT] = value
+                            for m, metric in enumerate(res):
+                                match m:
+                                    case 0: # amplitude
+                                        indiv_iORG_result[q].loc[:, MetricTags.AMPLITUDE] = metric
+                                        indiv_iORG_result[q].loc[:, MetricTags.LOG_AMPLITUDE] = np.log(metric)
+                                    case 1: # amp_implicit_time
+                                        indiv_iORG_result[q].loc[:, MetricTags.AMP_IMPLICIT_TIME] = metric
+                                    case 2: # halfamp_implicit_time
+                                        indiv_iORG_result[q].loc[:, MetricTags.HALFAMP_IMPLICIT_TIME] = metric
+                                    case 3: # aur
+                                        indiv_iORG_result[q].loc[:, MetricTags.AUR] = metric
+                                    case 4: # recovery
+                                        indiv_iORG_result[q].loc[:, MetricTags.RECOVERY_PERCENT] = metric
+
+
 
                             if indiv_overlap_params:
                                 plt.show(block=False)
@@ -999,6 +970,23 @@ if __name__ == "__main__":
                                         display_iORG_summary_overlay(metric_res, coords, cv2.imread(refim, cv2.IMREAD_GRAYSCALE),
                                                                      metric, label, indiv_summary)
 
+                            if indiv_summary.get(DisplayParams.ORG_VIDEO):
+                                ax_params = indiv_summary.get(DisplayParams.AXES, dict())
+
+
+                                starting = ax_params.get(DisplayParams.CMIN, np.nanpercentile(stim_iORG_summary[q].flatten(), 2.5))
+                                stopping = ax_params.get(DisplayParams.CMAX, np.nanpercentile(stim_iORG_summary[q].flatten(), 99))
+
+
+                                normmap = mpl.colors.Normalize(vmin=starting, vmax=stopping)
+                                mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
+                                                               norm=normmap)
+
+                                video_profiles= np.reshape(stim_iORG_summary[q], (592, 440, len(all_frmstmp)))
+                                video_profiles[np.isnan(video_profiles)] = starting
+                                save_video(result_folder.joinpath("pooled_pixelpop_iORG_" + now_timestamp + ".avi"),
+                                           video_profiles, float(pooled_framerate),
+                                           scalar_mapper=mapper)
 
 
                             # figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
