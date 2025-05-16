@@ -381,7 +381,7 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
     mask_dat = reference_dataset.mask_data.copy()
     # Try and figure out the reference frame, if we haven't already.
     # This is based on the simple method of determining the maximum area subtended by our mask.
-    if dataset.reference_frame_idx is None:
+    if dataset.reference_frame_idx is None or dataset.reference_frame_idx >= dataset.num_frames:
         amt_data = np.zeros([dataset.num_frames])
         for f in range(dataset.num_frames):
             amt_data[f] = mask_dat[..., f].flatten().sum()

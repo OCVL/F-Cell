@@ -916,22 +916,6 @@ if __name__ == "__main__":
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
                             res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool)
 
-
-                            # for m, metric in enumerate(res):
-                            #     for c, value in enumerate(metric):
-                            #         thisind = indiv_iORG_result[q].index[c]
-                            #         match m:
-                            #             case 0: # amplitude
-                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.AMPLITUDE] = value
-                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.LOG_AMPLITUDE] = np.log(value)
-                            #             case 1: # amp_implicit_time
-                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.AMP_IMPLICIT_TIME] = value
-                            #             case 2: # halfamp_implicit_time
-                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.HALFAMP_IMPLICIT_TIME] = value
-                            #             case 3: # aur
-                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.AUR] = value
-                            #             case 4: # recovery
-                            #                 indiv_iORG_result[q].loc[thisind, MetricTags.RECOVERY_PERCENT] = value
                             for m, metric in enumerate(res):
                                 match m:
                                     case 0: # amplitude
