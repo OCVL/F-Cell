@@ -243,23 +243,15 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
             height = np.amax(query_loc[:, 1])
 
         # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded before analysis.
-        pluscoord = query_loc.copy()
-        pluscoord[:, 0] = pluscoord[:, 0] + c
-        pluscoord[:, 1] = pluscoord[:, 1] + r
-        valid = pluscoord[:, 0] < width
-        valid &= pluscoord[:, 1] < height
-        excl_reason[pluscoord[:, 0] >= width] = "Outside of user selected ROI (right side)"
-        excl_reason[pluscoord[:, 1] >= height] = "Outside of user selected ROI (bottom side)"
-        del pluscoord
+        valid = query_loc[:, 0] >= c
+        valid &= query_loc[:, 0] <= c + width
+        valid &= query_loc[:, 1] >= r
+        valid &= query_loc[:, 1] <= r + height
 
-        minuscoord = query_loc.copy()
-        minuscoord[:, 0] = minuscoord[:, 0] - c
-        minuscoord[:, 1] = minuscoord[:, 1] - r
-        valid &= minuscoord[:, 0] >= 0
-        valid &= minuscoord[:, 1] >= 0
-        excl_reason[minuscoord[:, 0] < 0] = "Outside of user selected ROI (left side)"
-        excl_reason[minuscoord[:, 1] < 0] = "Outside of user selected ROI (top side)"
-        del minuscoord
+        excl_reason[query_loc[:, 0] < c] = "Outside of user selected ROI (left side)"
+        excl_reason[query_loc[:, 1] < r] = "Outside of user selected ROI (top side)"
+        excl_reason[query_loc[:, 0] > c + width] = "Outside of user selected ROI (right side)"
+        excl_reason[query_loc[:, 1] > r + height] = "Outside of user selected ROI (bottom side)"
 
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)

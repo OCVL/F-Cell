@@ -631,8 +631,15 @@ def _interp_implicit(params):
         halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
                                                  method="makima")
 
-        amp_implicit_time = amp_val_interp.roots()[0]
-        halfamp_implicit_time = halfamp_val_interp.roots()[0]
+        if amp_val_interp.roots().size != 0:
+            amp_implicit_time = amp_val_interp.roots()[0]
+        else:
+            amp_implicit_time = np.nan
+
+        if halfamp_val_interp.roots().size != 0:
+            halfamp_implicit_time = halfamp_val_interp.roots()[0]
+        else:
+            halfamp_implicit_time = np.nan
     else:
         auc = np.nan
         amp_implicit_time = np.nan

@@ -272,10 +272,10 @@ if __name__ == "__main__":
                             if output_norm_vid:
                                 if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
                                     result_folder = folder.joinpath(output_folder, output_dt_subfolder)
-                                    result_folder.mkdir(exist_ok=True)
+                                    result_folder.mkdir(parents=True, exist_ok=True)
                                 else:
                                     result_folder = folder.joinpath(output_folder)
-                                    result_folder.mkdir(exist_ok=True)
+                                    result_folder.mkdir(parents=True, exist_ok=True)
 
                                 save_tiff_stack(result_folder.joinpath(dataset.video_path.stem+"_"+norm_method+"_norm.tif"), dataset.video_data)
 
@@ -397,12 +397,37 @@ if __name__ == "__main__":
                                                                                    query_loc_name=query_loc_names[q],
                                                                                    thread_pool=the_pool)
 
+                            # figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
+                            # plt.figure(figure_label)
+                            # display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = figure_label
+                            #
+                            # plt.title(figure_label)
+                            # plt.imshow(dataset.avg_image_data, cmap='gray')
+                            # viability = all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"]
+                            #
+                            # viable = []
+                            # nonviable = []
+                            # for coords, viability in viability.items():
+                            #     if viability:
+                            #         viable.append(coords)
+                            #     else:
+                            #         nonviable.append(coords)
+                            #
+                            # viable = np.array(viable)
+                            # nonviable = np.array(nonviable)
+                            # if viable.size > 0:
+                            #     plt.scatter(viable[:, 0], viable[:, 1], s=7, c="c")
+                            # if nonviable.size >0:
+                            #     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
+                            # plt.show(block=False)
+                            # plt.waitforbuttonpress()
+
                             # If this is the first time a video of this mode and this folder is loaded, then initialize the query status dataframe
                             # Such that each row corresponds to the original coordinate locations based on the reference image.
                             if first:
                                 # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
                                 all_query_status[folder][mode][q] = all_query_status[folder][mode][q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
-                                all_query_status[folder][mode][q].sort_index(inplace=True)
+                                #all_query_status[folder][mode][q].sort_index(inplace=True)
 
                         first = False
 
@@ -421,10 +446,10 @@ if __name__ == "__main__":
 
                 if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
                     result_folder = folder.joinpath(output_folder, output_dt_subfolder)
-                    result_folder.mkdir(exist_ok=True)
+                    result_folder.mkdir(parents=True, exist_ok=True)
                 else:
                     result_folder = folder.joinpath(output_folder)
-                    result_folder.mkdir(exist_ok=True)
+                    result_folder.mkdir(parents=True,exist_ok=True)
 
                 # Load each modality
                 for mode in modes_of_interest:
@@ -454,7 +479,6 @@ if __name__ == "__main__":
 
                     result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                     pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
-                    pop_iORG_result_datframe.sort_index(inplace=True)
 
                     pb["maximum"] = len(stim_data_vidnums)
                     display_dict = {} # A dictionary to store our figure labels and associated filenames for easy saving later.
@@ -718,7 +742,7 @@ if __name__ == "__main__":
                     for q in range(len(all_locs)):
 
                         indiv_iORG_result[q] = pd.DataFrame(index=all_query_status[folder][mode][q].index, columns=list(MetricTags))
-                        indiv_iORG_result[q].sort_index(inplace=True)
+                        #indiv_iORG_result[q].sort_index(inplace=True)
                         stim_pop_iORG_summaries = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
                         stim_pop_iORG_N = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
                         stimtrain = [None] * len(stim_datasets)
@@ -853,7 +877,7 @@ if __name__ == "__main__":
                                     overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
                                     display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
 
-
+                            print("Getting into single cell summary section")
                             for c in range(stim_iORG_signals[q].shape[1]):
                                 tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q][:, c, :]), axis=1))
                                 idx = all_query_status[folder][mode][q].index[c]
@@ -887,6 +911,7 @@ if __name__ == "__main__":
                                                                  figure_label=overlap_label, params=indiv_overlap_params)
                                 else:
                                     all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = False
+                            print("Exiting single cell summary section")
 
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
                             res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool)
@@ -921,22 +946,10 @@ if __name__ == "__main__":
                                     case 4: # recovery
                                         indiv_iORG_result[q].loc[:, MetricTags.RECOVERY_PERCENT] = metric
 
-
-
                             if indiv_overlap_params:
                                 plt.show(block=False)
                             indiv_respath = result_folder.joinpath(str(subject_IDs[0]) + "_indiv_summary_metrics" + str(folder.name) + "_" + str(mode) +
                                                        "_" + query_loc_names[q] + "coords.csv")
-
-                            tryagain = True
-                            while tryagain:
-                                try:
-                                    indiv_iORG_result[q].to_csv(indiv_respath)
-                                    tryagain = False
-                                except PermissionError:
-                                    tryagain = messagebox.askyesno(
-                                        title="File: " + str(indiv_respath) + " is unable to be written.",
-                                        message="The result file may be open. Close the file, then try to write again?")
 
                             if indiv_summary.get(DisplayParams.HISTOGRAM):
 
@@ -982,12 +995,24 @@ if __name__ == "__main__":
                                 mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
                                                                norm=normmap)
 
-                                video_profiles= np.reshape(stim_iORG_summary[q], (592, 440, len(all_frmstmp)))
+                                video_profiles= np.transpose(np.reshape(stim_iORG_summary[q], (stim_datasets[0].avg_image_data.shape[1],
+                                                                                                     stim_datasets[0].avg_image_data.shape[0],
+                                                                                                     len(all_frmstmp))), axes=(1,0,2))
                                 video_profiles[np.isnan(video_profiles)] = starting
                                 save_video(result_folder.joinpath("pooled_pixelpop_iORG_" + now_timestamp + ".avi"),
                                            video_profiles, float(pooled_framerate),
                                            scalar_mapper=mapper)
 
+                            tryagain = True
+                            while tryagain:
+                                try:
+                                    indiv_iORG_result[q].sort_index(inplace=True)
+                                    indiv_iORG_result[q].to_csv(indiv_respath)
+                                    tryagain = False
+                                except PermissionError:
+                                    tryagain = messagebox.askyesno(
+                                        title="File: " + str(indiv_respath) + " is unable to be written.",
+                                        message="The result file may be open. Close the file, then try to write again?")
 
                             # figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
                             # plt.figure(figure_label)
@@ -1012,7 +1037,9 @@ if __name__ == "__main__":
                             # if nonviable.size >0:
                             #     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
                             # plt.show(block=False)
+                            # plt.waitforbuttonpress()
 
+                        all_query_status[folder][mode][q].sort_index(inplace=True)
                         all_query_status[folder][mode][q].to_csv(result_folder.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
                                                    "_" + query_loc_names[q] + "coords.csv"))
 
