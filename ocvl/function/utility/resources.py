@@ -84,10 +84,10 @@ def save_video(video_path, video_data, framerate = 30, scalar_mapper=None):
     cropx = int((video_data.shape[1]-cropw) / 2)
     cropy = int((video_data.shape[0]-croph) / 2)
 
-    crop_vid = video_data.astype(np.uint8)
-    crop_vid = crop_vid[cropy:cropy+croph, cropx:cropx+cropw, :]
+    crop_vid = video_data[cropy:cropy+croph, cropx:cropx+cropw, :]
 
     if scalar_mapper is None:
+        crop_vid = crop_vid.astype(np.uint8)
 
         vidout = cv2.VideoWriter(str(video_path), cv2.VideoWriter_fourcc(*"Y800"), framerate,
                                  (crop_vid.shape[1], crop_vid.shape[0]), isColor=False )
@@ -110,8 +110,8 @@ def save_video(video_path, video_data, framerate = 30, scalar_mapper=None):
         if vidout.isOpened():
             i = 0
             while (True):
-                frm = scalar_mapper.to_rgba(crop_vid[..., i]) * 255
-                vidout.write(cv2.cvtColor(frm[..., 0:3].astype("uint8"), cv2.COLOR_RGB2BGR))
+                frm = scalar_mapper.to_rgba(crop_vid[..., i],bytes=True)
+                vidout.write(cv2.cvtColor(frm[..., 0:3], cv2.COLOR_RGB2BGR))
 
                 i += 1
 

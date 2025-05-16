@@ -978,7 +978,7 @@ if __name__ == "__main__":
                                 stopping = ax_params.get(DisplayParams.CMAX, np.nanpercentile(stim_iORG_summary[q].flatten(), 99))
 
 
-                                normmap = mpl.colors.Normalize(vmin=starting, vmax=stopping)
+                                normmap = mpl.colors.Normalize(vmin=starting, vmax=stopping, clip=True)
                                 mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
                                                                norm=normmap)
 

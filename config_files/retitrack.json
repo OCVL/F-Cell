@@ -150,7 +150,7 @@
           "xmin": null,
           "xstep": null,
           "xmax": null,
-          "cmap": "plasma",
+          "cmap": "inferno",
           "legend": true
         }
       },
