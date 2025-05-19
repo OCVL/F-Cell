@@ -64,7 +64,7 @@ def load_metadata(metadata_params, ext_metadata):
 
     return meta_fields, metadata_path
 
-def parse_file_metadata(config_json_path, pName, group="processed"):
+def parse_file_metadata(config_json_path, pName, group=PreAnalysisPipeline.NAME):
     with open(config_json_path, 'r') as config_json_path:
         dat_form = json.load(config_json_path)
 
