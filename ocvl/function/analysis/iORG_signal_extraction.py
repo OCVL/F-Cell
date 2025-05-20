@@ -219,11 +219,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
         plt.waitforbuttonpress()
         plt.close()
 
-
-    summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
-                                                                     summary_method=sum_method,
-                                                                     window_size=sum_window)
-
     # If the user has a mask definition, then make sure we invalidate cells outside of it.
     mask_roi = analysis_params.get(PreAnalysisPipeline.MASK_ROI)
     if mask_roi is not None:
@@ -266,6 +261,10 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     # Wipe out the signals of the invalid signals.
     iORG_signals[~valid_signals, :] = np.nan
     print(Fore.YELLOW+str(np.sum(~valid_signals)) + "/" + str(valid_signals.shape[0]) + " query locations were removed from consideration.")
+
+    summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
+                                                                     summary_method=sum_method,
+                                                                     window_size=sum_window)
 
     return iORG_signals, summarized_iORG, query_status, query_loc
 

@@ -202,7 +202,7 @@ if __name__ == "__main__":
             else:
                 group_datasets = allData
 
-            group_datasets[AcquisiTags.STIM_PRESENT] = False
+            group_datasets.loc[:,AcquisiTags.STIM_PRESENT] = False
             reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
             query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
             only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
@@ -341,9 +341,14 @@ if __name__ == "__main__":
                                     seg_pixelwise = True  # Set this to true, if we find that query loc for this dataset is 0
 
                                     xm, ym = np.meshgrid(np.arange(dataset.video_data.shape[1]),
-                                                         np.arange(dataset.video_data.shape[0]), indexing="xy")
+                                                         np.arange(dataset.video_data.shape[0]))
 
-                                    dataset.query_loc.append(np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
+                                    xm = np.reshape(xm, (xm.size, 1))
+                                    ym = np.reshape(ym, (ym.size, 1))
+
+                                    allcoord_data = np.hstack((xm, ym))
+
+                                    dataset.query_loc.append(allcoord_data)
                                     dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in
                                                             dataset.query_loc]
                                     dataset.query_coord_paths.append(Path("All Pixels"))
@@ -981,7 +986,7 @@ if __name__ == "__main__":
 
                                 video_profiles= np.transpose(np.reshape(stim_iORG_summary[q], (stim_datasets[0].avg_image_data.shape[1],
                                                                                                      stim_datasets[0].avg_image_data.shape[0],
-                                                                                                     len(all_frmstmp))), axes=(1,0,2))
+                                                                                                     max_frmstamp + 1)), axes=(1,0,2))
                                 video_profiles[np.isnan(video_profiles)] = starting
                                 save_video(result_folder.joinpath("pooled_pixelpop_iORG_" + now_timestamp + ".avi"),
                                            video_profiles, float(pooled_framerate),
@@ -1067,6 +1072,7 @@ if __name__ == "__main__":
 
                     audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
                                        ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
+                                       PreAnalysisPipeline.NAME: preanalysis_dat_format,
                                        Analysis.NAME: analysis_dat_format}
 
                     with open(out_json, 'w') as f:
