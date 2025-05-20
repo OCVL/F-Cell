@@ -49,7 +49,7 @@
         "framestamps": "FrameStamps"
       }
     },
-    "recursive_search": true,
+    "recursive_search": false,
     "control": {
       "location": "folder",
       "folder_name": "control"
@@ -98,10 +98,10 @@
       },
       "gaus_blur": 0.0,
       "mask_roi": {
-        "r": 163,
-        "c": 104,
-        "width": 130,
-        "height": 106
+        "r": 0,
+        "c": 0,
+        "width": -1,
+        "height": -1
       }
     },
     "display_params": {

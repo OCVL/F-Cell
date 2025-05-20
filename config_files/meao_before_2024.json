@@ -53,7 +53,7 @@
         "framestamps": "FrameStamps"
       }
     },
-    "recursive_search": false,
+    "recursive_search": true,
     "control": {
       "location": "folder",
       "folder_name": "control"
@@ -94,7 +94,7 @@
         "method": "rms",
         "control": "subtraction",
         "metrics": {
-          "type": ["aur", "amp", "logamp", "amp_imp_time", "halfamp_imp_time", "rec_amp"],
+          "type": ["amp", "logamp", "amp_imp_time", "halfamp_imp_time"],
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],
