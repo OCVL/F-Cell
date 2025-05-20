@@ -349,8 +349,7 @@ if __name__ == "__main__":
                                     allcoord_data = np.hstack((xm, ym))
 
                                     dataset.query_loc.append(allcoord_data)
-                                    dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in
-                                                            dataset.query_loc]
+                                    dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
                                     dataset.query_coord_paths.append(Path("All Pixels"))
                                     dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
                                     dataset.iORG_signals = [None] * len(dataset.query_loc)
@@ -984,12 +983,13 @@ if __name__ == "__main__":
                                 mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
                                                                norm=normmap)
 
-                                video_profiles= np.transpose(np.reshape(stim_iORG_summary[q], (stim_datasets[0].avg_image_data.shape[1],
-                                                                                                     stim_datasets[0].avg_image_data.shape[0],
-                                                                                                     max_frmstamp + 1)), axes=(1,0,2))
-                                video_profiles[np.isnan(video_profiles)] = starting
+                                video_profiles = np.reshape(stim_iORG_summary[q], (stim_datasets[0].avg_image_data.shape[0],
+                                                                                         stim_datasets[0].avg_image_data.shape[1],
+                                                                                         -1), copy=True)
+
+                                video_profiles[np.isnan(video_profiles)] = 0
                                 save_video(result_folder.joinpath("pooled_pixelpop_iORG_" + now_timestamp + ".avi"),
-                                           video_profiles, float(pooled_framerate),
+                                           video_profiles, pooled_framerate.item(),
                                            scalar_mapper=mapper)
 
                             tryagain = True

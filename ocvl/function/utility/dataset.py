@@ -266,13 +266,25 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
                         queryloc_data.append(pd.read_csv(locpath, sep=None, header=None, encoding="utf-8-sig").to_numpy())
                     case "":
                         if locpath.name == "All Pixels":
-                            xm, ym = np.meshgrid(np.arange(video_data.shape[1]),np.arange(video_data.shape[0]), indexing="xy")
+                            xm, ym = np.meshgrid(np.arange(video_data.shape[1]),
+                                                 np.arange(video_data.shape[0]))
 
-                            queryloc_data.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
+                            xm = np.reshape(xm, (xm.size, 1))
+                            ym = np.reshape(ym, (ym.size, 1))
+
+                            allcoord_data = np.hstack((xm, ym))
+
+                            queryloc_data.append(allcoord_data)
             elif locpath.name == "All Pixels":
-                xm, ym = np.meshgrid(np.arange(video_data.shape[1]),np.arange(video_data.shape[0]), indexing="xy")
+                xm, ym = np.meshgrid(np.arange(video_data.shape[1]),
+                                     np.arange(video_data.shape[0]))
 
-                queryloc_data.append( np.column_stack((xm.flatten().astype(np.int16), ym.flatten().astype(np.int16))))
+                xm = np.reshape(xm, (xm.size, 1))
+                ym = np.reshape(ym, (ym.size, 1))
+
+                allcoord_data = np.hstack((xm, ym))
+
+                queryloc_data.append( allcoord_data)
             else:
                 warnings.warn("Query location path does not exist: "+str(locpath))
 
@@ -548,7 +560,9 @@ class Dataset:
 
             self.query_loc = []
             for queries in query_locations:
-                self.query_loc.append(np.unique(queries, axis=0))
+                _, idx = np.unique(queries, return_index=True, axis=0)
+
+                self.query_loc.append(queries[np.sort(idx)])
 
             self.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in query_locations]
             self.iORG_signals = [None] * len(query_locations)

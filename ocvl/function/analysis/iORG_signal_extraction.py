@@ -180,7 +180,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     crit_region = np.arange(excl_start_ind, excl_stop_ind)
 
 
-    iORG_signals, valid, excl_reason = exclude_signals(iORG_signals, dataset.framestamps,
+    iORG_signals, valid, excl_reason = exclude_signals(iORG_signals.copy(), dataset.framestamps,
                                                        critical_region=crit_region,
                                                        critical_fraction=excl_cutoff_fraction)
 
@@ -203,7 +203,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 
-    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals, dataset.framestamps, std_indices=std_ind,
+    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals.copy(), dataset.framestamps, std_indices=std_ind,
                                                            method=std_meth, pool=thread_pool)
 
     # Update our audit path.
