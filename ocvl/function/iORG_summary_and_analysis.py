@@ -896,19 +896,17 @@ if __name__ == "__main__":
                                     display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
 
                             print("Getting into single cell summary section")
+                            all_tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q]), axis=2), axis=0)
+
+                            all_query_status[folder][mode][q].loc[:, "Num Viable iORGs"] = all_tot_sig
+                            all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"] = all_tot_sig >= sum_params.get(SummaryParams.INDIV_CUTOFF, 5)
+
+
                             for c in range(stim_iORG_signals[q].shape[1]):
-                                tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q][:, c, :]), axis=1))
-                                idx = all_query_status[folder][mode][q].index[c]
-                                all_query_status[folder][mode][q].loc[idx, "Num Viable iORGs"] = tot_sig
-
-                                # If we have more signals than our cutoff, then continue with the summary.
-                                if tot_sig >= sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
-
-                                    all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = True
 
                                     cell_iORG_summary, _ = summarize_iORG_signals(stim_iORG_signals[q][:, c, :], all_frmstmp,
-                                                                                           summary_method=sum_method,
-                                                                                           window_size=sum_window)
+                                                                                  summary_method=sum_method,
+                                                                                  window_size=sum_window)
 
                                     # Calculate the relativized individual cell iORGs
                                     if sum_control == "subtraction" and control_datasets:
@@ -927,8 +925,7 @@ if __name__ == "__main__":
                                                                  all_frmstmp, control_pop_iORG_summary_pooled[q],
                                                                  stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                                  figure_label=overlap_label, params=indiv_overlap_params)
-                                else:
-                                    all_query_status[folder][mode][q].loc[idx, "Viable for single-cell summary?"] = False
+
                             print("Exiting single cell summary section")
 
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
