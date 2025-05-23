@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import SimpleITK as sitk
 from matplotlib import pyplot, pyplot as plt
+from scipy import ndimage
 from scipy.fft import next_fast_len, fft2, ifft2
 from scipy.ndimage import binary_erosion
 from scipy.signal import fftconvolve
@@ -12,39 +13,52 @@ from numpy.polynomial import Polynomial
 from ocvl.function.utility.resources import save_video, save_tiff_stack
 
 
-def flat_field_frame(dataframe, sigma, rescale=False):
+def flat_field_frame(dataframe, mask=None, sigma=31, rescale=False):
     kernelsize = 3 * sigma
     if (kernelsize % 2) == 0:
         kernelsize += 1
 
-    mask = np.ones(dataframe.shape, dtype=dataframe.dtype)
-    mask[dataframe == 0] = 0
+    dataframe = dataframe.astype("float32")
+    minval = np.nanmin(dataframe)
+    maxval = np.nanmax(dataframe)
 
-    dataframe[dataframe == 0] = 1
-    blurred_frame = cv2.GaussianBlur(dataframe.astype("float32"), (kernelsize, kernelsize),
+    if mask is None:
+        mask = np.ones(dataframe.shape, dtype=dataframe.dtype)
+        mask[dataframe == 0] = 0
+    else:
+        mask = mask.astype("float32")
+
+    mask = ndimage.binary_closing(mask, np.ones((5,5))).astype("float32")
+
+    #dataframe[dataframe == 0] = 0
+    dataframe[np.isnan(dataframe)] = 0
+
+    dataframe *= mask
+
+    blurred_frame = cv2.GaussianBlur(dataframe, (kernelsize, kernelsize),
                                      sigmaX=sigma, sigmaY=sigma)
-    flat_fielded = (dataframe.astype("float32") / blurred_frame)
+    blurred_mask = cv2.GaussianBlur(mask, (kernelsize, kernelsize),
+                                     sigmaX=sigma, sigmaY=sigma)
+    blurred_frame /= blurred_mask
 
+    blurred_frame /= np.nanmean(blurred_frame[:])
+
+    flat_fielded = (dataframe / blurred_frame)
+    flat_fielded[flat_fielded < minval] = minval
+    flat_fielded[flat_fielded > maxval] = maxval
+
+    mask[mask == 0] = np.nan
     flat_fielded *= mask
-
-    if rescale:
-        flat_fielded -= np.amin(flat_fielded)
-        flat_fielded = np.divide(flat_fielded, np.amax(flat_fielded), where=flat_fielded != 0)
-
-        if dataframe.dtype == "uint8":
-            flat_fielded *= 255
-        elif dataframe.dtype == "uint16":
-            flat_fielded *= 65535
 
     return flat_fielded
 
 
-def flat_field(dataset, sigma=31, rescale=False):
+def flat_field(dataset, mask=None, sigma=31, rescale=True):
 
     if len(dataset.shape) > 2:
         flat_fielded_dataset = np.zeros(dataset.shape)
         for i in range(dataset.shape[-1]):
-            flat_fielded_dataset[..., i] = flat_field_frame(dataset[..., i], sigma, rescale)
+            flat_fielded_dataset[..., i] = flat_field_frame(dataset[..., i].copy(), mask[..., i].copy(), sigma, rescale)
 
         return flat_fielded_dataset
     else:

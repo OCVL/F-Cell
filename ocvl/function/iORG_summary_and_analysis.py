@@ -14,11 +14,13 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 from datetime import datetime
 
+from scipy.ndimage import gaussian_filter
+
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
-from ocvl.function.preprocessing.improc import norm_video
+from ocvl.function.preprocessing.improc import norm_video, flat_field
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
     AcquisiTags, \
@@ -265,9 +267,16 @@ if __name__ == "__main__":
                         dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params, stage=Stages.ANALYSIS)
 
                         if dataset is not None:
-                            # Normalize the video to reduce the influence of framewide intensity changes
-                            dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method, rescaled=rescale_norm,
-                                                            rescale_mean=res_mean, rescale_std=res_stddev)
+                            # Flat field the video for analysis if desired.
+                            if analysis_params.get(PreAnalysisPipeline.FLAT_FIELD, False):
+                                dataset.video_data = flat_field(dataset.video_data, dataset.mask_data)
+
+                            # Gaussian blur the data first before analysis, if requested
+                            gausblur = analysis_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR, 0.0)
+                            if gausblur is not None and gausblur != 0.0:
+                                for f in range(dataset.video_data.shape[-1]):
+                                    dataset.video_data[..., f] = gaussian_filter(dataset.video_data[..., f], sigma=gausblur)
+
 
                             if output_norm_vid:
                                 if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
@@ -278,6 +287,11 @@ if __name__ == "__main__":
                                     result_folder.mkdir(parents=True, exist_ok=True)
 
                                 save_tiff_stack(result_folder.joinpath(dataset.video_path.stem+"_"+norm_method+"_norm.tif"), dataset.video_data)
+
+                            # Normalize the video to reduce the influence of framewide intensity changes
+                            dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
+                                                                rescaled=rescale_norm,
+                                                                rescale_mean=res_mean, rescale_std=res_stddev)
 
                             group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
 
@@ -987,7 +1001,7 @@ if __name__ == "__main__":
                                                                                          stim_datasets[0].avg_image_data.shape[1],
                                                                                          -1), copy=True)
 
-                                video_profiles[np.isnan(video_profiles)] = 0
+                                video_profiles[np.isnan(video_profiles)] = starting
                                 save_video(result_folder.joinpath("pooled_pixelpop_iORG_" + now_timestamp + ".avi"),
                                            video_profiles, pooled_framerate.item(),
                                            scalar_mapper=mapper)

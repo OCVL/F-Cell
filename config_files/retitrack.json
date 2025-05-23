@@ -30,8 +30,8 @@
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
-      "intra_stack_xform": "affine",
-      "inter_stack_xform": "affine",
+      "intra_stack_xform": "rigid",
+      "inter_stack_xform": "rigid",
       "flat_field": true,
       "custom": {
         "dewarp": "ocvl"
@@ -67,7 +67,7 @@
         "refine_to_ref": false,
         "refine_to_vid": false,
         "radius": 1,
-        "shape": "disk",
+        "shape": "box",
         "summary": "mean",
         "pixelwise": true
       },
@@ -86,7 +86,7 @@
       },
       "summary": {
         "method": "rms",
-        "control": "subtraction",
+        "control": "none",
         "metrics": {
           "type": ["amp", "logamp", "halfamp_imp_time"],
           "measured": "stim-relative",
@@ -96,6 +96,7 @@
         },
         "indiv_cutoff": 2
       },
+      "flat_field": true,
       "gaus_blur": 0.0,
       "mask_roi": {
         "r": 0,
@@ -105,6 +106,9 @@
       }
     },
     "display_params": {
+        "debug":{
+        "output_norm_video": false
+      },
       "pop_summary_overlap": {
         "stimulus": true,
         "control": true,
