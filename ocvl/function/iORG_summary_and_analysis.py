@@ -199,12 +199,13 @@ if __name__ == "__main__":
         # First break things down by group, defined by the user in the config file.
         # We like to use (LocX,LocY), but this is by no means the only way.
         for group in groups:
+
             if group != "":
                 group_datasets = allData.loc[allData[PreAnalysisPipeline.GROUP_BY] == group]
             else:
                 group_datasets = allData
 
-            group_datasets.loc[:,AcquisiTags.STIM_PRESENT] = False
+            group_datasets.loc[: ,AcquisiTags.STIM_PRESENT] = False
             reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
             query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
             only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
@@ -660,7 +661,9 @@ if __name__ == "__main__":
 
                         ''' *** Population iORG analyses here *** '''
                         for q in range(len(stim_dataset.query_loc)):
-                            all_query_status[folder][mode][q].loc[:, stim_vidnum] = stim_dataset.query_status[q]
+                            with warnings.catch_warnings():
+                                warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")
+                                all_query_status[folder][mode][q].loc[:, stim_vidnum] = stim_dataset.query_status[q]
 
                             stim_pop_summary = np.full((max_frmstamp + 1,), np.nan)
                             stim_pop_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
@@ -787,7 +790,7 @@ if __name__ == "__main__":
 
                         pooled_framerate = np.unique(pooled_framerate)
                         if len(pooled_framerate) != 1:
-                            warnings.warn("The framerate of the iORGs analyzed in "+folder.name + " is inconsistent! Pooled results may be incorrect.")
+                            warnings.warn("The framerate of the iORGs analyzed in "+folder.name + " is inconsistent: ("+str(pooled_framerate)+"). Pooled results may be incorrect.")
                             pooled_framerate = pooled_framerate[0]
 
                         stimtrain = np.unique(pd.DataFrame(stimtrain).values.astype(np.int32), axis=0)
@@ -900,8 +903,11 @@ if __name__ == "__main__":
                             all_tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q]), axis=2), axis=0)
                             viable_sig = all_tot_sig >= sum_params.get(SummaryParams.INDIV_CUTOFF, 5)
 
-                            all_query_status[folder][mode][q].loc[:, "Num Viable iORGs"] = all_tot_sig
-                            all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"] = viable_sig
+                            with warnings.catch_warnings():
+                                warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")
+
+                                all_query_status[folder][mode][q].loc[:, "Num Viable iORGs"] = all_tot_sig
+                                all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"] = viable_sig
 
                             # If they're not viable, nan them.
                             stim_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
@@ -934,19 +940,22 @@ if __name__ == "__main__":
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
                             res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool)
 
-                            for m, metric in enumerate(res):
-                                match m:
-                                    case 0: # amplitude
-                                        indiv_iORG_result[q].loc[:, MetricTags.AMPLITUDE] = metric
-                                        indiv_iORG_result[q].loc[:, MetricTags.LOG_AMPLITUDE] = np.log(metric)
-                                    case 1: # amp_implicit_time
-                                        indiv_iORG_result[q].loc[:, MetricTags.AMP_IMPLICIT_TIME] = metric
-                                    case 2: # halfamp_implicit_time
-                                        indiv_iORG_result[q].loc[:, MetricTags.HALFAMP_IMPLICIT_TIME] = metric
-                                    case 3: # aur
-                                        indiv_iORG_result[q].loc[:, MetricTags.AUR] = metric
-                                    case 4: # recovery
-                                        indiv_iORG_result[q].loc[:, MetricTags.RECOVERY_PERCENT] = metric
+                            with warnings.catch_warnings():
+                                warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")
+
+                                for m, metric in enumerate(res):
+                                    match m:
+                                        case 0: # amplitude
+                                            indiv_iORG_result[q].loc[:, MetricTags.AMPLITUDE] = metric
+                                            indiv_iORG_result[q].loc[:, MetricTags.LOG_AMPLITUDE] = np.log(metric)
+                                        case 1: # amp_implicit_time
+                                            indiv_iORG_result[q].loc[:, MetricTags.AMP_IMPLICIT_TIME] = metric
+                                        case 2: # halfamp_implicit_time
+                                            indiv_iORG_result[q].loc[:, MetricTags.HALFAMP_IMPLICIT_TIME] = metric
+                                        case 3: # aur
+                                            indiv_iORG_result[q].loc[:, MetricTags.AUR] = metric
+                                        case 4: # recovery
+                                            indiv_iORG_result[q].loc[:, MetricTags.RECOVERY_PERCENT] = metric
 
                             if indiv_overlap_params:
                                 plt.show(block=False)

@@ -520,6 +520,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
         # Find the indexes of the framestamps corresponding to our pre and post stim frames;
         prestim_window_idx = np.flatnonzero(np.isin(framestamps, desired_prestim_frms))
