@@ -16,6 +16,7 @@
 import datetime
 import json
 import os
+import sys
 from itertools import repeat
 from logging import warning
 from pathlib import Path, PurePath
@@ -45,6 +46,8 @@ from ocvl.function.utility.resources import save_video
 # https://mathematica.stackexchange.com/questions/199928/removing-horizontal-noise-artefacts-from-a-sem-image
 
 if __name__ == "__main__":
+    mp.freeze_support()
+
 
     dt = datetime.datetime.now()
     now_timestamp = dt.strftime("%Y%m%d_%H")
@@ -67,14 +70,14 @@ if __name__ == "__main__":
     while allData.empty:
         pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
         if not pName:
-            quit()
+            sys.exit(1)
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
 
         json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
         if not json_fName:
-            quit()
+            sys.exit(2)
 
         # Grab all the folders/data here.
         dat_form, allData = parse_file_metadata(json_fName, pName, PreAnalysisPipeline.NAME)
@@ -82,7 +85,7 @@ if __name__ == "__main__":
         if allData.empty:
             tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
             if not tryagain:
-                quit()
+                sys.exit(3)
 
     with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
 

@@ -1,6 +1,7 @@
 import json
 import os
 import multiprocessing as mp
+import sys
 import warnings
 from itertools import repeat
 from pathlib import Path, PurePath
@@ -29,6 +30,8 @@ from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, Met
 from ocvl.function.utility.resources import save_tiff_stack, save_video
 
 if __name__ == "__main__":
+    mp.freeze_support()
+
 
     mpl.rcParams['lines.linewidth'] = 2.5
 
@@ -51,14 +54,14 @@ if __name__ == "__main__":
     while allData.empty:
         pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
         if not pName:
-            quit()
+            sys.exit(1)
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
 
         json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
         if not json_fName:
-            quit()
+            sys.exit(2)
 
         # Grab all the folders/data here.
         dat_form, allData = parse_file_metadata(json_fName, pName, Analysis.NAME)
@@ -66,7 +69,7 @@ if __name__ == "__main__":
         if allData.empty:
             tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
             if not tryagain:
-                quit()
+                sys.exit(3)
 
     x = root.winfo_screenwidth() / 2 - 128
     y = root.winfo_screenheight() / 2 - 128
@@ -463,12 +466,15 @@ if __name__ == "__main__":
                 pop_iORG_result_datframe = []
                 indiv_iORG_result_datframe = []
 
+                #print("This folder:"+str(folder))
                 if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
                     result_folder = folder.joinpath(output_folder, output_dt_subfolder)
                     result_folder.mkdir(parents=True, exist_ok=True)
                 else:
                     result_folder = folder.joinpath(output_folder)
                     result_folder.mkdir(parents=True,exist_ok=True)
+
+                #print("Result folder:" +str(result_folder))
 
                 # Load each modality
                 for mode in modes_of_interest:
