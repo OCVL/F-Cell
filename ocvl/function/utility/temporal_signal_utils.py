@@ -9,11 +9,6 @@ from sklearn import linear_model
 from pynufft import NUFFT
 
 
-def trim_video(video_data, framestamps, new_max_framestamp):
-
-    wheregood = np.where(framestamps <= new_max_framestamp)
-
-    return np.squeeze(video_data[:, :, wheregood]), framestamps[wheregood]
 
 def densify_temporal_matrix(temporal_profiles, framestamps, max_framestamp=None, value=np.nan):
     """
@@ -28,7 +23,6 @@ def densify_temporal_matrix(temporal_profiles, framestamps, max_framestamp=None,
 
     :return: The dense temporal profile matrix, where missing data is filled with "np.nan"s
     """
-
 
     if max_framestamp is None:
         max_framestamp = np.max(framestamps)+1

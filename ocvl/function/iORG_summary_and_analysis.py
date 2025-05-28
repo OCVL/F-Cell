@@ -647,8 +647,10 @@ if __name__ == "__main__":
                                     for r in range(control_pop_iORG_summary[q].shape[0]):
                                         control_framestamps[q].append(np.flatnonzero(np.isfinite(control_pop_iORG_summaries[r, :])))
 
-                                    control_pop_iORG_summary_pooled[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
-                                                                                   axis=0) / np.nansum(control_pop_iORG_N, axis=0)
+                                    with warnings.catch_warnings():
+                                        warnings.filterwarnings(action="ignore", message="invalid value encountered in divide")
+                                        control_pop_iORG_summary_pooled[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
+                                                                                       axis=0) / np.nansum(control_pop_iORG_N, axis=0)
                                     control_framestamps_pooled[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary_pooled[q]))
 
 
@@ -895,38 +897,39 @@ if __name__ == "__main__":
                                     overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
                                     display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
 
-                            print("Getting into single cell summary section")
                             all_tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q]), axis=2), axis=0)
+                            viable_sig = all_tot_sig >= sum_params.get(SummaryParams.INDIV_CUTOFF, 5)
 
                             all_query_status[folder][mode][q].loc[:, "Num Viable iORGs"] = all_tot_sig
-                            all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"] = all_tot_sig >= sum_params.get(SummaryParams.INDIV_CUTOFF, 5)
+                            all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"] = viable_sig
 
+                            # If they're not viable, nan them.
+                            stim_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
 
-                            for c in range(stim_iORG_signals[q].shape[1]):
+                            allcell_iORG_summary, _ = summarize_iORG_signals(stim_iORG_signals[q], all_frmstmp,
+                                                                          summary_method=sum_method,
+                                                                          window_size=sum_window,
+                                                                          pool=the_pool)
 
-                                    cell_iORG_summary, _ = summarize_iORG_signals(stim_iORG_signals[q][:, c, :], all_frmstmp,
-                                                                                  summary_method=sum_method,
-                                                                                  window_size=sum_window)
+                            # Calculate the relativized individual cell iORGs
+                            if sum_control == "subtraction" and control_datasets:
+                                stim_iORG_summary[q] = allcell_iORG_summary - np.repeat(control_pop_iORG_summary_pooled[q][None, :], allcell_iORG_summary.shape[0], axis=0)
+                            elif sum_control == "division" and control_datasets:
+                                stim_iORG_summary[q] = allcell_iORG_summary / np.repeat(control_pop_iORG_summary_pooled[q][None, :], allcell_iORG_summary.shape[0], axis=0)
+                            else:
+                                stim_iORG_summary[q] = allcell_iORG_summary
 
-                                    # Calculate the relativized individual cell iORGs
-                                    if sum_control == "subtraction" and control_datasets:
-                                        stim_iORG_summary[q][c, :] = cell_iORG_summary - control_pop_iORG_summary_pooled[q]
-                                    elif sum_control == "division" and control_datasets:
-                                        stim_iORG_summary[q][c, :] = cell_iORG_summary / control_pop_iORG_summary_pooled[q]
-                                    else:
-                                        stim_iORG_summary[q][c, :] = cell_iORG_summary
+                            ''' *** Display individual iORG summaries  *** '''
+                            if indiv_overlap_params:
+                                if indiv_overlap_params.get(DisplayParams.DISP_STIMULUS, False) or \
+                                        indiv_overlap_params.get(DisplayParams.DISP_CONTROL, False) or \
+                                        indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, False):
 
-                                    ''' *** Display individual iORG summaries  *** '''
-                                    if indiv_overlap_params:
-                                        if indiv_overlap_params.get(DisplayParams.DISP_STIMULUS, False) or \
-                                                indiv_overlap_params.get(DisplayParams.DISP_CONTROL, False) or \
-                                                indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, False):
-                                            display_iORG_pop_summary(all_frmstmp, cell_iORG_summary, stim_iORG_summary[q][c, :], None,
-                                                                 all_frmstmp, control_pop_iORG_summary_pooled[q],
-                                                                 stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
-                                                                 figure_label=overlap_label, params=indiv_overlap_params)
-
-                            print("Exiting single cell summary section")
+                                    for c in range(stim_iORG_signals[q].shape[1]):
+                                        display_iORG_pop_summary(all_frmstmp, allcell_iORG_summary[c, :], stim_iORG_summary[q][c, :], None,
+                                                             all_frmstmp, control_pop_iORG_summary_pooled[q],
+                                                             stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
+                                                             figure_label=overlap_label, params=indiv_overlap_params)
 
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
                             res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool)

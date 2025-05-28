@@ -39,7 +39,10 @@ def flat_field_frame(dataframe, mask=None, sigma=31, rescale=False):
                                      sigmaX=sigma, sigmaY=sigma)
     blurred_mask = cv2.GaussianBlur(mask, (kernelsize, kernelsize),
                                      sigmaX=sigma, sigmaY=sigma)
-    blurred_frame /= blurred_mask
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="invalid value encountered in divide")
+
+        blurred_frame /= blurred_mask
 
     blurred_frame /= np.nanmean(blurred_frame[:])
 

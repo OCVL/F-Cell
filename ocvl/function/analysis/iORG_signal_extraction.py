@@ -264,7 +264,8 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
                                                                      summary_method=sum_method,
-                                                                     window_size=sum_window)
+                                                                     window_size=sum_window,
+                                                                     pool=thread_pool)
 
     return iORG_signals, summarized_iORG, query_status, query_loc
 
@@ -375,6 +376,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     :param summary: the method used to summarize the area inside the segmentation radius. Default: "mean",
                     Options: "mean", "median"
     :param sigma: Precede extraction with a per-frame Gaussian filter of a supplied sigma. If none, no filtering is applied.
+    :param pool: A multiprocessing pool object. Default: None
 
     :return: an NxM numpy matrix with N cells and M temporal samples of some signal.
     """
@@ -693,6 +695,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                     subtracted data. This was used in Cooper et al 2017/2020.
                     Current options include: "linear_std", "linear_vast", "relative_change", and "mean_sub"
     :param critical_fraction: The fraction of real values required to consider the signal valid.
+    :param pool: A multiprocessing pool object. Default: None
 
     :return: a NxM numpy matrix of standardized temporal profiles
     """
