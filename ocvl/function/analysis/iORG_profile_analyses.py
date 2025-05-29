@@ -720,6 +720,8 @@ def _interp_implicit(params):
 
     finite_iORG = np.isfinite(temporal_signals[i, :])
     if np.any(finite_iORG):
+        valid_auc = True
+
         finite_data = temporal_signals[i, finite_iORG]
         finite_frms = framestamps[finite_iORG]
 
@@ -728,16 +730,22 @@ def _interp_implicit(params):
         if not np.any(finite_frms == desired_poststim_frms[-1]):
             inter_val = np.interp(desired_poststim_frms[-1], finite_frms, finite_data)
             # Find where to insert the interpolant and its framestamp
-            next_highest = np.argmax(finite_frms > desired_poststim_frms[-1])
-            finite_data = np.insert(finite_data, next_highest, inter_val)
-            finite_frms = np.insert(finite_frms, next_highest, desired_poststim_frms[-1])
+            if np.any(finite_frms > desired_poststim_frms[-1]):
+                next_highest = np.argmax(finite_frms > desired_poststim_frms[-1])
+                finite_data = np.insert(finite_data, next_highest, inter_val)
+                finite_frms = np.insert(finite_frms, next_highest, desired_poststim_frms[-1])
+            else: # If we don't have any data past the desired_poststim_frm, we can't analyze auc.
+                valid_auc=False
 
         poststim_window_idx = np.flatnonzero(np.isin(finite_frms, desired_poststim_frms))
 
         finite_data = finite_data[poststim_window_idx]
         finite_frms = finite_frms[poststim_window_idx]
 
-        auc = np.trapezoid(finite_data, x=finite_frms / framerate)
+        if valid_auc:
+            auc = np.trapezoid(finite_data, x=finite_frms / framerate)
+        else:
+            auc = np.nan
 
         amp_val_interp = Akima1DInterpolator(finite_frms, finite_data - poststim_val, method="makima")
         halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
