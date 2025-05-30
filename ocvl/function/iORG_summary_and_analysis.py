@@ -93,36 +93,6 @@ if __name__ == "__main__":
     display_params = analysis_dat_format.get(DisplayParams.NAME)
     modes_of_interest = analysis_params.get(PreAnalysisPipeline.MODALITIES)
 
-    if 'IDnum' in allData:
-        subject_IDs = allData['IDnum'].unique()
-
-        if np.size(subject_IDs) > 1:
-            warnings.warn("MORE THAN 1 SUBJECT ID DETECTED!! Labeling outputs with first ID")
-    else:
-        warnings.warn("NO SUBJECT ID FIELD DETECTED IN allData! Labeling outputs with dummy subject ID")
-        subject_IDs = [''] #Trying empty subject ID
-
-
-    metadata_params = None
-    if analysis_dat_format.get(MetaTags.METATAG) is not None:
-        metadata_params = analysis_dat_format.get(MetaTags.METATAG)
-        metadata_form = metadata_params.get(DataFormatType.METADATA)
-
-    # If we've selected modalities of interest, only process those; otherwise, process them all.
-    if modes_of_interest is None:
-        modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
-        print("NO MODALITIES SELECTED! Processing all....")
-
-    grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
-    if grouping is not None:
-        for row in allData.itertuples():
-            #print(grouping.format_map(row._asdict()))
-            allData.loc[row.Index, PreAnalysisPipeline.GROUP_BY] = grouping.format_map(row._asdict())
-
-        groups = allData[PreAnalysisPipeline.GROUP_BY].unique().tolist()
-    else:
-        groups = [""]  # If we don't have any groups, then just make the list an empty string.
-
     norm_params = analysis_params.get(NormParams.NAME, dict())
     norm_method = norm_params.get(NormParams.NORM_METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
     rescale_norm = norm_params.get(NormParams.NORM_RESCALE, True)  # Default: Rescales the data back into AU to make results easier to interpret
@@ -176,6 +146,36 @@ if __name__ == "__main__":
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
     output_norm_vid = debug_params.get(DebugParams.OUTPUT_NORM_VIDEO, False)
 
+    # Extract all of the unique values that we'll be iterating over for the analyses.
+    if DataTags.DATA_ID in allData:
+        subject_IDs = allData[DataTags.DATA_ID].unique()
+
+        if np.size(subject_IDs) > 1:
+            warnings.warn("MORE THAN 1 SUBJECT ID DETECTED!! Labeling outputs with first ID")
+    else:
+        warnings.warn("NO SUBJECT ID FIELD DETECTED IN allData! Labeling outputs with dummy subject ID")
+        subject_IDs = [''] #Trying empty subject ID
+
+
+    metadata_params = None
+    if analysis_dat_format.get(MetaTags.METATAG) is not None:
+        metadata_params = analysis_dat_format.get(MetaTags.METATAG)
+        metadata_form = metadata_params.get(DataFormatType.METADATA)
+
+    # If we've selected modalities of interest, only process those; otherwise, process them all.
+    if modes_of_interest is None:
+        modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
+        print("NO MODALITIES SELECTED! Processing all....")
+
+    grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
+    if grouping is not None:
+        for row in allData.itertuples():
+            #print(grouping.format_map(row._asdict()))
+            allData.loc[row.Index, PreAnalysisPipeline.GROUP_BY] = grouping.format_map(row._asdict())
+
+        groups = allData[PreAnalysisPipeline.GROUP_BY].unique().tolist()
+    else:
+        groups = [""]  # If we don't have any groups, then just make the list an empty string.
 
     output_folder = analysis_params.get(Analysis.OUTPUT_FOLDER)
     if output_folder is None:
@@ -195,29 +195,38 @@ if __name__ == "__main__":
 
 
     with (mp.Pool(processes=mp.cpu_count() // 2) as the_pool):
-
         # First break things down by group, defined by the user in the config file.
         # We like to use (LocX,LocY), but this is by no means the only way.
         for group in groups:
 
-            if group != "":
-                group_datasets = allData.loc[allData[PreAnalysisPipeline.GROUP_BY] == group]
-            else:
-                group_datasets = allData
+            group_mask = allData[PreAnalysisPipeline.GROUP_BY] == group
 
-            group_datasets.loc[: ,AcquisiTags.STIM_PRESENT] = False
-            reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
-            query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
-            only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+            allData.loc[group_mask, AcquisiTags.STIM_PRESENT] = False
+            reference_images = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE
+            query_locations = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
+            only_vids = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
 
             # While we're going to process by group, respect the folder structure used by the user here, and only group
             # and analyze things from the same folder
-            folder_groups = pd.unique(group_datasets[AcquisiTags.BASE_PATH]).tolist()
-
+            folder_groups = pd.unique(allData.loc[group_mask, AcquisiTags.BASE_PATH]).tolist()
 
             # Use a nested dictionary to track the query status of all query locations; these will later be used
             # in conjuction with status tracked at the dataset level.
             all_query_status = dict()
+            display_dict = {}  # A dictionary to store our figure labels and associated filenames for easy saving later.
+
+            # Find the control data, if any, in this group, and load it.
+            if control_loc == "folder" and control_folder in folder_groups:
+                control_folder_mask = allData[AcquisiTags.BASE_PATH] == control_folder
+                slice_of_life = group_mask & folder_mask
+                data_vidnums = np.sort(allData.loc[slice_of_life & only_vids, DataTags.VIDEO_ID].unique()).tolist()
+
+                for v, vidnum in enumerate(data_vidnums):
+                    this_vid = (allData[DataTags.VIDEO_ID] == vidnum)
+                    slice_of_life = group_mask & folder_mask & (this_vid | (reference_images | query_locations))
+
+
+
 
             # Respect the users' folder structure. If things are in different folders, analyze them separately.
             for folder in folder_groups:
@@ -225,22 +234,40 @@ if __name__ == "__main__":
                 if folder.name == output_folder.name:
                     continue
 
-                folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
-
-                data_in_folder = group_datasets.loc[folder_mask]
+                folder_mask = allData[AcquisiTags.BASE_PATH] == folder
+                slice_of_life = group_mask & folder_mask
 
                 all_query_status[folder] = dict()
 
+                if control_loc == "folder" and folder.name == control_folder:
+                    # If we're in the control folder, then we're a control video- and we shouldn't extract
+                    # any iORGs until later as our stimulus deliveries may vary.
+                    allData.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = False
+                else:
+                    allData.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = True
+
+                if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
+                    result_folder = folder.joinpath(output_folder, output_dt_subfolder)
+                    result_folder.mkdir(parents=True, exist_ok=True)
+                else:
+                    result_folder = folder.joinpath(output_folder)
+                    result_folder.mkdir(parents=True,exist_ok=True)
+
+                pop_iORG_result_datframe = []
+                indiv_iORG_result_datframe = []
+
                 # Load each modality
                 for mode in modes_of_interest:
-                    this_mode = (group_datasets[DataTags.MODALITY] == mode)
-                    slice_of_life = folder_mask & this_mode
+                    this_mode = (allData[DataTags.MODALITY] == mode)
 
-                    data_vidnums = group_datasets.loc[slice_of_life & only_vids, DataTags.VIDEO_ID].unique().tolist()
+                    slice_of_life = group_mask & folder_mask & this_mode
+                    has_stim = allData.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT]
+
+                    data_vidnums = np.sort(allData.loc[slice_of_life & only_vids, DataTags.VIDEO_ID].unique()).tolist()
 
                     # Make data storage structures for each of our query location lists for checking which query points went into our analysis.
-                    if not group_datasets.loc[slice_of_life & query_locations].empty:
-                        query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
+                    if not allData.loc[slice_of_life & query_locations].empty:
+                        query_loc_names = allData.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
                         for q, query_loc_name in enumerate(query_loc_names):
                             if len(query_loc_name) == 0:
                                 query_loc_names[q] = " "
@@ -248,6 +275,7 @@ if __name__ == "__main__":
                                 query_loc_names[q] = query_loc_name.strip('_- ')
                     else:
                         query_loc_names = []
+
 
                     first = True
                     # If we detected query locations, then initialize this folder and mode with their metadata.
@@ -257,27 +285,25 @@ if __name__ == "__main__":
                     # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
                     for v, vidnum in enumerate(data_vidnums):
 
-                        this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
+                        this_vid = (allData[DataTags.VIDEO_ID] == vidnum)
 
                         # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
-                        slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+                        slice_of_life = group_mask & folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
                         pb["value"] = v
 
                         # Actually load the dataset, and all its metadata.
-                        dataset = initialize_and_load_dataset(group_datasets.loc[slice_of_life], metadata_params, stage=Stages.ANALYSIS)
+                        dataset = initialize_and_load_dataset(allData.loc[slice_of_life], metadata_params, stage=Stages.ANALYSIS)
 
                         if dataset is not None:
                             # Flat field the video for analysis if desired.
-                            if analysis_params.get(PreAnalysisPipeline.FLAT_FIELD, False):
+                            if analysis_params.get(Analysis.FLAT_FIELD, False):
                                 dataset.video_data = flat_field(dataset.video_data, dataset.mask_data)
 
-                            # Gaussian blur the data first before analysis, if requested
-                            gausblur = analysis_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR, 0.0)
-                            if gausblur is not None and gausblur != 0.0:
-                                for f in range(dataset.video_data.shape[-1]):
-                                    dataset.video_data[..., f] = gaussian_filter(dataset.video_data[..., f], sigma=gausblur)
-
+                            # Normalize the video to reduce the influence of framewide intensity changes
+                            dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
+                                                                rescaled=rescale_norm,
+                                                                rescale_mean=res_mean, rescale_std=res_stddev)
 
                             if output_norm_vid:
                                 if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
@@ -289,38 +315,34 @@ if __name__ == "__main__":
 
                                 save_tiff_stack(result_folder.joinpath(dataset.video_path.stem+"_"+norm_method+"_norm.tif"), dataset.video_data)
 
-                            # Normalize the video to reduce the influence of framewide intensity changes
-                            dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
-                                                                rescaled=rescale_norm,
-                                                                rescale_mean=res_mean, rescale_std=res_stddev)
-
-                            group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
+                            allData.loc[slice_of_life & only_vids, AcquisiTags.DATASET] = dataset
 
                             # If we didn't find an average image in our database, but were able to automagically detect or make one,
                             # Then add the automagically detected one to our database.
-                            if group_datasets.loc[slice_of_life & reference_images].empty and dataset.avg_image_data is not None:
-                                base_entry = group_datasets[slice_of_life & only_vids].copy()
+                            if allData.loc[slice_of_life & reference_images].empty and dataset.avg_image_data is not None:
+
+                                base_entry = allData[slice_of_life & only_vids].copy()
                                 base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.IMAGE
                                 base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.image_path
                                 base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
                                 # Update the database, and update all of our logical indices
-                                group_datasets = pd.concat([group_datasets, base_entry], ignore_index=True)
+                                allData = pd.concat([allData, base_entry], ignore_index=True)
 
-                                reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
-                                query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
-                                only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
-                                this_mode = (group_datasets[DataTags.MODALITY] == mode)
-                                folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
-                                this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
-                                slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+                                reference_images = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+                                query_locations = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+                                only_vids = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+                                this_mode = (allData[DataTags.MODALITY] == mode)
+                                folder_mask = (allData[AcquisiTags.BASE_PATH] == folder)
+                                this_vid = (allData[DataTags.VIDEO_ID] == vidnum)
+                                slice_of_life = group_mask & folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
 
                             # Check to see if our dataset's number of query locations matches the ones we thought we found
                             # (can happen if the query location format doesn't match, but dataset was able to find a candidate)
                             if len(all_query_status[folder][mode]) < len(dataset.query_loc):
                                 # If we have too few, then tack on some extra dataframes so we can track these found query locations, and add them to our database, using the dataset as a basis.
-                                base_entry = group_datasets[slice_of_life & only_vids].copy()
+                                base_entry = allData[slice_of_life & only_vids].copy()
                                 base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
                                 base_entry.loc[0, AcquisiTags.DATASET] = None
 
@@ -329,65 +351,56 @@ if __name__ == "__main__":
                                     base_entry.loc[0,DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
 
                                     # Update the database, and update all of our logical indices
-                                    group_datasets = pd.concat([group_datasets, base_entry], ignore_index=True)
+                                    allData = pd.concat([allData, base_entry], ignore_index=True)
 
-                                    reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
-                                    query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
-                                    only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
-                                    this_mode = (group_datasets[DataTags.MODALITY] == mode)
-                                    folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
-                                    this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
-                                    slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+                                    reference_images = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+                                    query_locations = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+                                    only_vids = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+                                    this_mode = (allData[DataTags.MODALITY] == mode)
+                                    folder_mask = (allData[AcquisiTags.BASE_PATH] == folder)
+                                    this_vid = (allData[DataTags.VIDEO_ID] == vidnum)
+                                    slice_of_life = group_mask & folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
-                                    all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
+                                    all_query_status[folder][mode].append(pd.DataFrame(columns=stim_data_vidnums))
                                     query_loc_names.append(base_entry.loc[0,DataTags.QUERYLOC])
 
-                            if control_loc == "folder" and folder.name == control_folder:
-                                # If we're in the control folder, then we're a control video- and we shouldn't extract
-                                # any iORGs until later as our stimulus deliveries may vary.
-                                group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = False
+                            # If we can't find any query locations, or if we just want it, default to querying all pixels.
+                            if (len(dataset.query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset.query_coord_paths:
+                                seg_pixelwise = True  # Set this to true, if we find that query loc for this dataset is 0
 
-                                continue
-                            else:
-                                group_datasets.loc[slice_of_life & only_vids, AcquisiTags.STIM_PRESENT] = len(dataset.stimtrain_frame_stamps) > 1
+                                xm, ym = np.meshgrid(np.arange(dataset.video_data.shape[1]),
+                                                     np.arange(dataset.video_data.shape[0]))
 
-                                # If we can't find any query locations, or if we just want it, default to querying all pixels.
-                                if (len(dataset.query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset.query_coord_paths:
-                                    seg_pixelwise = True  # Set this to true, if we find that query loc for this dataset is 0
+                                xm = np.reshape(xm, (xm.size, 1))
+                                ym = np.reshape(ym, (ym.size, 1))
 
-                                    xm, ym = np.meshgrid(np.arange(dataset.video_data.shape[1]),
-                                                         np.arange(dataset.video_data.shape[0]))
+                                allcoord_data = np.hstack((xm, ym))
 
-                                    xm = np.reshape(xm, (xm.size, 1))
-                                    ym = np.reshape(ym, (ym.size, 1))
+                                dataset.query_loc.append(allcoord_data)
+                                dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
+                                dataset.query_coord_paths.append(Path("All Pixels"))
+                                dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
+                                dataset.iORG_signals = [None] * len(dataset.query_loc)
+                                dataset.summarized_iORGs = [None] * len(dataset.query_loc)
 
-                                    allcoord_data = np.hstack((xm, ym))
+                                all_query_status[folder][mode].append(pd.DataFrame(columns=stim_data_vidnums))
+                                query_loc_names.append(dataset.query_coord_paths[-1].name)
 
-                                    dataset.query_loc.append(allcoord_data)
-                                    dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
-                                    dataset.query_coord_paths.append(Path("All Pixels"))
-                                    dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
-                                    dataset.iORG_signals = [None] * len(dataset.query_loc)
-                                    dataset.summarized_iORGs = [None] * len(dataset.query_loc)
+                                base_entry = allData[slice_of_life & only_vids].copy()
+                                base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
+                                base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
+                                base_entry.loc[0, DataTags.QUERYLOC] = "All Pixels"
+                                base_entry.loc[0, AcquisiTags.DATASET] = None
 
-                                    all_query_status[folder][mode].append(pd.DataFrame(columns=data_vidnums))
-                                    query_loc_names.append(dataset.query_coord_paths[-1].name)
-
-                                    base_entry = group_datasets[slice_of_life & only_vids].copy()
-                                    base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
-                                    base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
-                                    base_entry.loc[0, DataTags.QUERYLOC] = "All Pixels"
-                                    base_entry.loc[0, AcquisiTags.DATASET] = None
-
-                                    # Update the database, and update all of our logical indices
-                                    group_datasets = pd.concat([group_datasets, base_entry], ignore_index=True)
-                                    reference_images = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
-                                    query_locations = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
-                                    only_vids = (group_datasets[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
-                                    this_mode = (group_datasets[DataTags.MODALITY] == mode)
-                                    folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
-                                    this_vid = (group_datasets[DataTags.VIDEO_ID] == vidnum)
-                                    slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+                                # Update the database, and update all of our logical indices
+                                allData = pd.concat([allData, base_entry], ignore_index=True)
+                                reference_images = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE)
+                                query_locations = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC)
+                                only_vids = (allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO)
+                                this_mode = (allData[DataTags.MODALITY] == mode)
+                                folder_mask = (allData[AcquisiTags.BASE_PATH] == folder)
+                                this_vid = (allData[DataTags.VIDEO_ID] == vidnum)
+                                slice_of_life = group_mask & folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
                         else:
                             for q in range(len(all_query_status[folder][mode])):
@@ -416,30 +429,6 @@ if __name__ == "__main__":
                                                                                    query_loc_name=query_loc_names[q],
                                                                                    thread_pool=the_pool)
 
-                            # figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
-                            # plt.figure(figure_label)
-                            # display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = figure_label
-                            #
-                            # plt.title(figure_label)
-                            # plt.imshow(dataset.avg_image_data, cmap='gray')
-                            # viability = all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"]
-                            #
-                            # viable = []
-                            # nonviable = []
-                            # for coords, viability in viability.items():
-                            #     if viability:
-                            #         viable.append(coords)
-                            #     else:
-                            #         nonviable.append(coords)
-                            #
-                            # viable = np.array(viable)
-                            # nonviable = np.array(nonviable)
-                            # if viable.size > 0:
-                            #     plt.scatter(viable[:, 0], viable[:, 1], s=7, c="c")
-                            # if nonviable.size >0:
-                            #     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
-                            # plt.show(block=False)
-                            # plt.waitforbuttonpress()
 
                             # If this is the first time a video of this mode and this folder is loaded, then initialize the query status dataframe
                             # Such that each row corresponds to the original coordinate locations based on the reference image.
@@ -453,55 +442,20 @@ if __name__ == "__main__":
                         # Once we've extracted the iORG signals, remove the video and mask data as it's likely to have a large memory footprint.
                         dataset.clear_video_data()
 
-            # If desired, make the summarized iORG relative to controls in some way.
-            # Control data is expected to be applied to the WHOLE group.
-            for folder in folder_groups:
+                    slice_of_life = group_mask & folder_mask & this_mode
+                    stim_datasets = allData.loc[slice_of_life & only_vids & has_stim, AcquisiTags.DATASET].tolist()
+                    control_datasets = allData.loc[group_mask & this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
+                    stim_data_vidnums = np.sort(allData.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique()).tolist()
+                    control_data_vidnums = np.sort(allData.loc[group_mask & this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
 
-                folder_mask = (group_datasets[AcquisiTags.BASE_PATH] == folder)
-
-                data_in_folder = group_datasets.loc[folder_mask]
-                pop_iORG_result_datframe = []
-                indiv_iORG_result_datframe = []
-
-                if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
-                    result_folder = folder.joinpath(output_folder, output_dt_subfolder)
-                    result_folder.mkdir(parents=True, exist_ok=True)
-                else:
-                    result_folder = folder.joinpath(output_folder)
-                    result_folder.mkdir(parents=True,exist_ok=True)
-
-                # Load each modality
-                for mode in modes_of_interest:
-                    this_mode = (group_datasets[DataTags.MODALITY] == mode)
-                    slice_of_life = folder_mask & this_mode
-
-                    has_stim = (group_datasets[AcquisiTags.STIM_PRESENT])
-
-                    stim_data_vidnums = np.sort(group_datasets.loc[slice_of_life & only_vids & has_stim, DataTags.VIDEO_ID].unique()).tolist()
-                    stim_datasets = group_datasets.loc[slice_of_life & only_vids & has_stim, AcquisiTags.DATASET].tolist()
-                    control_data_vidnums = np.sort(group_datasets.loc[this_mode & only_vids & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
-                    control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
 
                     if not stim_datasets:
                         continue
-
-                    # Make data storage structures for our results.
-                    if not group_datasets.loc[slice_of_life & query_locations].empty:
-                        query_loc_names = group_datasets.loc[slice_of_life & query_locations, DataTags.QUERYLOC].unique().tolist()
-                        for q, query_loc_name in enumerate(query_loc_names):
-                            if len(query_loc_name) == 0:
-                                query_loc_names[q] = " "
-                            else:
-                                query_loc_names[q] = query_loc_name.strip('_- ')
-                    else:
-                        query_loc_names = []
 
                     result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                     pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
                     pb["maximum"] = len(stim_data_vidnums)
-                    display_dict = {} # A dictionary to store our figure labels and associated filenames for easy saving later.
-
 
                     # Determine if all stimulus data in this folder and mode has the same form and contents;
                     # if so, we can just process the control data *one* time, saving a lot of time.
@@ -557,18 +511,16 @@ if __name__ == "__main__":
 
                         control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & query_locations).sum())]
 
-                        this_vid = (group_datasets[DataTags.VIDEO_ID] == stim_vidnum)
+                        this_vid = (allData[DataTags.VIDEO_ID] == vidnum)
 
-                        slice_of_life = folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
+                        # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
+                        slice_of_life = group_mask & folder_mask & (this_mode & (this_vid | (reference_images | query_locations)))
 
                         # Grab the stim dataset associated with this video number.
-                        stim_dataset = group_datasets.loc[slice_of_life & only_vids, AcquisiTags.DATASET].values[0]
+                        stim_dataset = allData.loc[slice_of_life & only_vids & has_stim, AcquisiTags.DATASET].values[0]
 
-                        # Process all control datasets in accordance with the stimulus datasets' parameters,
-                        # e.g. stimulus location/duration, combine them, and do whatever the user wants with them.
-                        control_datasets = group_datasets.loc[this_mode & only_vids & ~has_stim, AcquisiTags.DATASET].tolist()
 
-                        if (not uniform_datasets or first_run):
+                        if not uniform_datasets or first_run:
 
                             # Some parameters require us to treat control datasets differently than stimulus datasets.
                             # For example, when using xor segmentation, we want to use the exact same area as the stimulus query points
@@ -986,7 +938,7 @@ if __name__ == "__main__":
                                         label = "Individual iORG "+metric+" from " + mode + " using query locations: " + query_loc_names[q] + " in " + folder.name
                                         display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q]] = label
 
-                                        refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
+                                        refim = allData.loc[group_mask & folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
 
                                         metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
                                         coords = np.array(indiv_iORG_result[q].loc[:, metric].index.to_list())
@@ -1100,3 +1052,28 @@ if __name__ == "__main__":
 
                     with open(out_json, 'w') as f:
                         json.dump(audit_json_dict, f, indent=2)
+
+# figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
+# plt.figure(figure_label)
+# display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = figure_label
+#
+# plt.title(figure_label)
+# plt.imshow(dataset.avg_image_data, cmap='gray')
+# viability = all_query_status[folder][mode][q].loc[:, "Viable for single-cell summary?"]
+#
+# viable = []
+# nonviable = []
+# for coords, viability in viability.items():
+#     if viability:
+#         viable.append(coords)
+#     else:
+#         nonviable.append(coords)
+#
+# viable = np.array(viable)
+# nonviable = np.array(nonviable)
+# if viable.size > 0:
+#     plt.scatter(viable[:, 0], viable[:, 1], s=7, c="c")
+# if nonviable.size >0:
+#     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
+# plt.show(block=False)
+# plt.waitforbuttonpress()
