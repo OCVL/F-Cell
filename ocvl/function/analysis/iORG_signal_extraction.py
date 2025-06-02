@@ -53,6 +53,8 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     debug_params = display_params.get(DebugParams.NAME, dict())
     plot_extracted_orgs = debug_params.get(DebugParams.PLOT_POP_EXTRACTED_ORGS, False)
     plot_stdize_orgs = debug_params.get(DebugParams.PLOT_POP_STANDARDIZED_ORGS, False)
+    plot_refine_to_ref = debug_params.get(DebugParams.PLOT_REFINE_TO_REF, False)
+    plot_refine_to_vid = debug_params.get(DebugParams.PLOT_REFINE_TO_VID, False)
 
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
@@ -81,7 +83,17 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     # If the refine to ref parameter is set to true, and these query points aren't pixelwise or xor.
     if seg_params.get(SegmentParams.REFINE_TO_REF, True) and query_loc_name != "All Pixels" and seg_shape != "xor":
+
+        if plot_refine_to_ref:
+            display_iORGs(image=dataset.avg_image_data, cell_loc=query_loc, figure_label="Refine to dataset average")
+
         query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc.copy())
+
+        if plot_refine_to_ref:
+            display_iORGs(image=np.zeros((1,1)), cell_loc=query_loc, figure_label="Refine to dataset average")
+            plt.waitforbuttonpress()
+            plt.close()
+
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
         valid = np.full((query_loc.shape[0]), True)
@@ -93,8 +105,23 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
 
     if seg_params.get(SegmentParams.REFINE_TO_VID, True) and query_loc_name != "All Pixels" and seg_shape != "xor":
+
+        if plot_refine_to_vid:
+            stack_im = np.nanmean(dataset.video_data, axis=-1)
+            stack_im[stack_im < 0] = 0
+            stack_im[stack_im > 255] = 255
+            stack_im = stack_im.astype("uint8")
+            display_iORGs(image=stack_im, cell_loc=query_loc, figure_label="Refine to video average")
+
         query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
                                                               query_loc.copy())
+
+        if plot_refine_to_vid:
+            display_iORGs(image=np.zeros((1,1)), cell_loc=query_loc, figure_label="Refine to video average")
+            plt.show(block=False)
+            plt.waitforbuttonpress()
+            plt.close()
+
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
         valid = np.full((query_loc.shape[0]), True)
@@ -319,7 +346,15 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
         warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
 
         ref_image = ref_image.astype("uint8")
-        image_stack = image_stack.astype("uint8")
+
+        stack_im = np.nanmean(image_stack, axis=-1)
+        stack_im[stack_im < 0] = 0
+        stack_im[stack_im > 255] = 255
+        stack_im = stack_im.astype("uint8")
+
+        stack_im = cv2.GaussianBlur(stack_im, (3, 3), 0)
+        ref_image = cv2.GaussianBlur(ref_image, (3, 3), 0)
+
 
     im_size = image_stack.shape
 
@@ -348,14 +383,13 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
         if includelist[i]:
             coord = coordinates[i, :]
 
-            stack_data = image_stack[(coord[1] - search_region):(coord[1] + search_region + 1),
-                                     (coord[0] - search_region):(coord[0] + search_region + 1),
-                                      :]
-            stack_im = np.nanmean(stack_data, axis=-1).astype("uint8")
+            stack_data = stack_im[(coord[1] - search_region):(coord[1] + search_region + 1),
+                                   (coord[0] - search_region):(coord[0] + search_region + 1)]
+
             ref_template = ref_image[(coord[1] - search_radius):(coord[1] + search_radius + 1),
                                      (coord[0] - search_radius):(coord[0] + search_radius + 1)]
 
-            match_reg = cv2.matchTemplate(stack_im, ref_template, cv2.TM_CCOEFF_NORMED)
+            match_reg = cv2.matchTemplate(stack_data, ref_template, cv2.TM_CCOEFF_NORMED)
             minV, maxV, minL, maxL = cv2.minMaxLoc(match_reg)
             maxL = np.array(maxL) - search_radius  # Make relative to the center.
             if threshold < maxV: # If the alignment is over our NCC threshold (empirically, 0.3 works well), then do the alignment.

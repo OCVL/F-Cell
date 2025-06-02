@@ -83,6 +83,8 @@ class Analysis(StrEnum):
 class DebugParams(StrEnum):
     NAME = "debug"
     OUTPUT_NORM_VIDEO = "output_norm_video"
+    PLOT_REFINE_TO_REF = "plot_refine_to_ref"
+    PLOT_REFINE_TO_VID = "plot_refine_to_vid"
     PLOT_POP_EXTRACTED_ORGS = "plot_pop_extracted_orgs"
     PLOT_POP_STANDARDIZED_ORGS = "plot_pop_stdize_orgs"
     PLOT_INDIV_STANDARDIZED_ORGS = "plot_indiv_stdize_orgs"
