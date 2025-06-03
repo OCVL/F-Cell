@@ -4,7 +4,7 @@ import os
 import warnings
 from enum import Enum, StrEnum
 from logging import warning
-from pathlib import Path
+from pathlib import Path, PurePath
 from tkinter import filedialog
 
 import cv2
@@ -13,10 +13,12 @@ import pandas as pd
 from colorama import Fore
 from scipy.ndimage import gaussian_filter
 
-from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection
+from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection, \
+    norm_video
 from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, PreAnalysisPipeline, \
-    ControlParams
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, \
+    PreAnalysisPipeline, \
+    ControlParams, Analysis, NormParams, DebugParams, DisplayParams, SegmentParams
 from ocvl.function.utility.resources import load_video, save_video, save_tiff_stack
 
 stimseq_fName = None
@@ -160,13 +162,73 @@ def parse_file_metadata(config_json_path, pName, group=PreAnalysisPipeline.NAME)
         else:
             return dict(), pd.DataFrame()
 
-def initialize_and_load_dataset(acquisition, metadata_params, stage=Stages.PREANALYSIS):
+
+def obtain_output_path(current_folder, timestamp, analysis_params):
+
+    if current_folder is not isinstance(current_folder, Path):
+        current_folder = Path(current_folder)
+
+    output_folder = analysis_params.get(Analysis.OUTPUT_FOLDER)
+    if output_folder is None:
+        output_folder = PurePath("Results")
+    else:
+        output_folder = PurePath(output_folder)
+
+    if analysis_params.get(Analysis.OUTPUT_SUBFOLDER, True):
+        output_subfolder_method = analysis_params.get(Analysis.OUTPUT_SUBFOLDER_METHOD) #Check subfolder naming method
+        if output_subfolder_method == 'DateTime': #Only supports saving things to a subfolder with a unique timestamp currently
+            output_dt_subfolder = PurePath(timestamp)
+        else:
+            output_dt_subfolder = PurePath(timestamp)
+
+        result_folder = current_folder.joinpath(output_folder, output_dt_subfolder)
+        result_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        result_folder = current_folder.joinpath(output_folder)
+        result_folder.mkdir(parents=True, exist_ok=True)
+
+    return result_folder
+
+def initialize_and_load_dataset(group, mode, folder, vidID, timestamp, database, params, stage=Stages.PREANALYSIS):
+
+    display_params = params.get(DisplayParams.NAME, dict())
+    analysis_params = params.get(Analysis.PARAMS, dict())
+    debug_params = display_params.get(DebugParams.NAME, dict())
+    metadata_params = params.get(MetaTags.METATAG, dict())
+    seg_params = analysis_params.get(SegmentParams.NAME, dict())
+
+
+    metadata_form = metadata_params.get(DataFormatType.METADATA, dict())
+    seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.
+
+    # Construct the filters we'll need for grabbing things related to our dataset.
+    group_filter = database[PreAnalysisPipeline.GROUP_BY] == group
+    mode_filter = database[DataTags.MODALITY] == mode
+    folder_filter = database[AcquisiTags.BASE_PATH] == folder
+    vidid_filter = database[DataTags.VIDEO_ID] == vidID
+
+
+    refim_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE
+    qloc_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
+    vidtype_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
+
+    # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
+    slice_of_life = group_filter & folder_filter & (mode_filter & (vidid_filter | (refim_filter | qloc_filter)))
+
+    acquisition = database.loc[slice_of_life]
 
     video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
     mask_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK]
     metadata_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA]
     im_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE]
     query_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC]
+
+    result_path = PurePath()
+    if stage == Stages.PREANALYSIS:
+        pass
+
+    elif stage == Stages.ANALYSIS:
+        result_path = obtain_output_path(folder, timestamp, analysis_params)
 
     # Read in directly-entered metatags.
     meta_fields = {}
@@ -211,7 +273,86 @@ def initialize_and_load_dataset(acquisition, metadata_params, stage=Stages.PREAN
         warnings.warn("Failed to detect dataset.")
         dataset = None
 
-    return dataset
+    new_entries = None
+    if stage == Stages.PREANALYSIS and dataset is not None:
+        pass
+        # if alignment_ref_mode is not None and mode != alignment_ref_mode:
+        #     print(Fore.WHITE + "Preprocessing dataset using reference video for alignment...")
+        #     allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params,
+        #                                                                             initialize_and_load_dataset(ref_acquisition, metadata_params))
+        #     print()
+        # else:
+        #     print(Fore.WHITE + "Preprocessing dataset...")
+        #     allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params)
+        #     print()
+    elif stage == Stages.ANALYSIS and dataset is not None:
+        database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = postprocess_dataset(dataset, analysis_params,
+                                                                                                result_path,
+                                                                                                debug_params)
+
+        new_entries = pd.DataFrame()
+
+        # If we didn't find an average image in our database, but were able to automagically detect or make one,
+        # Then add the automagically detected one to our database.
+        if database.loc[slice_of_life & refim_filter].empty and dataset.avg_image_data is not None:
+            base_entry = database[slice_of_life & vidtype_filter].copy()
+            base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.IMAGE
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.image_path
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
+
+            # Update the database, and update all of our logical indices
+            new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
+
+
+        # Check to see if our dataset's number of query locations matches the ones we thought we found
+        # (can happen if the query location format doesn't match, but dataset was able to find a candidate)
+        if len(query_info) < len(dataset.query_loc):
+            # If we have too few, then tack on some extra dataframes so we can track these found query locations, and add them to our database, using the dataset as a basis.
+            base_entry = database[slice_of_life & vidtype_filter].copy()
+            base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
+            base_entry.loc[0, AcquisiTags.DATASET] = None
+
+            for i in range(len(dataset.query_loc) - len(query_info)):
+                base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[i]
+                base_entry.loc[0, DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
+
+                # Update the database, and update all of our logical indices
+                new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
+
+
+
+        # If we can't find any query locations, or if we just want it, default to querying all pixels.
+        if (len(dataset.query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset.query_coord_paths:
+            seg_pixelwise = True  # Set this to true, if we find that query loc for this dataset is 0
+
+            xm, ym = np.meshgrid(np.arange(dataset.video_data.shape[1]),
+                                 np.arange(dataset.video_data.shape[0]))
+
+            xm = np.reshape(xm, (xm.size, 1))
+            ym = np.reshape(ym, (ym.size, 1))
+
+            allcoord_data = np.hstack((xm, ym))
+
+            dataset.query_loc.append(allcoord_data)
+            dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
+            dataset.query_coord_paths.append(Path("All Pixels"))
+            dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
+            dataset.iORG_signals = [None] * len(dataset.query_loc)
+            dataset.summarized_iORGs = [None] * len(dataset.query_loc)
+
+            base_entry = database[slice_of_life & vidtype_filter].copy()
+            base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
+            base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
+            base_entry.loc[0, DataTags.QUERYLOC] = "All Pixels"
+            base_entry.loc[0, AcquisiTags.DATASET] = None
+
+            # Update the database, and update all of our logical indices
+            new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
+
+
+    return dataset, new_entries
+
+
 
 
 def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None, stage=Stages.PREANALYSIS):
@@ -315,7 +456,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     return Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)
 
 
-def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
+def preprocess_dataset(dataset, params, reference_dataset=None):
 
     if reference_dataset is None:
         reference_dataset = dataset
@@ -323,7 +464,7 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
     # First do custom preprocessing steps, e.g. things implemented expressly for and by the OCVL
     # If you would like to "bake in" custom pipeline steps, please contact the OCVL using GitHub's Issues
     # or submit a pull request.
-    custom_steps = pipeline_params.get(PreAnalysisPipeline.CUSTOM)
+    custom_steps = params.get(PreAnalysisPipeline.CUSTOM)
     if custom_steps is not None:
         # For "baked in" dewarping- otherwise, data is expected to be dewarped already
         pre_dewarp = custom_steps.get("dewarp")
@@ -376,7 +517,7 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
                                                                   interpolation=cv2.INTER_NEAREST)
 
     # Trim the video down to a smaller/different size, if desired.
-    trim = pipeline_params.get(PreAnalysisPipeline.TRIM)
+    trim = params.get(PreAnalysisPipeline.TRIM)
     if trim is not None:
         start_frm = int(trim.get("start_frm",0))
         end_frm = int(trim.get("end_frm",-1))
@@ -402,32 +543,31 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
         del amt_data
 
     # Flat field the video for alignment, if desired.
-    if pipeline_params.get(PreAnalysisPipeline.FLAT_FIELD, False):
+    if params.get(PreAnalysisPipeline.FLAT_FIELD, False):
         align_dat = flat_field(align_dat)
 
     # Gaussian blur the data first before aligning, if requested
-    gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR, 0.0)
+    gausblur = params.get(PreAnalysisPipeline.GAUSSIAN_BLUR, 0.0)
     if gausblur is not None and gausblur != 0.0:
         for f in range(align_dat.shape[-1]):
             align_dat[..., f] = gaussian_filter(align_dat[..., f], sigma=gausblur)
         align_dat *= mask_dat
 
     # Then crop the data, if requested
-    mask_roi = pipeline_params.get(PreAnalysisPipeline.MASK_ROI)
+    mask_roi = params.get(PreAnalysisPipeline.MASK_ROI)
     if mask_roi is not None:
         r = mask_roi.get("r")
         c = mask_roi.get("c")
         width = mask_roi.get("width")
         height = mask_roi.get("height")
 
-        # Everything outside the roi specified should be zero
-        # This approach is RAM intensive, but easy.
+        # Everything outside the roi should be cropped
         align_dat = align_dat[r:r + height, c:c + width, :]
         mask_dat = mask_dat[r:r + height, c:c + width, :]
 
 
     # Finally, correct for residual torsion if requested
-    correct_torsion = pipeline_params.get(PreAnalysisPipeline.CORRECT_TORSION)
+    correct_torsion = params.get(PreAnalysisPipeline.CORRECT_TORSION)
     if correct_torsion is not None and correct_torsion:
         align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, mask_dat,
                                                                      reference_idx=dataset.reference_frame_idx,
@@ -452,6 +592,30 @@ def preprocess_dataset(dataset, pipeline_params, reference_dataset=None):
                 dataset.video_data[..., f] = norm_frame.astype(og_dtype)
 
         dataset.avg_image_data, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
+
+    return dataset
+
+
+def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
+
+    norm_params = analysis_params.get(NormParams.NAME, dict())
+    norm_method = norm_params.get(NormParams.NORM_METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
+    rescale_norm = norm_params.get(NormParams.NORM_RESCALE, True)  # Default: Rescales the data back into AU to make results easier to interpret
+    res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
+
+    # Flat field the video for analysis if desired.
+    if analysis_params.get(Analysis.FLAT_FIELD, False):
+        dataset.video_data = flat_field(dataset.video_data, dataset.mask_data)
+
+    # Normalize the video to reduce the influence of framewide intensity changes
+    dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
+                                    rescaled=rescale_norm,
+                                    rescale_mean=res_mean, rescale_std=res_stddev)
+
+    if debug_params.get(DebugParams.OUTPUT_NORM_VIDEO, False):
+        save_tiff_stack(result_folder.joinpath(dataset.video_path.stem + "_" + norm_method + "_norm.tif"),
+                        dataset.video_data)
 
     return dataset
 

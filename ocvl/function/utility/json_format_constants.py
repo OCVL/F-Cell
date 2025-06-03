@@ -47,28 +47,28 @@ class MetaTags(StrEnum):
 class AcquisiTags(StrEnum):
     DATASET = "Dataset"
     DATA_PATH = "Data_Path"
-    OUTPUT_PATH = "Output_Path",
-    VIDEO_PATH = "Video_Path",
-    IMAGE_PATH = "Image_Path",
-    QUERYLOC_PATH = "QueryLocation_Path",
-    STIMSEQ_PATH = "Stimulus_Sequence_Path",
-    MODALITY = "Modality",
-    PREFIX = "Output_Prefix",
-    BASE_PATH = "Base_Path",
-    MASK_PATH = "Mask_Path",
-    META_PATH = "Metadata_Path",
+    OUTPUT_PATH = "Output_Path"
+    VIDEO_PATH = "Video_Path"
+    IMAGE_PATH = "Image_Path"
+    QUERYLOC_PATH = "QueryLocation_Path"
+    STIMSEQ_PATH = "Stimulus_Sequence_Path"
+    MODALITY = "Modality"
+    PREFIX = "Output_Prefix"
+    BASE_PATH = "Base_Path"
+    MASK_PATH = "Mask_Path"
+    META_PATH = "Metadata_Path"
     STIM_PRESENT = "Stimulus_Present"
 
 class PreAnalysisPipeline(StrEnum):
     NAME = "preanalysis"
     PARAMS = "pipeline_params"
-    GAUSSIAN_BLUR = "gaus_blur",
-    MASK_ROI = "mask_roi",
-    TRIM = "trim",
-    FLAT_FIELD = "flat_field",
-    MODALITIES = "modalities",
-    ALIGNMENT_REF_MODE = "alignment_reference_modality",
-    CORRECT_TORSION = "correct_torsion",
+    GAUSSIAN_BLUR = "gaus_blur"
+    MASK_ROI = "mask_roi"
+    TRIM = "trim"
+    FLAT_FIELD = "flat_field"
+    MODALITIES = "modalities"
+    ALIGNMENT_REF_MODE = "alignment_reference_modality"
+    CORRECT_TORSION = "correct_torsion"
     CUSTOM = "custom"
     OUTPUT_FOLDER = "output_folder"
     GROUP_BY = "group_by"
@@ -76,6 +76,7 @@ class PreAnalysisPipeline(StrEnum):
 class Analysis(StrEnum):
     NAME = "analysis"
     PARAMS = "analysis_params"
+    FLAT_FIELD = "flat_field"
     OUTPUT_FOLDER = "output_folder"
     OUTPUT_SUBFOLDER = "output_subfolder"
     OUTPUT_SUBFOLDER_METHOD = "output_subfolder_method"
