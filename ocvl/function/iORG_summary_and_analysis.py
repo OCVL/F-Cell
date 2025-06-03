@@ -227,7 +227,7 @@ if __name__ == "__main__":
                     
                     data_vidnums = np.sort(allData.loc[cntl_slice_of_life & vidtype_filter, DataTags.VIDEO_ID].unique()).tolist()
 
-                    pb["maximum"] = len(data_vidnums)
+                    pb["maximum"] = len(data_vidnums)+1
                     for v, vidnum in enumerate(data_vidnums):
                         pb["value"] = v
                         pb_label["text"] = "Loading control dataset "+str(vidnum)+"... ("+str(v)+" of "+str(len(data_vidnums))+")"
@@ -287,7 +287,7 @@ if __name__ == "__main__":
                     # If we detected query locations, then initialize this folder and mode with their metadata.
                     all_query_status[mode][folder] = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & qloc_filter).sum())]
 
-                    pb["maximum"] = len(data_vidnums)
+                    pb["maximum"] = len(data_vidnums)+1
                     # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
                     for v, vidnum in enumerate(data_vidnums):
 
@@ -364,7 +364,7 @@ if __name__ == "__main__":
                     result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                     pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
-                    pb["maximum"] = len(stim_data_vidnums)
+                    pb["maximum"] = len(stim_data_vidnums)+1
 
                     # Determine if all stimulus data in this folder and mode has the same form and contents;
                     # if so, we can just process the control data *one* time, saving a lot of time.
@@ -420,10 +420,10 @@ if __name__ == "__main__":
 
                         control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & qloc_filter).sum())]
 
-                        vidid_filter = (allData[DataTags.VIDEO_ID] == vidnum)
+                        vidid_filter = (allData[DataTags.VIDEO_ID] == stim_vidnum)
 
-                        # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
-                        slice_of_life = group_filter & folder_filter & (mode_filter & (vidid_filter | (refim_filter | qloc_filter)))
+                        # Get the reference images and query locations and this video number, only for the mode and folder we want.
+                        slice_of_life = group_filter & folder_filter & mode_filter & vidid_filter
 
                         # Grab the stim dataset associated with this video number.
                         stim_dataset = allData.loc[slice_of_life & vidtype_filter & has_stim, AcquisiTags.DATASET].values[0]
@@ -517,7 +517,7 @@ if __name__ == "__main__":
 
 
                                     # First write the control data to a file.
-                                    control_query_status[q].to_csv(result_folder.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
+                                    control_query_status[q].to_csv(result_path.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
                                                                "_" + query_loc_names[q] + "coords_controldata.csv"))
 
                         ''' *** Population iORG analyses here *** '''
@@ -675,7 +675,7 @@ if __name__ == "__main__":
                                 if np.any(np.isfinite(stim_iORG_signals[q][:, c, :])):
                                     if debug_params.get(DebugParams.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
                                         sigout = pd.DataFrame(stim_iORG_signals[q][:, c, :], index=stim_data_vidnums)
-                                        sigout.to_csv(result_folder.joinpath(overlap_label+".csv"))
+                                        sigout.to_csv(result_path.joinpath(overlap_label+".csv"))
 
                                     if control_iORG_signals[q]:
                                         display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
@@ -820,7 +820,7 @@ if __name__ == "__main__":
 
                             if indiv_overlap_params:
                                 plt.show(block=False)
-                            indiv_respath = result_folder.joinpath(str(subject_IDs[0]) + "_indiv_summary_metrics" + str(folder.name) + "_" + str(mode) +
+                            indiv_respath = result_path.joinpath(str(subject_IDs[0]) + "_indiv_summary_metrics" + str(folder.name) + "_" + str(mode) +
                                                        "_" + query_loc_names[q] + "coords.csv")
 
                             if indiv_summary.get(DisplayParams.HISTOGRAM):
@@ -872,7 +872,7 @@ if __name__ == "__main__":
                                                                                          -1), copy=True)
 
                                 video_profiles[np.isnan(video_profiles)] = starting
-                                save_video(result_folder.joinpath("pooled_pixelpop_iORG_" + start_timestamp + ".avi"),
+                                save_video(result_path.joinpath("pooled_pixelpop_iORG_" + start_timestamp + ".avi"),
                                            video_profiles, pooled_framerate.item(),
                                            scalar_mapper=mapper)
 
@@ -913,11 +913,11 @@ if __name__ == "__main__":
                             # plt.waitforbuttonpress()
 
                         all_query_status[mode][folder][q].sort_index(inplace=True)
-                        all_query_status[mode][folder][q].to_csv(result_folder.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
+                        all_query_status[mode][folder][q].to_csv(result_path.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
                                                    "_" + query_loc_names[q] + "coords.csv"))
 
 
-                    respath = result_folder.joinpath(str(subject_IDs[0]) + "_pop_summary_metrics_" + str(folder.name) + "_" + str(mode) + ".csv")
+                    respath = result_path.joinpath(str(subject_IDs[0]) + "_pop_summary_metrics_" + str(folder.name) + "_" + str(mode) + ".csv")
                     tryagain = True
                     while tryagain:
                         try:
@@ -941,7 +941,7 @@ if __name__ == "__main__":
                             tryagain = True
                             while tryagain:
                                 try:
-                                    plt.savefig(result_folder.joinpath(fname+"."+ext), dpi=300)
+                                    plt.savefig(result_path.joinpath(fname+"."+ext), dpi=300)
                                     tryagain = False
                                 except PermissionError:
                                     tryagain = messagebox.askyesno(
@@ -952,7 +952,7 @@ if __name__ == "__main__":
 
                     # Save the json used to analyze this data, for auditing.
                     out_json = Path(json_fName).stem + "_ran_at_" + start_timestamp + ".json"
-                    out_json = result_folder.joinpath(out_json)
+                    out_json = result_path.joinpath(out_json)
 
                     audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
                                        ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
