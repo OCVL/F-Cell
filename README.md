@@ -7,20 +7,15 @@ This repository is where the OCVL does most of its optoretinography (abbreviated
 𝑓(Cell) operates in the following stages, which are detailed in our [wiki](https://github.com/OCVL/F-Cell/wiki).
 
 
-**NOTE:** Each of the steps with an asterisk preceeding it is optional.
+The basic steps in the pre-analysis pipeline and analysis stages are as follows:
 ```mermaid
 flowchart LR
 
     subgraph preanalysis["Pre-Analysis Pipeline"]
         direction TB
     AA(Load Dataset) --> BB([Parse Tags/Metadata])
-    BB([Parse Tags/Metadata]) --> CC([*Perform Custom Steps]) 
-    CC([*Perform Custom Steps]) --> DD([*Trim Video]) 
-    DD([*Trim Video]) --> EE([*Flat Field]) 
-    EE([*Flat Field]) --> FF([*Gaussian Blur]) 
-    FF([*Gaussian Blur]) --> GG([*Crop Video]) 
-    GG([*Crop Video]) --> HH([*Intra-Video Torsion Removal])
-    HH([*Intra-Video Torsion Removal]) --> II(Data Output and Sorting)
+    BB([Parse Tags/Metadata]) --> HH([Intra-Video Torsion Removal])
+    HH([Intra-Video Torsion Removal]) --> II(Data Output and Sorting)
     end
 
     preanalysis --> analysis
@@ -30,7 +25,7 @@ flowchart LR
     A(Load Dataset) --> B([Parse Tags/Metadata])
     B([Parse Tags/Metadata])  --> C([Normalize Dataset])
     C([Normalize Dataset])  --> D([Segment Query Points / Extract ORGs])
-    D([Segment Query Points / Extract ORG])  --> E([Standardize ORGs])
+    D([Segment Query Points / Extract ORGs])  --> E([Standardize ORGs])
     E([Standardize ORGs])  --> F([Summarize ORGs])
     F([Summarize ORGs])  --> G([Extract Metrics])
     G([Extract Metrics])  --> H(Display/Output Results)
