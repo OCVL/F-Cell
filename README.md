@@ -3,9 +3,16 @@
 ## Introduction:
 This repository is where the OCVL does most of its optoretinography (abbreviated to ORG) software development. This software will always be open source, and available to any researcher using it for non-profit work. For the moment, the software is designed around intensity-based optoretinography, or iORG processing. That means that it is capable of processing/analyzing data from any en-face device that produces videos (not volumes), such as scanning laser ophthalmoscopes or line-scan ophthalmoscopes, and their adaptive optics variants (e.g. AO-SLO/AO-LSO/AO-FiO).
 
+## Using the software:
+Working with optoretinograms often requires supra-normal processing of AOSLO/AOLSO/AOOCT datasets, so we have broken optoretinogram generation into a "pipeline" stage and an "analysis" stage. 
+
+For quick start information, [please see our wiki](https://github.com/OCVL/F-Cell/wiki/Quick-Start).
+
+How these stages work are governed by json-based configuration files that allow you to run the code on your data's particular filename, video, and metadata format. It also allows you to specify the parameters used during the processing and analysis steps, for your specific scientific problem.
+
+
 ### How it works:
 𝑓(Cell) operates in the following stages, which are detailed in our [wiki](https://github.com/OCVL/F-Cell/wiki).
-
 
 The basic steps in the pre-analysis pipeline and analysis stages are as follows:
 ```mermaid
@@ -50,13 +57,6 @@ flowchart LR
     style analysis fill:#203040, stroke:#FFFFFF, stroke-width:2px
 classDef default fill:#000F1E, stroke:#FFFFFF, stroke-width:2px
 ```
-
-## Using the software:
-Working with optoretinograms often requires supra-normal processing of AOSLO/AOLSO/AOOCT datasets, so we have broken optoretinogram generation into a "pipeline" stage and an "analysis" stage. 
-
-For quick start information, [please see our wiki](https://github.com/OCVL/F-Cell/wiki/Quick-Start).
-
-How these stages work are governed by json-based configuration files that allow you to run the code on your data's particular filename, video, and metadata format. It also allows you to specify the parameters used during the processing and analysis steps, for your specific scientific problem.
 
 ### Configuration files:
 The configuration file uses a json file format. At the moment, its creation is manual, though we will be developing a GUI tool for easy creation/updating of parameters in the coming months. **Note: Examples can be found in the config_files directory.**
