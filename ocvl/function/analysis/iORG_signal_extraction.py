@@ -344,6 +344,7 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
         ref_image = ref_image.astype("uint8")
 

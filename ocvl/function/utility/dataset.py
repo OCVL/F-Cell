@@ -708,7 +708,7 @@ class Dataset:
                             coordname = filename
 
                 if coordname is None and stage is Stages.ANALYSIS:
-                    warnings.warn("Unable to detect viable query location file for dataset at: "+ str(self.video_path))
+                    print(Fore.YELLOW+"Unable to detect viable query location file for dataset at: "+ str(self.video_path) +". Dataset is either a control, or will be converted to a pixelwise analysis.")
                     self.metadata[AcquisiTags.QUERYLOC_PATH] = []
                     self.query_coord_paths = []
                 elif stage is Stages.ANALYSIS:
