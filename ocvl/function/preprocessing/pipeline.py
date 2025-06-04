@@ -86,7 +86,6 @@ if __name__ == "__main__":
 
     with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
 
-
         preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME)
         pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
         modes_of_interest = pipeline_params.get(PreAnalysisPipeline.MODALITIES)
@@ -111,6 +110,7 @@ if __name__ == "__main__":
         # If we've selected modalities of interest, only process those; otherwise, process them all.
         if modes_of_interest is None:
             modes_of_interest = allData.loc[DataTags.MODALITY].unique().tolist()
+            print("NO MODALITIES SELECTED! Processing all....")
 
         for mode in modes_of_interest:
             modevids = allData.loc[allData[DataTags.MODALITY] == mode]
@@ -130,16 +130,22 @@ if __name__ == "__main__":
                     video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
                     ref_video_info = ref_acquisition.loc[ref_acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
 
-                    dataset = initialize_and_load_dataset(acquisition, metadata_params)
+                    pre_filter = (allData[DataTags.MODALITY] == mode)
+                    dataset, _ = initialize_and_load_dataset(folder=allData.loc[video_info.index, AcquisiTags.BASE_PATH].values[0],
+                                                          vidID=num, prefilter=pre_filter, database=allData, params=preanalysis_dat_format)
 
                     if dataset is not None:
                         # Run the preprocessing pipeline on this dataset, with params specified by the json.
                         # When done, put it into the database.
-
                         if alignment_ref_mode is not None and mode != alignment_ref_mode:
+
+                            pre_filter = (allData[DataTags.MODALITY] == alignment_ref_mode)
+                            ref_dataset, _ = initialize_and_load_dataset(folder=allData.loc[ref_video_info.index, AcquisiTags.BASE_PATH].values[0],
+                                                                      vidID=num, prefilter=pre_filter, database=allData,
+                                                                      params=preanalysis_dat_format)
+
                             print(Fore.WHITE + "Preprocessing dataset using reference video for alignment...")
-                            allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params,
-                                                                                                    initialize_and_load_dataset(ref_acquisition, metadata_params))
+                            allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params, ref_dataset)
                             print()
                         else:
                             print(Fore.WHITE + "Preprocessing dataset...")

@@ -22,7 +22,7 @@ from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, di
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
 from ocvl.function.preprocessing.improc import norm_video, flat_field
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages, postprocess_dataset, \
-    obtain_output_path
+    obtain_analysis_output_path
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
     AcquisiTags, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
@@ -240,7 +240,9 @@ if __name__ == "__main__":
                         control_path = allData.loc[cntl_slice_of_life & vidid_filter & vidtype_filter, AcquisiTags.BASE_PATH].values[0]
 
                         # Actually load the control dataset.
-                        dataset, new_entries = initialize_and_load_dataset(group, mode, control_path, vidnum, start_timestamp, allData,
+                        pre_filter = (allData[PreAnalysisPipeline.GROUP_BY] == group) & \
+                                     (allData[DataTags.MODALITY] == mode)
+                        dataset, new_entries = initialize_and_load_dataset(control_path, vidnum, pre_filter, start_timestamp, allData,
                                                                            analysis_dat_format, stage=Stages.ANALYSIS)
 
                         if dataset is not None:
@@ -263,7 +265,7 @@ if __name__ == "__main__":
                     if control_loc == "folder" and folder.name == control_folder_name:
                         continue # Don't reload control data.
 
-                    result_path = obtain_output_path(folder, start_timestamp, analysis_params)
+                    result_path = obtain_analysis_output_path(folder, start_timestamp, analysis_params)
 
                     folder_filter = allData[AcquisiTags.BASE_PATH] == folder
                     slice_of_life = group_filter & mode_filter & folder_filter
@@ -293,7 +295,9 @@ if __name__ == "__main__":
 
                         pb["value"] = v
                         # Actually load the dataset, and all its metadata.
-                        dataset, new_entries = initialize_and_load_dataset(group, mode, folder, vidnum, start_timestamp, allData,
+                        pre_filter = (allData[PreAnalysisPipeline.GROUP_BY] == group) & \
+                                     (allData[DataTags.MODALITY] == mode)
+                        dataset, new_entries = initialize_and_load_dataset(folder, vidnum, pre_filter, start_timestamp, allData,
                                                                                          analysis_dat_format, stage=Stages.ANALYSIS)
 
                         if dataset is not None:

@@ -163,7 +163,7 @@ def parse_file_metadata(config_json_path, pName, group=PreAnalysisPipeline.NAME)
             return dict(), pd.DataFrame()
 
 
-def obtain_output_path(current_folder, timestamp, analysis_params):
+def obtain_analysis_output_path(current_folder, timestamp, analysis_params):
 
     if current_folder is not isinstance(current_folder, Path):
         current_folder = Path(current_folder)
@@ -189,7 +189,11 @@ def obtain_output_path(current_folder, timestamp, analysis_params):
 
     return result_folder
 
-def initialize_and_load_dataset(group, mode, folder, vidID, timestamp, database, params, stage=Stages.PREANALYSIS):
+def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, database=pd.DataFrame(),
+                                params=None, stage=Stages.PREANALYSIS):
+
+    if params is None:
+        params = dict()
 
     display_params = params.get(DisplayParams.NAME, dict())
     analysis_params = params.get(Analysis.PARAMS, dict())
@@ -202,18 +206,28 @@ def initialize_and_load_dataset(group, mode, folder, vidID, timestamp, database,
     seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.
 
     # Construct the filters we'll need for grabbing things related to our dataset.
-    group_filter = database[PreAnalysisPipeline.GROUP_BY] == group
-    mode_filter = database[DataTags.MODALITY] == mode
-    folder_filter = database[AcquisiTags.BASE_PATH] == folder
-    vidid_filter = database[DataTags.VIDEO_ID] == vidID
+    if prefilter is None:
+        prefilter = True
+
+    if folder is not None:
+        folder_filter = database[AcquisiTags.BASE_PATH] == folder
+    else:
+        folder_filter = True
+
+    if vidID is not None:
+        vidid_filter = database[DataTags.VIDEO_ID] == vidID
+    else:
+        vidid_filter = True
 
 
     refim_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE
+    mask_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK
+    meta_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA
     qloc_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
     vidtype_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
 
     # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
-    slice_of_life = group_filter & folder_filter & (mode_filter & (vidid_filter | (refim_filter | qloc_filter)))
+    slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
 
     acquisition = database.loc[slice_of_life]
 
@@ -228,7 +242,7 @@ def initialize_and_load_dataset(group, mode, folder, vidID, timestamp, database,
         pass
 
     elif stage == Stages.ANALYSIS:
-        result_path = obtain_output_path(folder, timestamp, analysis_params)
+        result_path = obtain_analysis_output_path(folder, timestamp, analysis_params)
 
     # Read in directly-entered metatags.
     meta_fields = {}
@@ -276,15 +290,7 @@ def initialize_and_load_dataset(group, mode, folder, vidID, timestamp, database,
     new_entries = None
     if stage == Stages.PREANALYSIS and dataset is not None:
         pass
-        # if alignment_ref_mode is not None and mode != alignment_ref_mode:
-        #     print(Fore.WHITE + "Preprocessing dataset using reference video for alignment...")
-        #     allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params,
-        #                                                                             initialize_and_load_dataset(ref_acquisition, metadata_params))
-        #     print()
-        # else:
-        #     print(Fore.WHITE + "Preprocessing dataset...")
-        #     allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params)
-        #     print()
+
     elif stage == Stages.ANALYSIS and dataset is not None:
         database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = postprocess_dataset(dataset, analysis_params,
                                                                                                 result_path,
@@ -544,7 +550,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
 
     # Flat field the video for alignment, if desired.
     if params.get(PreAnalysisPipeline.FLAT_FIELD, False):
-        align_dat = flat_field(align_dat)
+        align_dat = flat_field(align_dat, mask_dat)
 
     # Gaussian blur the data first before aligning, if requested
     gausblur = params.get(PreAnalysisPipeline.GAUSSIAN_BLUR, 0.0)
