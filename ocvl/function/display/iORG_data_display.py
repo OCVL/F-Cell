@@ -51,6 +51,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
+        if ax_params.get(DisplayParams.LEGEND, False) and not disp_rel: plt.legend()
 
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
@@ -104,7 +105,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
 
 
-def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
+def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
                   control_framestamps=None, control_iORGs=None, control_vidnums="",
                   image=None, cell_loc=None,
                   stim_delivery_frms=None, framerate=15.0, figure_label="", params=None):
@@ -113,8 +114,13 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
         params = dict()
 
     disp_im = image is not None and cell_loc is not None
-    disp_stim = params.get(DisplayParams.DISP_STIMULUS, False)
+    disp_stim = params.get(DisplayParams.DISP_STIMULUS, False) and stim_iORGs is not None
     disp_cont = params.get(DisplayParams.DISP_CONTROL, False) and control_iORGs is not None
+
+    if disp_stim and stim_framestamps is None:
+        stim_framestamps = np.arange(stim_iORGs.shape[1])
+    if not disp_stim and disp_cont and stim_framestamps is None:
+        stim_framestamps = np.arange(control_iORGs.shape[1])
 
     ax_params = params.get(DisplayParams.AXES, dict())
     show_legend = ax_params.get(DisplayParams.LEGEND, False) and \
@@ -123,7 +129,7 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
     ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
     how_many = np.sum([disp_im, disp_stim, disp_cont])
 
-    if not isinstance(stim_vidnums, list):
+    if disp_stim and not isinstance(stim_vidnums, list):
         stim_vidnums = [stim_vidnums] * stim_iORGs.shape[0]
     if disp_cont and not isinstance(control_vidnums, list):
         control_vidnums = [control_vidnums] * control_iORGs.shape[0]
@@ -137,7 +143,7 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
     if disp_im:
         plt.title("Cell location")
         plt.imshow(image, cmap='gray')
-        plt.plot(cell_loc[0], cell_loc[1], "*", markersize=6)
+        plt.plot(cell_loc[:, 0], cell_loc[:, 1], "*", markersize=6)
 
     if how_many > 1 and disp_stim:
         plt.subplot(1, how_many, ind)

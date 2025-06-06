@@ -44,11 +44,11 @@ def flat_field_frame(dataframe, mask=None, sigma=31, rescale=False):
 
         blurred_frame /= blurred_mask
 
-    blurred_frame /= np.nanmean(blurred_frame[:])
+        blurred_frame /= np.nanmean(blurred_frame[:])
 
-    flat_fielded = (dataframe / blurred_frame)
-    flat_fielded[flat_fielded < minval] = minval
-    flat_fielded[flat_fielded > maxval] = maxval
+        flat_fielded = (dataframe / blurred_frame)
+        flat_fielded[flat_fielded < minval] = minval
+        flat_fielded[flat_fielded > maxval] = maxval
 
     mask[mask == 0] = np.nan
     flat_fielded *= mask
@@ -57,6 +57,9 @@ def flat_field_frame(dataframe, mask=None, sigma=31, rescale=False):
 
 
 def flat_field(dataset, mask=None, sigma=31, rescale=True):
+
+    if mask is None:
+        mask = dataset > 0
 
     if len(dataset.shape) > 2:
         flat_fielded_dataset = np.zeros(dataset.shape)

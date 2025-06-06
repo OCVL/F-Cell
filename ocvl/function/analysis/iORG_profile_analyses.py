@@ -719,7 +719,9 @@ def _interp_implicit(params):
     temporal_signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
 
     finite_iORG = np.isfinite(temporal_signals[i, :])
-    if np.any(finite_iORG):
+    if np.sum(finite_iORG) > 1:
+        valid_auc = True
+
         finite_data = temporal_signals[i, finite_iORG]
         finite_frms = framestamps[finite_iORG]
 
@@ -728,36 +730,42 @@ def _interp_implicit(params):
         if not np.any(finite_frms == desired_poststim_frms[-1]):
             inter_val = np.interp(desired_poststim_frms[-1], finite_frms, finite_data)
             # Find where to insert the interpolant and its framestamp
-            next_highest = np.argmax(finite_frms > desired_poststim_frms[-1])
-            finite_data = np.insert(finite_data, next_highest, inter_val)
-            finite_frms = np.insert(finite_frms, next_highest, desired_poststim_frms[-1])
+            if np.any(finite_frms > desired_poststim_frms[-1]):
+                next_highest = np.argmax(finite_frms > desired_poststim_frms[-1])
+                finite_data = np.insert(finite_data, next_highest, inter_val)
+                finite_frms = np.insert(finite_frms, next_highest, desired_poststim_frms[-1])
+            else: # If we don't have any data past the desired_poststim_frm, we can't analyze auc.
+                valid_auc=False
 
         poststim_window_idx = np.flatnonzero(np.isin(finite_frms, desired_poststim_frms))
 
         finite_data = finite_data[poststim_window_idx]
         finite_frms = finite_frms[poststim_window_idx]
 
-        auc = np.trapezoid(finite_data, x=finite_frms / framerate)
+        if finite_frms.size > 1:
+            if valid_auc:
+                auc = np.trapezoid(finite_data, x=finite_frms / framerate)
+            else:
+                auc = np.nan
 
-        amp_val_interp = Akima1DInterpolator(finite_frms, finite_data - poststim_val, method="makima")
-        halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
-                                                 method="makima")
+            amp_val_interp = Akima1DInterpolator(finite_frms, finite_data - poststim_val, method="makima")
+            halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
+                                                     method="makima")
 
-        if amp_val_interp.roots().size != 0:
-            amp_implicit_time = amp_val_interp.roots()[0]
+            if amp_val_interp.roots().size != 0:
+                amp_implicit_time = amp_val_interp.roots()[0]
+            else:
+                amp_implicit_time = np.nan
+
+            if halfamp_val_interp.roots().size != 0:
+                halfamp_implicit_time = halfamp_val_interp.roots()[0]
+            else:
+                halfamp_implicit_time = np.nan
         else:
-            amp_implicit_time = np.nan
-
-        if halfamp_val_interp.roots().size != 0:
-            halfamp_implicit_time = halfamp_val_interp.roots()[0]
-        else:
-            halfamp_implicit_time = np.nan
+            shared_block.close()
+            return i, np.nan, np.nan, np.nan
     else:
-        auc = np.nan
-        amp_implicit_time = np.nan
-        halfamp_implicit_time = np.nan
-
-
-    shared_block.close()
+        shared_block.close()
+        return i, np.nan, np.nan, np.nan
 
     return i, amp_implicit_time, halfamp_implicit_time, auc
