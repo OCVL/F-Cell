@@ -77,6 +77,7 @@ class Analysis(StrEnum):
     NAME = "analysis"
     PARAMS = "analysis_params"
     FLAT_FIELD = "flat_field"
+    GAUSSIAN_BLUR = "gaus_blur"
     OUTPUT_FOLDER = "output_folder"
     OUTPUT_SUBFOLDER = "output_subfolder"
     OUTPUT_SUBFOLDER_METHOD = "output_subfolder_method"

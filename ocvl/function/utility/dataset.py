@@ -614,6 +614,13 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
     if analysis_params.get(Analysis.FLAT_FIELD, False):
         dataset.video_data = flat_field(dataset.video_data, dataset.mask_data)
 
+    # Gaussian blur the data first before analysis, if requested
+    gausblur = analysis_params.get(Analysis.GAUSSIAN_BLUR, 0.0)
+    if gausblur is not None and gausblur != 0.0:
+        for f in range(dataset.video_data.shape[-1]):
+            dataset.video_data[..., f] = gaussian_filter(dataset.video_data[..., f], sigma=gausblur)
+        dataset.video_data *= dataset.mask_data
+
     # Normalize the video to reduce the influence of framewide intensity changes
     dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
                                     rescaled=rescale_norm,
