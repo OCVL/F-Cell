@@ -735,7 +735,8 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     :return: a NxM numpy matrix of standardized temporal profiles
     """
 
-    req_framenums = int(np.floor(len(std_indices)*critical_fraction))
+    total_num_inds = len(std_indices)
+    req_framenums = int(np.floor(total_num_inds*critical_fraction))
     prestim_frmstmp, _, std_indices = np.intersect1d(std_indices, framestamps, return_indices=True)
 
     if len(std_indices) == 0:
@@ -802,7 +803,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
         stdized_signals[i,: ] = signal
         valid_stdization[i] = valid
         if not valid:
-            query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / req_framenums) + ")"
+            query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / total_num_inds) + ")"
 
     shared_block.close()
     shared_block.unlink()

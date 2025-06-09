@@ -370,10 +370,14 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     metadata[AcquisiTags.META_PATH] = extra_metadata_path
 
     if video_path.exists():
-        resource = load_video(video_path)
+        resource = load_video(video_path, metadata.get(MetaTags.VIDEO, None).get(MetaTags.FIELDS_OF_INTEREST, None))
+
         video_data = resource.data
-        if MetaTags.FRAMERATE not in metadata:
+
+        if MetaTags.FRAMERATE not in metadata and MetaTags.FRAMERATE not in metadata.get(MetaTags.VIDEO, None):
             metadata[MetaTags.FRAMERATE] = resource.metadict.get(MetaTags.FRAMERATE)
+        elif MetaTags.FRAMERATE in metadata.get(MetaTags.VIDEO, None):
+            metadata[MetaTags.FRAMERATE] = metadata.get(MetaTags.VIDEO, None).get(MetaTags.FRAMERATE)
     else:
         warning("Video path does not exist at: "+str(video_path))
         return None
@@ -435,6 +439,45 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
             else:
                 warnings.warn("Query location path does not exist: "+str(locpath))
 
+
+    elif AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS in metadata and \
+        metadata.get(MetaTags.QUERY_LOCATIONS).get(MetaTags.FIELDS_OF_INTEREST, None) is not None: # @TODO: Remove duplicate code.
+        # If we have query locations defined in the metadata alongside fields to load, then that means we have specific fields
+        # from a query location file that we need to grab.
+
+        querylocs = metadata.get(AcquisiTags.QUERYLOC_PATH)
+        fieldnames = metadata.get(MetaTags.QUERY_LOCATIONS).get(MetaTags.FIELDS_OF_INTEREST, None)
+
+        for locpath in querylocs:
+            if locpath.exists():
+                match locpath.suffix:
+                    case ".csv":
+                        queryloc_data.append(pd.read_csv(locpath, usecols=fieldnames, encoding="utf-8-sig").to_numpy())
+                    case ".txt":
+                        queryloc_data.append(pd.read_csv(locpath, usecols=fieldnames, encoding="utf-8-sig").to_numpy())
+                    case "":
+                        if locpath.name == "All Pixels":
+                            xm, ym = np.meshgrid(np.arange(video_data.shape[1]),
+                                                 np.arange(video_data.shape[0]))
+
+                            xm = np.reshape(xm, (xm.size, 1))
+                            ym = np.reshape(ym, (ym.size, 1))
+
+                            allcoord_data = np.hstack((xm, ym))
+
+                            queryloc_data.append(allcoord_data)
+            elif locpath.name == "All Pixels":
+                xm, ym = np.meshgrid(np.arange(video_data.shape[1]),
+                                     np.arange(video_data.shape[0]))
+
+                xm = np.reshape(xm, (xm.size, 1))
+                ym = np.reshape(ym, (ym.size, 1))
+
+                allcoord_data = np.hstack((xm, ym))
+
+                queryloc_data.append(allcoord_data)
+            else:
+                warnings.warn("Query location path does not exist: " + str(locpath))
     elif MetaTags.QUERY_LOCATIONS in metadata:
         queryloc_data.append(metadata.get(MetaTags.QUERY_LOCATIONS))
 
@@ -446,10 +489,10 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
     # For importing metadata RE: the stimulus delivery
     stimulus_sequence = None
-    if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH).exists():
+    if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH, Path()).exists():
         stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None, encoding="utf-8-sig").to_numpy()
-    elif MetaTags.STIMULUS_SEQ in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH).exists():
-        stimulus_sequence = np.array(metadata.get(MetaTags.STIMULUS_SEQ), dtype="int")
+    elif MetaTags.STIMULUS_SEQ in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH, Path()).exists():
+        stimulus_sequence = np.cumsum(np.array(metadata.get(MetaTags.STIMULUS_SEQ), dtype="int"))
     elif stage == Stages.ANALYSIS:
         while Dataset.stimseq_fName is None:
             Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))

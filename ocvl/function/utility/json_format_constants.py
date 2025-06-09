@@ -43,6 +43,9 @@ class MetaTags(StrEnum):
     STIMULUS_SEQ = "stimulus_sequence"
     FRAMERATE = "framerate"
     QUERY_LOCATIONS = "query_locations"
+    VIDEO = "video"
+    MASK = "mask"
+
 
 class AcquisiTags(StrEnum):
     DATASET = "Dataset"

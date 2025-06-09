@@ -56,7 +56,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
         ind += 1
-    if disp_cont  and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
+    if disp_cont and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
         plt.title("Control iORGs")
         for r in range(control_pop_iORG_summary.shape[0]):
             plt.plot(control_framestamps[r] / framerate, control_pop_iORG_summary[r, control_framestamps[r]], label=str(control_vidnums[r]))

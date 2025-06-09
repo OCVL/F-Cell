@@ -169,6 +169,7 @@ if __name__ == "__main__":
 
         groups = allData[PreAnalysisPipeline.GROUP_BY].unique().tolist()
     else:
+        allData[PreAnalysisPipeline.GROUP_BY] = ""
         groups = [""]  # If we don't have any groups, then just make the list an empty string.
 
     output_folder = analysis_params.get(Analysis.OUTPUT_FOLDER)
@@ -275,6 +276,9 @@ if __name__ == "__main__":
 
                     # Make data storage structures for each of our query location lists for checking which query points went into our analysis.
                     if not allData.loc[slice_of_life & qloc_filter].empty:
+                        if DataTags.QUERYLOC not in allData.columns:
+                            allData.loc[slice_of_life & qloc_filter, DataTags.QUERYLOC] = ""
+
                         query_loc_names = allData.loc[slice_of_life & qloc_filter, DataTags.QUERYLOC].unique().tolist()
                         for q, query_loc_name in enumerate(query_loc_names):
                             if len(query_loc_name) == 0:
@@ -301,7 +305,11 @@ if __name__ == "__main__":
                                                                                          analysis_dat_format, stage=Stages.ANALYSIS)
 
                         if dataset is not None:
-                            if len(new_entries) > 0:
+                            # If we have new entries, and any of them are query locations, add them to our database.
+                            # For now, we won't add new items to that database that are not query locations.
+                            if len(new_entries) > 0 and \
+                                    not new_entries[new_entries[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC].empty:
+
                                 for newbie in new_entries[new_entries[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC]:
                                     query_loc_names[q] = newbie[AcquisiTags.DATA_PATH].name
                                     all_query_status[mode][folder].append(pd.DataFrame(columns=data_vidnums))

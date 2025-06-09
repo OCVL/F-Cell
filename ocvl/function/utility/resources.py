@@ -6,6 +6,7 @@ from os.path import exists, splitext
 
 import cv2
 import numpy as np
+from pymatreader import read_mat
 
 
 class ResourceType(Enum):
@@ -24,37 +25,57 @@ def load_config_json(json_path):
 
 
 
-def load_video(video_path):
-    # Load the video data.
-    vid = cv2.VideoCapture(video_path)
+def load_video(video_path, video_field=None):
+
+    if video_field is None:
+        video_field = []
 
     framerate = -1
 
-#    warnings.warn("Videos are currently only loaded as grayscale.")
-    if vid.isOpened():
-        framerate = vid.get(cv2.CAP_PROP_FPS)
-        num_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    match video_path.suffix:
+        case ".avi":
+            # Load the video data.
+            vid = cv2.VideoCapture(video_path, "None")
 
-        # Grab one frame, so we can find out the datatype for our array.
-        ret, frm = vid.read()
+        #    warnings.warn("Videos are currently only loaded as grayscale.")
+            if vid.isOpened():
+                framerate = vid.get(cv2.CAP_PROP_FPS)
+                num_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+                width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        video_data = np.empty([height, width, num_frames], dtype=frm.dtype)
-        video_data[..., 0] = frm[..., 0]
-    else:
-        warnings.warn("Failed to open video: "+video_path)
+                # Grab one frame, so we can find out the datatype for our array.
+                ret, frm = vid.read()
 
-    i = 1
-    while vid.isOpened():
-        ret, frm = vid.read()
-        if ret:
-            video_data[..., i] = frm[..., 0]
-            i += 1
-        else:
-            break
+                video_data = np.empty([height, width, num_frames], dtype=frm.dtype)
+                video_data[..., 0] = frm[..., 0]
+            else:
+                warnings.warn("Failed to open video: "+video_path)
+                return None
 
-    vid.release()
+            i = 1
+            while vid.isOpened():
+                ret, frm = vid.read()
+                if ret:
+                    video_data[..., i] = frm[..., 0]
+                    i += 1
+                else:
+                    break
+
+            vid.release()
+        case ".mat":
+            mat_data = read_mat(video_path)
+            for field in video_field:
+                mat_data = mat_data.get(field, None)
+
+                if mat_data is None:
+                    warnings.warn("Failed to open video: " + video_path)
+                    return None
+
+            video_data = mat_data
+
+        case ".npy":
+            pass
 
     meta = {"framerate": framerate}
 
