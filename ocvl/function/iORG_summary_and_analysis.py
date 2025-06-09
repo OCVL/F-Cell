@@ -419,7 +419,6 @@ if __name__ == "__main__":
 
 
                     # Load each dataset (delineated by different video numbers), and process it relative to the control data.
-                    mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("viridis", len(stim_data_vidnums)))
                     for v, stim_vidnum in enumerate(stim_data_vidnums):
 
                         control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & qloc_filter).sum())]
@@ -507,7 +506,11 @@ if __name__ == "__main__":
                                         #                                                                np.arange(max_frmstamp + 1),
                                         #                                                                summary_method=sum_method,
                                         #                                                                window_size=sum_window)
-                                    control_iORG_signals[q] = control_iORG_sigs
+                                    if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
+                                        control_iORG_signals[q] = control_iORG_sigs
+                                    else:
+                                        control_iORG_signals[q] = None
+
                                     control_pop_iORG_summary[q] = control_pop_iORG_summaries
                                     control_framestamps[q] = []
                                     for r in range(control_pop_iORG_summary[q].shape[0]):
@@ -648,10 +651,16 @@ if __name__ == "__main__":
                             stimtrain[d] = stim_dataset.stimtrain_frame_stamps
                             stim_pop_iORG_N[d, stim_dataset.framestamps] = np.nansum(np.isfinite(stim_dataset.iORG_signals[q]), axis=0)
                             stim_pop_iORG_summaries[d, :] = stim_dataset.summarized_iORGs[q]
+
+                            ''' Clean up old data so that we minimize our memory footprint '''
+                            stim_dataset.summarized_iORGs[q] = []
                             # If all stimulus datasets are uniform,
                             # we can also summarize individual iORGs by combining a cells' iORGs across acquisitions.
                             if uniform_datasets:
                                 stim_iORG_signals[q][d, :, stim_dataset.framestamps] = stim_dataset.iORG_signals[q].T
+
+                                ''' Clean up old data so that we minimize our memory footprint '''
+                                stim_dataset.iORG_signals[q] = []
 
                         pooled_framerate = np.unique(pooled_framerate)
                         if len(pooled_framerate) != 1:
@@ -665,7 +674,9 @@ if __name__ == "__main__":
                         stimtrain = stimtrain[0]
 
                         # Debug - to look at individual cell raw traces.
-                        if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False) or debug_params.get(DebugParams.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
+                        if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False) or \
+                           debug_params.get(DebugParams.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
+
                             if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, "all") == "all":
                                 cell_inds = range(stim_iORG_signals[q].shape[1])
                             else:
