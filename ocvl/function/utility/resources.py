@@ -35,7 +35,7 @@ def load_video(video_path, video_field=None):
     match video_path.suffix:
         case ".avi":
             # Load the video data.
-            vid = cv2.VideoCapture(video_path, "None")
+            vid = cv2.VideoCapture(video_path)
 
         #    warnings.warn("Videos are currently only loaded as grayscale.")
             if vid.isOpened():

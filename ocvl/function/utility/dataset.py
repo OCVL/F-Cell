@@ -370,13 +370,13 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     metadata[AcquisiTags.META_PATH] = extra_metadata_path
 
     if video_path.exists():
-        resource = load_video(video_path, metadata.get(MetaTags.VIDEO, None).get(MetaTags.FIELDS_OF_INTEREST, None))
+        resource = load_video(video_path, metadata.get(MetaTags.VIDEO, dict()).get(MetaTags.FIELDS_OF_INTEREST, None))
 
         video_data = resource.data
 
-        if MetaTags.FRAMERATE not in metadata and MetaTags.FRAMERATE not in metadata.get(MetaTags.VIDEO, None):
+        if MetaTags.FRAMERATE not in metadata and MetaTags.FRAMERATE not in metadata.get(MetaTags.VIDEO, dict()):
             metadata[MetaTags.FRAMERATE] = resource.metadict.get(MetaTags.FRAMERATE)
-        elif MetaTags.FRAMERATE in metadata.get(MetaTags.VIDEO, None):
+        elif MetaTags.FRAMERATE in metadata.get(MetaTags.VIDEO, dict()):
             metadata[MetaTags.FRAMERATE] = metadata.get(MetaTags.VIDEO, None).get(MetaTags.FRAMERATE)
     else:
         warning("Video path does not exist at: "+str(video_path))

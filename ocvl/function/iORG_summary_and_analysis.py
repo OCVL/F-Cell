@@ -88,11 +88,11 @@ if __name__ == "__main__":
     root.update()
 
     analysis_dat_format = dat_form.get(Analysis.NAME)
-    preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME)
-    pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
+    preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME, dict())
+    pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS, dict())
     analysis_params = analysis_dat_format.get(Analysis.PARAMS)
     display_params = analysis_dat_format.get(DisplayParams.NAME)
-    modes_of_interest = analysis_params.get(PreAnalysisPipeline.MODALITIES)
+    modes_of_interest = analysis_params.get(Analysis.MODALITIES)
 
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
     seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.

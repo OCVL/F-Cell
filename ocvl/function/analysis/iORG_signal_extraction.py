@@ -798,6 +798,11 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
                                       repeat(std_indices), repeat(req_framenums) ),
                                       chunksize=chunk_size)
+    else:
+        res = pool.imap(_mean_sub, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                      repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
+                                      repeat(std_indices), repeat(req_framenums) ),
+                                      chunksize=chunk_size)
 
     for i, signal, valid, numgoodind in res:
         stdized_signals[i,: ] = signal

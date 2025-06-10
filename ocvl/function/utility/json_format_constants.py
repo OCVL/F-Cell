@@ -84,6 +84,7 @@ class Analysis(StrEnum):
     OUTPUT_FOLDER = "output_folder"
     OUTPUT_SUBFOLDER = "output_subfolder"
     OUTPUT_SUBFOLDER_METHOD = "output_subfolder_method"
+    MODALITIES = "modalities"
 
 class DebugParams(StrEnum):
     NAME = "debug"
