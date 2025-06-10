@@ -319,8 +319,8 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
             base_entry.loc[0, AcquisiTags.DATASET] = None
 
             for i in range(len(dataset.query_loc) - len(query_info)):
-                base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[i]
-                base_entry.loc[0, DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
+                base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.query_coord_paths[i]
+                base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
 
                 # Update the database, and update all of our logical indices
                 new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
@@ -347,10 +347,10 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
             dataset.summarized_iORGs = [None] * len(dataset.query_loc)
 
             base_entry = database[slice_of_life & vidtype_filter].copy()
-            base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
-            base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
-            base_entry.loc[0, DataTags.QUERYLOC] = "All Pixels"
-            base_entry.loc[0, AcquisiTags.DATASET] = None
+            base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
+            base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "All Pixels"
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
             # Update the database, and update all of our logical indices
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)

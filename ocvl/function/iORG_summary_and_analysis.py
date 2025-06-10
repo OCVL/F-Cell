@@ -310,8 +310,8 @@ if __name__ == "__main__":
                             if len(new_entries) > 0 and \
                                     not new_entries[new_entries[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC].empty:
 
-                                for newbie in new_entries[new_entries[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC]:
-                                    query_loc_names[q] = newbie[AcquisiTags.DATA_PATH].name
+                                for ind, newbie in new_entries[new_entries[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC].iterrows():
+                                    query_loc_names.append(newbie[AcquisiTags.DATA_PATH].name)
                                     all_query_status[mode][folder].append(pd.DataFrame(columns=data_vidnums))
 
                                 # Update the database.
