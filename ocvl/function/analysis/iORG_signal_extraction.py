@@ -717,7 +717,7 @@ def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, vide
         return np.divide(temporal_signals, framewise_norm[None, :])
 
 
-def standardize_signals(temporal_signals, framestamps, std_indices, method="linear_std", critical_fraction=0.3, pool=None):
+def standardize_signals(temporal_signals, framestamps, std_indices, method="mean_sub", critical_fraction=0.3, pool=None):
     """
     This function standardizes each temporal profile (here, the rows of the supplied data) according to the provided
     arguments.
@@ -725,10 +725,10 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     :param temporal_signals: A NxM numpy matrix with N cells and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
     :param std_indices: The range of indices to use when standardizing.
-    :param method: The method used to standardize. Default is "linear_std", which subtracts a linear fit to
+    :param method: The method used to standardize. Default is "linear_stddev", which subtracts a linear fit to
                     each signal before stimulus_stamp, followed by a standardization based on that pre-stamp linear-fit
                     subtracted data. This was used in Cooper et al 2017/2020.
-                    Current options include: "linear_std", "linear_vast", "relative_change", and "mean_sub"
+                    Current options include: "stddev", "linear_stddev", "linear_vast", "relative_change", and "mean_sub"
     :param critical_fraction: The fraction of real values required to consider the signal valid.
     :param pool: A multiprocessing pool object. Default: None
 
@@ -762,12 +762,12 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
         pool = mp.Pool(processes=1)
 
     res = None
-    if method == "std":
+    if method == "stddev":
         res = pool.imap(_std, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
                                       repeat(std_indices), repeat(req_framenums) ),
                                       chunksize=chunk_size)
-    elif method == "linear_std":
+    elif method == "linear_stddev":
         # Standardize using Autoscaling preceded by a linear fit to remove
         # any residual low-frequency changes
 

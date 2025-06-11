@@ -532,8 +532,8 @@ if __name__ == "__main__":
 
 
                                     # First write the control data to a file.
-                                    control_query_status[q].to_csv(result_path.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
-                                                               "_" + query_loc_names[q] + "coords_controldata.csv"))
+                                    control_query_status[q].to_csv(result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + str(mode) + "_query_loc_status_" +
+                                                                query_loc_names[q] + "coords_controldata_"+ start_timestamp+".csv"))
 
                         ''' *** Population iORG analyses here *** '''
                         for q in range(len(stim_dataset.query_loc)):
@@ -557,7 +557,7 @@ if __name__ == "__main__":
                             if pop_overlap_params:
 
                                 overlap_label = "Query file " + query_loc_names[q] + ": summarized using "+ sum_method+ " of " +mode +" iORGs in "+folder.name
-                                display_dict[str(subject_IDs[0]) + "_" + mode+"_pop_iORG_"+ sum_method +"_overlapping_"+query_loc_names[q]+"coords_"+folder.name] = overlap_label
+                                display_dict[str(subject_IDs[0]) +"_"+folder.name + "_" + mode+"_pop_iORG_"+ sum_method +"_overlapping_"+query_loc_names[q]+"coords_"+ start_timestamp] = overlap_label
 
                                 display_iORG_pop_summary(stim_framestamps, stim_pop_summary, stim_dataset.summarized_iORGs[q], stim_vidnum,
                                                          control_framestamps[q], control_pop_iORG_summary[q], control_data_vidnums,
@@ -583,7 +583,7 @@ if __name__ == "__main__":
 
                                 if pop_seq_params.get(DisplayParams.DISP_STIMULUS, True):
                                     seq_stim_label = "Query file " + query_loc_names[q] + ": Stimulus iORG temporal sequence of " +mode +" iORGs in "+folder.name
-                                    display_dict[str(subject_IDs[0]) + "_" + mode + "_pop_iORG_" + sum_method + "_sequential_stim_only_" + query_loc_names[q] + "coords_" + folder.name] = seq_stim_label
+                                    display_dict[str(subject_IDs[0]) +"_"+folder.name + "_" + mode + "_pop_iORG_" + sum_method + "_sequential_stim_only_" + query_loc_names[q] + "coords_" + start_timestamp] = seq_stim_label
 
                                     display_iORG_pop_summary_seq(stim_framestamps, stim_pop_summary, vidnum_seq[v], stim_dataset.stimtrain_frame_stamps,
                                                                  stim_dataset.framerate, sum_method, seq_stim_label,
@@ -592,7 +592,7 @@ if __name__ == "__main__":
 
                                 if pop_seq_params.get(DisplayParams.DISP_RELATIVE, True):
                                     seq_rel_label = "Query file " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence"
-                                    display_dict[str(subject_IDs[0]) + "_" + mode + "_pop_iORG_" + sum_method + "_sequential_relative_" + query_loc_names[q] + "coords_" + folder.name] = seq_rel_label
+                                    display_dict[str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pop_iORG_" + sum_method + "_sequential_relative_" + query_loc_names[q] + "coords_"+start_timestamp] = seq_rel_label
 
                                     display_iORG_pop_summary_seq(stim_framestamps, stim_dataset.summarized_iORGs[q], vidnum_seq[v], stim_dataset.stimtrain_frame_stamps,
                                                                  stim_dataset.framerate, sum_method, seq_rel_label,
@@ -765,14 +765,16 @@ if __name__ == "__main__":
                         ''' *** Display the pooled population data *** '''
                         if pop_overlap_params.get(DisplayParams.DISP_POOLED, False):
                             overlap_label = "Pooled data summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
-                            display_dict[str(subject_IDs[0]) + "_" + "pooled_" + mode + "_pop_iORG_" + sum_method + "_overlapping"] = overlap_label
+                            display_dict[str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pooled_pop_iORG_" + sum_method + "_overlapping_"+ start_timestamp] = overlap_label
 
                             display_iORG_pop_summary(np.arange(max_frmstamp + 1), stim_pop_iORG_summary[q], stim_vidnum=query_loc_names[q],
                                                      stim_delivery_frms=stimtrain, framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                      figure_label=overlap_label, params=pop_overlap_params)
                             plt.show(block=False)
-
-                            plt.title("Pooled "+ sum_method +"iORGs relative to control iORG via " + sum_control)
+                            if sum_control !=  "none":
+                                plt.title("Pooled "+ sum_method.upper() +" iORGs relative\nto control iORG via " + sum_control)
+                            else:
+                                plt.title("Pooled " + sum_method.upper() + " iORGs. (No control)")
 
                         # If we have a uniform dataset, summarize each cell's iORG too.
                         ''' *** Individual iORG analyses start here *** '''
@@ -784,7 +786,7 @@ if __name__ == "__main__":
                                         indiv_overlap_params.get(DisplayParams.DISP_CONTROL, False) or \
                                         indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, False):
                                     overlap_label = "Individual-Cell iORGs summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
-                                    display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping"] = overlap_label
+                                    display_dict[str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_indiv_iORG_" + sum_method + "_overlapping_"+ start_timestamp] = overlap_label
 
                             all_tot_sig = np.nansum(np.any(np.isfinite(stim_iORG_signals[q]), axis=2), axis=0)
                             viable_sig = all_tot_sig >= sum_params.get(SummaryParams.INDIV_CUTOFF, 5)
@@ -845,32 +847,33 @@ if __name__ == "__main__":
 
                             if indiv_overlap_params:
                                 plt.show(block=False)
-                            indiv_respath = result_path.joinpath(str(subject_IDs[0]) + "_indiv_summary_metrics" + str(folder.name) + "_" + str(mode) +
-                                                       "_" + query_loc_names[q] + "coords.csv")
+                            indiv_respath = result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name + "_" + mode + "_indiv_summary_metrics_" + query_loc_names[q] + "coords_" +start_timestamp+".csv")
 
                             if indiv_summary.get(DisplayParams.HISTOGRAM):
 
-                                overlap_label = "Individual-Cell iORGs metric histograms from " + mode + " iORGs in " + folder.name
-                                display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_metric_histograms"] = overlap_label
+                                overlap_label = "Individual-Cell iORGs metric histograms\nfrom " + mode + " iORGs in " + folder.name
+                                display_dict[str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_indiv_iORG_" + sum_method + "_metric_histograms_"+ start_timestamp] = overlap_label
 
                                 display_iORG_summary_histogram(indiv_iORG_result[q], metrics_tags, False, query_loc_names[q],
                                                                overlap_label, indiv_summary)
+                                plt.suptitle(overlap_label)
 
 
                             if indiv_summary.get(DisplayParams.CUMULATIVE_HISTOGRAM):
-                                overlap_label = "Individual-Cell iORGs metric cumulative histograms from " + mode + " iORGs in " + folder.name
-                                display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_metric_cumul_histograms"] = overlap_label
+                                overlap_label = "Individual-Cell iORGs metric cumulative histograms\nfrom " + mode + " iORGs in " + folder.name
+                                display_dict[str(subject_IDs[0]) +"_"+folder.name + "_" + mode + "_indiv_iORG_" + sum_method + "_metric_cumul_histograms_"+ start_timestamp] = overlap_label
 
                                 display_iORG_summary_histogram(indiv_iORG_result[q], metrics_tags, True, query_loc_names[q],
                                                                overlap_label, indiv_summary)
+                                plt.suptitle(overlap_label)
 
                             if indiv_summary.get(DisplayParams.MAP_OVERLAY):
                                 ax_params = indiv_summary.get(DisplayParams.AXES, dict())
 
                                 for metric in metrics_tags:
                                     if indiv_iORG_result[q].loc[:, metric].count() != 0:
-                                        label = "Individual iORG "+metric+" from " + mode + " using query locations: " + query_loc_names[q] + " in " + folder.name
-                                        display_dict[str(subject_IDs[0]) + "_" + mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q]] = label
+                                        label = "Individual iORG "+metric+" from " + mode + "\nusing query locations " + query_loc_names[q] + " in " + folder.name
+                                        display_dict[str(subject_IDs[0]) +"_"+folder.name + "_" + mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q] +"_"+ start_timestamp] = label
 
                                         refim = allData.loc[group_filter & folder_filter & (mode_filter & refim_filter), AcquisiTags.DATA_PATH].values[0]
 
@@ -897,7 +900,7 @@ if __name__ == "__main__":
                                                                                          -1), copy=True)
 
                                 video_profiles[np.isnan(video_profiles)] = starting
-                                save_video(result_path.joinpath("pooled_pixelpop_iORG_" + start_timestamp + ".avi"),
+                                save_video(result_path.joinpath(str(subject_IDs[0]) + "_" + mode +"_pooled_pixelpop_iORG_" + sum_method + "_" +folder.name +"_"+ start_timestamp + ".avi"),
                                            video_profiles, pooled_framerate.item(),
                                            scalar_mapper=mapper)
 
@@ -938,11 +941,11 @@ if __name__ == "__main__":
                             # plt.waitforbuttonpress()
 
                         all_query_status[mode][folder][q].sort_index(inplace=True)
-                        all_query_status[mode][folder][q].to_csv(result_path.joinpath(str(subject_IDs[0]) + "_query_loc_status_" + str(folder.name) + "_" + str(mode) +
-                                                   "_" + query_loc_names[q] + "coords.csv"))
+                        all_query_status[mode][folder][q].to_csv(result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_query_loc_status_" + str(folder.name) +
+                                                   "_" + query_loc_names[q] + "coords_" + start_timestamp + ".csv"))
 
 
-                    respath = result_path.joinpath(str(subject_IDs[0]) + "_pop_summary_metrics_" + str(folder.name) + "_" + str(mode) + ".csv")
+                    respath = result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pop_summary_metrics_" + start_timestamp +".csv")
                     tryagain = True
                     while tryagain:
                         try:
@@ -960,7 +963,11 @@ if __name__ == "__main__":
                     for fname, figname in display_dict.items():
                         plt.figure(figname)
                         sublayout = plt.gca().get_gridspec()
-                        plt.gcf().set_size_inches(5*sublayout.ncols, 5*sublayout.nrows)
+                        if sublayout is not None:
+                            plt.gcf().set_size_inches(5*sublayout.ncols, 5*sublayout.nrows)
+                        else:
+                            plt.gcf().set_size_inches(5, 5)
+
                         plt.draw()
                         for ext in saveas_ext:
                             tryagain = True
