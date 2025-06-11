@@ -720,7 +720,9 @@ if __name__ == "__main__":
                         ''' *** Pool the summarized population iORGs *** '''
                         with warnings.catch_warnings():
                             warnings.filterwarnings(action="ignore", message="invalid value encountered in divide")
+                            nandata = np.all(np.isnan(stim_pop_iORG_summaries), axis=0)
                             stim_pop_iORG_summary[q] = np.nansum(stim_pop_iORG_N * stim_pop_iORG_summaries,axis=0) / np.nansum(stim_pop_iORG_N, axis=0)
+                            stim_pop_iORG_summary[q][nandata] = np.nan
 
                         metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
                         metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
