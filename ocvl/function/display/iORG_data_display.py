@@ -104,7 +104,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
 
-        if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+        if ax_params.get(DisplayParams.LEGEND, False): plt.legend(loc="upper left")
 
 
 def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
@@ -231,7 +231,7 @@ def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_deli
                           float(stim_delivery_frms[1] / framerate), facecolor='g',
                           alpha=0.5)
 
-    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+    if ax_params.get(DisplayParams.LEGEND, False): plt.legend(loc="upper left")
 
 
 def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cumulative=False, data_label="", figure_label="", params=None):
