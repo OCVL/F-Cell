@@ -75,6 +75,8 @@ class PreAnalysisPipeline(StrEnum):
     CUSTOM = "custom"
     OUTPUT_FOLDER = "output_folder"
     GROUP_BY = "group_by"
+    INTRA_STACK_XFORM = "intra_stack_xform"
+    INTER_STACK_XFORM = "inter_stack_xform"
 
 class Analysis(StrEnum):
     NAME = "analysis"

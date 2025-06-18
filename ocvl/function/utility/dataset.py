@@ -620,7 +620,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
     if correct_torsion is not None and correct_torsion:
         align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, mask_dat,
                                                                      reference_idx=dataset.reference_frame_idx,
-                                                                     dropthresh=0, justalign=True, transformtype="rigid")
+                                                                     dropthresh=0, justalign=True, transformtype=params.get(PreAnalysisPipeline.INTER_STACK_XFORM, "rigid"))
 
         # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
         og_dtype = dataset.video_data.dtype
