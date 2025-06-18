@@ -276,7 +276,7 @@ if __name__ == "__main__":
                                                                                         (align_dat > 0),
                                                                                         dist_ref_idx,
                                                                                         determine_initial_shifts=True,
-                                                                                        dropthresh=0.0, transformtype="affine")
+                                                                                        dropthresh=0.0, transformtype=pipeline_params.get(PreAnalysisPipeline.INTER_STACK_XFORM, "affine"))
                 else:
                     central_dataset = datasets[dist_ref_idx]
 
