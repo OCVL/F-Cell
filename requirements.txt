@@ -16,3 +16,5 @@ parse>=1.2.0
 parse-type>=0.6.4
 colorama>=0.4.6
 pymatreader>=1.0.0
+parse_type>=0.6.4
+tifffile>=2025.5.10

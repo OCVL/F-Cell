@@ -320,8 +320,8 @@ if __name__ == "__main__":
                 cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
                             avg_avg_images)
 
-                save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname).with_suffix(".avi")),
-                           avg_images, 1)
+                # save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname).with_suffix(".avi")),
+                #            avg_images, 1)
 
                 print("Outputting data...")
                 for dataset, xform in zip(datasets, ref_xforms):
