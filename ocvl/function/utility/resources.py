@@ -3,6 +3,7 @@ import os
 import warnings
 from enum import Enum
 from os.path import exists, splitext
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -29,6 +30,8 @@ def load_video(video_path, video_field=None):
 
     if video_field is None:
         video_field = []
+    if isinstance(video_path, str):
+        video_path = Path(video_path)
 
     framerate = -1
 
