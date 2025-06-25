@@ -380,7 +380,7 @@ def simple_dataset_list_align(datasets, ref_idx):
     return shifts
 
 
-def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=False, dropthresh=None, transformtype="affine", justalign=False):
+def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=True, dropthresh=None, transformtype="affine", justalign=False):
     num_frames = im_stack.shape[-1]
     og_dtype = im_stack.dtype
     if not justalign:
@@ -485,15 +485,18 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
 
 
-def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=5000, method="affine", dropthresh=None):
+def relativize_image_stack(image_data, mask_data=None, reference_idx=0, numkeypoints=10000, method="affine", dropthresh=None):
+
+    if mask_data is None:
+        mask_data = (image_data > 0).astype(image_data.dtype)
     num_frames = image_data.shape[-1]
 
     xform = [None] * num_frames
     corrcoeff = np.empty((num_frames, 1))
-    corrcoeff[:] = np.NAN
+    corrcoeff[:] = np.nan
     corrected_stk = np.zeros(image_data.shape)
 
-    sift = cv2.SIFT_create(numkeypoints, nOctaveLayers=55, contrastThreshold=0)
+    sift = cv2.SIFT_create(numkeypoints, nOctaveLayers=55, contrastThreshold=0.0, sigma=1)
 
     keypoints = []
     descriptors = []
@@ -514,26 +517,29 @@ def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=64)
 
-    flan = cv2.FlannBasedMatcher(index_params, search_params)
+    matcher = cv2.BFMatcher.create()
 
     # Specify the number of iterations.
     for f in range(num_frames):
-        matches = flan.knnMatch(descriptors[f], descriptors[reference_idx], k=2)
+
+        matches = matcher.knnMatch(descriptors[f], descriptors[reference_idx], k=2)
 
         good_matches = []
         for f1, f2 in matches:
-            if f1.distance < 0.75 * f2.distance:
+            if f1.distance < 0.7 * f2.distance:
                 good_matches.append(f1)
 
         if len(good_matches) >= 4:
             src_pts = np.float32([keypoints[f][f1.queryIdx].pt for f1 in good_matches]).reshape(-1, 1, 2)
             dst_pts = np.float32([keypoints[reference_idx][f1.trainIdx].pt for f1 in good_matches]).reshape(-1, 1, 2)
 
-            # img_matches = np.empty((max(image_data[..., f].shape[0], image_data[..., f].shape[0]), image_data[..., f].shape[1] + image_data[..., f].shape[1], 3),
-            #                        dtype=np.uint8)
-            # cv2.drawMatches( image_data[..., f], keypoints[f], image_data[..., reference_idx], keypoints[reference_idx], good_matches, img_matches)
-            # cv2.imshow("meh", img_matches)
-            # cv2.waitKey()
+            if f != reference_idx:
+                img_matches = np.empty((max(image_data[..., f].shape[0], image_data[..., f].shape[0]), image_data[..., f].shape[1] + image_data[..., f].shape[1], 3),
+                                       dtype=np.uint8)
+
+                cv2.drawMatches( image_data[..., f], keypoints[f], image_data[..., reference_idx], keypoints[reference_idx], good_matches, img_matches)
+                cv2.imshow("meh", img_matches)
+                cv2.waitKey()
 
             if method == "affine":
                 M, inliers = cv2.estimateAffine2D(dst_pts, src_pts) # More stable- also means we have to set the inverse flag below.
@@ -541,11 +547,11 @@ def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=
                 M, inliers = cv2.estimateAffinePartial2D(dst_pts, src_pts)
 
             if M is not None and np.sum(inliers) >= 4:
-                xform[f] = M
+                xform[f] = M+0
 
-                corrected_stk[..., f] = cv2.warpAffine(image_data[..., f], xform[f], image_data[..., f].shape,
+                corrected_stk[..., f] = cv2.warpAffine(image_data[..., f], xform[f], np.flip(image_data[..., f].shape),
                                                       flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
-                warped_mask = cv2.warpAffine(mask_data[..., f], xform[f], mask_data[..., f].shape,
+                warped_mask = cv2.warpAffine(mask_data[..., f], xform[f], np.flip(mask_data[..., f].shape),
                                              flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
 
                 # Calculate and store the final correlation. It should be decent, if the transform was.
@@ -560,10 +566,9 @@ def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=
                 pass
                 #print("Not enough inliers were found: " + str(np.sum(inliers)))
         else:
-            pass
-            #print("Not enough matches were found: " + str(len(good_matches)))
+            print("Not enough matches were found: " + str(len(good_matches)))
 
-    if not dropthresh:
+    if dropthresh is None:
         print("No drop threshold detected, auto-generating...")
         dropthresh = np.nanquantile(corrcoeff, 0.01)
 
