@@ -55,7 +55,7 @@ if __name__ == "__main__":
     aug_coords = np.hstack((coordlist, np.ones((coordlist.shape[0], 1))) ).T
     xformed_coords = np.dot(aug_xform, aug_coords).T
 
-    xformed_coords -= 1
+    #xformed_coords -= 1
 
     xformed_coords = xformed_coords[:, 0:2]
 

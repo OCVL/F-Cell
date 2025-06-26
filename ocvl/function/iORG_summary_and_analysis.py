@@ -198,6 +198,7 @@ if __name__ == "__main__":
 
             allData.loc[group_filter, AcquisiTags.STIM_PRESENT] = True
             allData.loc[group_filter, AcquisiTags.STIM_PRESENT] = allData.loc[group_filter, AcquisiTags.STIM_PRESENT].astype(bool)
+
             refim_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE
             qloc_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
             vidtype_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
@@ -316,6 +317,16 @@ if __name__ == "__main__":
 
                                 # Update the database.
                                 allData = pd.concat([allData, new_entries], ignore_index=True)
+
+                                # Update the filters.
+                                group_filter = allData[PreAnalysisPipeline.GROUP_BY] == group
+                                mode_filter = allData[DataTags.MODALITY] == mode
+                                folder_filter = allData[AcquisiTags.BASE_PATH] == folder
+                                refim_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE
+                                qloc_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
+                                vidtype_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
+
+
                         else:
                             for q in range(len(all_query_status[mode][folder])):
                                 all_query_status[mode][folder][q].loc[:, vidnum] = "Dataset Failed To Load"
@@ -429,7 +440,6 @@ if __name__ == "__main__":
                     # Load each dataset (delineated by different video numbers), and process it relative to the control data.
                     for v, stim_vidnum in enumerate(stim_data_vidnums):
 
-                        control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range((slice_of_life & qloc_filter).sum())]
 
                         vidid_filter = (allData[DataTags.VIDEO_ID] == stim_vidnum)
 
@@ -438,7 +448,7 @@ if __name__ == "__main__":
 
                         # Grab the stim dataset associated with this video number.
                         stim_dataset = allData.loc[slice_of_life & vidtype_filter & has_stim, AcquisiTags.DATASET].values[0]
-
+                        control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range(len(stim_dataset.iORG_signals))]
 
                         if not uniform_datasets or first_run:
 
@@ -875,7 +885,7 @@ if __name__ == "__main__":
                                         label = "Individual iORG "+metric+" from " + mode + "\nusing query locations " + query_loc_names[q] + " in " + folder.name
                                         display_dict[str(subject_IDs[0]) +"_"+folder.name + "_" + mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q] +"_"+ start_timestamp] = label
 
-                                        refim = allData.loc[group_filter & folder_filter & (mode_filter & refim_filter), AcquisiTags.DATA_PATH].values[0]
+                                        refim = allData.loc[group_filter & folder_filter & mode_filter & refim_filter, AcquisiTags.DATA_PATH].values[0]
 
                                         metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
                                         coords = np.array(indiv_iORG_result[q].loc[:, metric].index.to_list())
@@ -911,8 +921,7 @@ if __name__ == "__main__":
                                     indiv_iORG_result[q].to_csv(indiv_respath)
                                     tryagain = False
                                 except PermissionError:
-                                    tryagain = messagebox.askyesno(
-                                        title="File: " + str(indiv_respath) + " is unable to be written.",
+                                    tryagain = messagebox.askyesno(title="File: " + str(indiv_respath) + " is unable to be written.",
                                         message="The result file may be open. Close the file, then try to write again?")
 
                             # figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name

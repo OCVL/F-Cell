@@ -309,7 +309,6 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
             # Update the database, and update all of our logical indices
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
 
-
         # Check to see if our dataset's number of query locations matches the ones we thought we found
         # (can happen if the query location format doesn't match, but dataset was able to find a candidate)
         if len(query_info) < len(dataset.query_loc):
@@ -324,8 +323,6 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
 
                 # Update the database, and update all of our logical indices
                 new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
-
-
 
         # If we can't find any query locations, or if we just want it, default to querying all pixels.
         if (len(dataset.query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset.query_coord_paths:
