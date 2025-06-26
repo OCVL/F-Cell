@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import SimpleITK as sitk
 from matplotlib import pyplot, pyplot as plt
+from scipy import ndimage
 from scipy.fft import next_fast_len, fft2, ifft2
 from scipy.ndimage import binary_erosion
 from scipy.signal import fftconvolve
@@ -12,39 +13,58 @@ from numpy.polynomial import Polynomial
 from ocvl.function.utility.resources import save_video, save_tiff_stack
 
 
-def flat_field_frame(dataframe, sigma, rescale=False):
+def flat_field_frame(dataframe, mask=None, sigma=31, rescale=False):
     kernelsize = 3 * sigma
     if (kernelsize % 2) == 0:
         kernelsize += 1
 
-    mask = np.ones(dataframe.shape, dtype=dataframe.dtype)
-    mask[dataframe == 0] = 0
+    dataframe = dataframe.astype("float32")
+    minval = np.nanmin(dataframe)
+    maxval = np.nanmax(dataframe)
 
-    dataframe[dataframe == 0] = 1
-    blurred_frame = cv2.GaussianBlur(dataframe.astype("float32"), (kernelsize, kernelsize),
+    if mask is None:
+        mask = np.ones(dataframe.shape, dtype=dataframe.dtype)
+        mask[dataframe == 0] = 0
+    else:
+        mask = mask.astype("float32")
+
+    mask = ndimage.binary_closing(mask, np.ones((5,5))).astype("float32")
+
+    #dataframe[dataframe == 0] = 0
+    dataframe[np.isnan(dataframe)] = 0
+
+    dataframe *= mask
+
+    blurred_frame = cv2.GaussianBlur(dataframe, (kernelsize, kernelsize),
                                      sigmaX=sigma, sigmaY=sigma)
-    flat_fielded = (dataframe.astype("float32") / blurred_frame)
+    blurred_mask = cv2.GaussianBlur(mask, (kernelsize, kernelsize),
+                                     sigmaX=sigma, sigmaY=sigma)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="invalid value encountered in divide")
 
+        blurred_frame /= blurred_mask
+
+        blurred_frame /= np.nanmean(blurred_frame[:])
+
+        flat_fielded = (dataframe / blurred_frame)
+        flat_fielded[flat_fielded < minval] = minval
+        flat_fielded[flat_fielded > maxval] = maxval
+
+    mask[mask == 0] = np.nan
     flat_fielded *= mask
-
-    if rescale:
-        flat_fielded -= np.amin(flat_fielded)
-        flat_fielded = np.divide(flat_fielded, np.amax(flat_fielded), where=flat_fielded != 0)
-
-        if dataframe.dtype == "uint8":
-            flat_fielded *= 255
-        elif dataframe.dtype == "uint16":
-            flat_fielded *= 65535
 
     return flat_fielded
 
 
-def flat_field(dataset, sigma=31, rescale=False):
+def flat_field(dataset, mask=None, sigma=31, rescale=True):
+
+    if mask is None:
+        mask = dataset > 0
 
     if len(dataset.shape) > 2:
         flat_fielded_dataset = np.zeros(dataset.shape)
         for i in range(dataset.shape[-1]):
-            flat_fielded_dataset[..., i] = flat_field_frame(dataset[..., i], sigma, rescale)
+            flat_fielded_dataset[..., i] = flat_field_frame(dataset[..., i].copy(), mask[..., i].copy(), sigma, rescale)
 
         return flat_fielded_dataset
     else:
@@ -360,7 +380,7 @@ def simple_dataset_list_align(datasets, ref_idx):
     return shifts
 
 
-def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=False, dropthresh=None, transformtype="affine", justalign=False):
+def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=True, dropthresh=None, transformtype="affine", justalign=False):
     num_frames = im_stack.shape[-1]
     og_dtype = im_stack.dtype
     if not justalign:
@@ -465,15 +485,18 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
 
 
-def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=5000, method="affine", dropthresh=None):
+def relativize_image_stack(image_data, mask_data=None, reference_idx=0, numkeypoints=10000, method="affine", dropthresh=None):
+
+    if mask_data is None:
+        mask_data = (image_data > 0).astype(image_data.dtype)
     num_frames = image_data.shape[-1]
 
     xform = [None] * num_frames
     corrcoeff = np.empty((num_frames, 1))
-    corrcoeff[:] = np.NAN
+    corrcoeff[:] = np.nan
     corrected_stk = np.zeros(image_data.shape)
 
-    sift = cv2.SIFT_create(numkeypoints, nOctaveLayers=55, contrastThreshold=0)
+    sift = cv2.SIFT_create(numkeypoints, nOctaveLayers=55, contrastThreshold=0.0, sigma=1)
 
     keypoints = []
     descriptors = []
@@ -494,26 +517,29 @@ def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=64)
 
-    flan = cv2.FlannBasedMatcher(index_params, search_params)
+    matcher = cv2.BFMatcher.create()
 
     # Specify the number of iterations.
     for f in range(num_frames):
-        matches = flan.knnMatch(descriptors[f], descriptors[reference_idx], k=2)
+
+        matches = matcher.knnMatch(descriptors[f], descriptors[reference_idx], k=2)
 
         good_matches = []
         for f1, f2 in matches:
-            if f1.distance < 0.75 * f2.distance:
+            if f1.distance < 0.7 * f2.distance:
                 good_matches.append(f1)
 
         if len(good_matches) >= 4:
             src_pts = np.float32([keypoints[f][f1.queryIdx].pt for f1 in good_matches]).reshape(-1, 1, 2)
             dst_pts = np.float32([keypoints[reference_idx][f1.trainIdx].pt for f1 in good_matches]).reshape(-1, 1, 2)
 
-            # img_matches = np.empty((max(image_data[..., f].shape[0], image_data[..., f].shape[0]), image_data[..., f].shape[1] + image_data[..., f].shape[1], 3),
-            #                        dtype=np.uint8)
-            # cv2.drawMatches( image_data[..., f], keypoints[f], image_data[..., reference_idx], keypoints[reference_idx], good_matches, img_matches)
-            # cv2.imshow("meh", img_matches)
-            # cv2.waitKey()
+            if f != reference_idx:
+                img_matches = np.empty((max(image_data[..., f].shape[0], image_data[..., f].shape[0]), image_data[..., f].shape[1] + image_data[..., f].shape[1], 3),
+                                       dtype=np.uint8)
+
+                cv2.drawMatches( image_data[..., f], keypoints[f], image_data[..., reference_idx], keypoints[reference_idx], good_matches, img_matches)
+                cv2.imshow("meh", img_matches)
+                cv2.waitKey()
 
             if method == "affine":
                 M, inliers = cv2.estimateAffine2D(dst_pts, src_pts) # More stable- also means we have to set the inverse flag below.
@@ -521,11 +547,11 @@ def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=
                 M, inliers = cv2.estimateAffinePartial2D(dst_pts, src_pts)
 
             if M is not None and np.sum(inliers) >= 4:
-                xform[f] = M
+                xform[f] = M+0
 
-                corrected_stk[..., f] = cv2.warpAffine(image_data[..., f], xform[f], image_data[..., f].shape,
+                corrected_stk[..., f] = cv2.warpAffine(image_data[..., f], xform[f], np.flip(image_data[..., f].shape),
                                                       flags=cv2.INTER_LANCZOS4 | cv2.WARP_INVERSE_MAP)
-                warped_mask = cv2.warpAffine(mask_data[..., f], xform[f], mask_data[..., f].shape,
+                warped_mask = cv2.warpAffine(mask_data[..., f], xform[f], np.flip(mask_data[..., f].shape),
                                              flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
 
                 # Calculate and store the final correlation. It should be decent, if the transform was.
@@ -540,10 +566,9 @@ def relativize_image_stack(image_data, mask_data, reference_idx=0, numkeypoints=
                 pass
                 #print("Not enough inliers were found: " + str(np.sum(inliers)))
         else:
-            pass
-            #print("Not enough matches were found: " + str(len(good_matches)))
+            print("Not enough matches were found: " + str(len(good_matches)))
 
-    if not dropthresh:
+    if dropthresh is None:
         print("No drop threshold detected, auto-generating...")
         dropthresh = np.nanquantile(corrcoeff, 0.01)
 

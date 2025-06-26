@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import matplotlib as mpl
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from ocvl.function.utility.json_format_constants import DisplayParams, MetricTags
 
@@ -33,10 +34,10 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         ind += 1
     if disp_stim:
         dispinds = np.isfinite(stim_pop_summary)
-        plt.title("Stimulus iORG")
+        plt.title(sum_method.upper()+"-summarized iORGs\n(Stimulus acquisitions)")
         plt.plot(stim_framestamps[dispinds] / framerate, stim_pop_summary[dispinds],label=str(stim_vidnum))
         plt.xlabel("Time (s)")
-        plt.ylabel(sum_method)
+        plt.ylabel(sum_method.upper())
 
         the_lines = plt.gca().get_lines()
         normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
@@ -51,19 +52,18 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
+        if ax_params.get(DisplayParams.LEGEND, False) and not disp_rel: plt.legend()
 
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
         ind += 1
-    if disp_cont  and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
-        plt.title("Control iORGs")
+    if disp_cont and plt.gca().get_title() != (sum_method.upper()+"-summarized iORGs\n(Control acquisitions)"):  # The last bit ensures we don't spam the subplots with control data.
+        plt.title(sum_method.upper()+"-summarized iORGs\n(Control acquisitions)")
         for r in range(control_pop_iORG_summary.shape[0]):
             plt.plot(control_framestamps[r] / framerate, control_pop_iORG_summary[r, control_framestamps[r]], label=str(control_vidnums[r]))
 
-        if np.all(control_pop_iORG_summary_pooled):
-            plt.plot(control_framestamps_pooled / framerate, control_pop_iORG_summary_pooled[control_framestamps_pooled], 'k--', linewidth=4)
         plt.xlabel("Time (s)")
-        plt.ylabel(sum_method)
+        plt.ylabel(sum_method.upper())
 
         the_lines = plt.gca().get_lines()
         normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
@@ -71,6 +71,9 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
                                        norm=normmap)
         for l, line in enumerate(the_lines):
             line.set_color(mapper.to_rgba(l))
+
+        if np.all(control_pop_iORG_summary_pooled):
+            plt.plot(control_framestamps_pooled / framerate, control_pop_iORG_summary_pooled[control_framestamps_pooled], 'k--', linewidth=4)
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
@@ -81,11 +84,11 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         ind += 1
     if disp_rel:
         dispinds = np.isfinite(relative_pop_summary)
-        plt.title("Stimulus relative to control iORG via " + sum_control)
+        plt.title(sum_method.upper()+"-summarized stimulus iORGs relative\nto control via " + sum_control)
         plt.plot(stim_framestamps[dispinds] / framerate, relative_pop_summary[dispinds],
                  label=str(stim_vidnum))
         plt.xlabel("Time (s)")
-        plt.ylabel(sum_method)
+        plt.ylabel(sum_method.upper())
 
         the_lines = plt.gca().get_lines()
         normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
@@ -101,10 +104,10 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
 
-        if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+        if ax_params.get(DisplayParams.LEGEND, False): plt.legend(loc="upper left")
 
 
-def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
+def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
                   control_framestamps=None, control_iORGs=None, control_vidnums="",
                   image=None, cell_loc=None,
                   stim_delivery_frms=None, framerate=15.0, figure_label="", params=None):
@@ -113,8 +116,13 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
         params = dict()
 
     disp_im = image is not None and cell_loc is not None
-    disp_stim = params.get(DisplayParams.DISP_STIMULUS, False)
+    disp_stim = params.get(DisplayParams.DISP_STIMULUS, False) and stim_iORGs is not None
     disp_cont = params.get(DisplayParams.DISP_CONTROL, False) and control_iORGs is not None
+
+    if disp_stim and stim_framestamps is None:
+        stim_framestamps = np.arange(stim_iORGs.shape[1])
+    if not disp_stim and disp_cont and stim_framestamps is None:
+        stim_framestamps = np.arange(control_iORGs.shape[1])
 
     ax_params = params.get(DisplayParams.AXES, dict())
     show_legend = ax_params.get(DisplayParams.LEGEND, False) and \
@@ -123,7 +131,7 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
     ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
     how_many = np.sum([disp_im, disp_stim, disp_cont])
 
-    if not isinstance(stim_vidnums, list):
+    if disp_stim and not isinstance(stim_vidnums, list):
         stim_vidnums = [stim_vidnums] * stim_iORGs.shape[0]
     if disp_cont and not isinstance(control_vidnums, list):
         control_vidnums = [control_vidnums] * control_iORGs.shape[0]
@@ -137,7 +145,7 @@ def display_iORGs(stim_framestamps, stim_iORGs, stim_vidnums="",
     if disp_im:
         plt.title("Cell location")
         plt.imshow(image, cmap='gray')
-        plt.plot(cell_loc[0], cell_loc[1], "*", markersize=6)
+        plt.plot(cell_loc[:, 0], cell_loc[:, 1], "*", markersize=6)
 
     if how_many > 1 and disp_stim:
         plt.subplot(1, how_many, ind)
@@ -207,7 +215,7 @@ def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_deli
     plt.title("Acquisition " + str(vidnum_seq % num_in_seq) + " of " + str(num_in_seq))
     plt.plot(framestamps / framerate, pop_summary)
     plt.xlabel("Time (s)")
-    plt.ylabel(sum_method)
+    plt.ylabel(sum_method.upper())
     if not None in xlimits: plt.xlim(xlimits)
     if not None in ylimits: plt.ylim(ylimits)
 
@@ -223,7 +231,7 @@ def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_deli
                           float(stim_delivery_frms[1] / framerate), facecolor='g',
                           alpha=0.5)
 
-    if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
+    if ax_params.get(DisplayParams.LEGEND, False): plt.legend(loc="upper left")
 
 
 def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cumulative=False, data_label="", figure_label="", params=None):
@@ -250,16 +258,17 @@ def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cum
             if not None in xlimits and ax_params.get(DisplayParams.XSTEP):
                 histbins = np.arange(start=xlimits[0], stop=xlimits[1], step=ax_params.get(DisplayParams.XSTEP))
                 if not cumulative:
-                    plt.hist(metric_res, bins=histbins, label=data_label)
+                    plt.hist(metric_res, bins=histbins, label=data_label, histtype="step", linewidth=2.5)
                 else:
                     plt.hist(metric_res, bins=histbins, label=data_label, density=True, histtype="step",
-                             cumulative=True)
+                             cumulative=True, linewidth=2.5)
             else:
                 if not cumulative:
-                    plt.hist(metric_res, bins=ax_params.get(DisplayParams.NBINS, 50), label=data_label)
+                    plt.hist(metric_res, bins=ax_params.get(DisplayParams.NBINS, 50), histtype="step", linewidth=2.5,
+                             label=data_label)
                 else:
                     plt.hist(metric_res, bins=ax_params.get(DisplayParams.NBINS, 50), label=data_label,
-                             density=True, histtype="step", cumulative=True)
+                             density=True, histtype="step", cumulative=True, linewidth=2.5)
 
             plt.title(metric)
             if not None in xlimits: plt.xlim(xlimits)
@@ -283,9 +292,11 @@ def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", 
 
     ax_params = params.get(DisplayParams.AXES, dict())
 
-    plt.figure(figure_label)
+    fig=plt.figure(figure_label)
+    ax = plt.axes()
     plt.title(figure_label)
     plt.imshow(image, cmap='gray')
+    ax.set_axis_off()
 
     if ax_params.get(DisplayParams.XMIN, None) and ax_params.get(DisplayParams.XMAX, None) and ax_params.get(
             DisplayParams.XSTEP, None):
@@ -306,6 +317,9 @@ def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", 
                                    norm=normmap)
 
     plt.scatter(coordinates[:, 0], coordinates[:, 1], s=10, c=mapper.to_rgba(values))
-    plt.colorbar(mapper, ax=plt.gca(), label=colorbar_label)
+
+    divider=make_axes_locatable(ax)
+    cax=divider.append_axes("right",size="5%", pad=0.1)
+    plt.colorbar(mapper, cax=cax, label=colorbar_label)
     plt.show(block=False)
 

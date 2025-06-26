@@ -43,7 +43,7 @@
       "correct_torsion": true,
       "intra_stack_xform": "affine",
       "inter_stack_xform": "affine",
-      "flat_field": false,
+      "flat_field": true,
       "custom": {
         "dewarp": "ocvl"
       }
@@ -61,7 +61,7 @@
         "stimulus_sequence": "StimulusOn"
       }
     },
-    "recursive_search": true,
+    "recursive_search": false,
     "control": {
       "location": "folder",
       "folder_name": "control"
@@ -100,7 +100,7 @@
         "method": "rms",
         "control": "subtraction",
         "metrics": {
-          "type": ["amp", "logamp"],
+          "type": ["amp", "logamp", "amp_imp_time", "halfamp_imp_time"],
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],
@@ -117,6 +117,26 @@
       }
     },
     "display_params": {
+       "debug":{
+        "output_norm_video": false,
+        "plot_refine_to_ref": false,
+        "plot_refine_to_vid": false,
+        "plot_pop_extracted_orgs": false,
+        "plot_pop_stdize_orgs": false,
+        "plot_indiv_stdize_orgs": false,
+        "output_indiv_stdize_orgs": false,
+        "stimulus": true,
+        "control": true,
+        "axes": {
+          "xmin": 0,
+          "xmax": 6,
+          "ymin": -255,
+          "ymax": 255,
+          "cmap": "viridis",
+          "legend": true
+        }
+      },
+
       "pop_summary_overlap": {
         "stimulus": true,
         "control": true,
@@ -125,8 +145,9 @@
         "axes": {
           "xmin": 0,
           "xmax": 4,
-          "ymin": 0,
+          "ymin": -5,
           "ymax": 60,
+          "cmap": "plasma",
           "legend": true
         }
       },
@@ -139,6 +160,7 @@
           "xmax": 4,
           "ymin": 0,
           "ymax": 60,
+          "cmap": "plasma",
           "legend": true
         }
       },
@@ -150,7 +172,8 @@
           "xmin": null,
           "xmax": null,
           "ymin": null,
-          "ymax": null
+          "ymax": null,
+          "cmap": "plasma"
         }
       },
       "indiv_summary": {
@@ -166,7 +189,7 @@
         }
       },
       "saveas": ["png", "svg"],
-      "pause_per_folder": true
+      "pause_per_folder": false
     }
   }
 

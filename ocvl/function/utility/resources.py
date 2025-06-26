@@ -3,9 +3,11 @@ import os
 import warnings
 from enum import Enum
 from os.path import exists, splitext
+from pathlib import Path
 
 import cv2
 import numpy as np
+from pymatreader import read_mat
 
 
 class ResourceType(Enum):
@@ -24,37 +26,59 @@ def load_config_json(json_path):
 
 
 
-def load_video(video_path):
-    # Load the video data.
-    vid = cv2.VideoCapture(video_path)
+def load_video(video_path, video_field=None):
+
+    if video_field is None:
+        video_field = []
+    if isinstance(video_path, str):
+        video_path = Path(video_path)
 
     framerate = -1
 
-#    warnings.warn("Videos are currently only loaded as grayscale.")
-    if vid.isOpened():
-        framerate = vid.get(cv2.CAP_PROP_FPS)
-        num_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    match video_path.suffix:
+        case ".avi":
+            # Load the video data.
+            vid = cv2.VideoCapture(video_path)
 
-        # Grab one frame, so we can find out the datatype for our array.
-        ret, frm = vid.read()
+        #    warnings.warn("Videos are currently only loaded as grayscale.")
+            if vid.isOpened():
+                framerate = vid.get(cv2.CAP_PROP_FPS)
+                num_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+                width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        video_data = np.empty([height, width, num_frames], dtype=frm.dtype)
-        video_data[..., 0] = frm[..., 0]
-    else:
-        warnings.warn("Failed to open video: "+video_path)
+                # Grab one frame, so we can find out the datatype for our array.
+                ret, frm = vid.read()
 
-    i = 1
-    while vid.isOpened():
-        ret, frm = vid.read()
-        if ret:
-            video_data[..., i] = frm[..., 0]
-            i += 1
-        else:
-            break
+                video_data = np.empty([height, width, num_frames], dtype=frm.dtype)
+                video_data[..., 0] = frm[..., 0]
+            else:
+                warnings.warn("Failed to open video: "+video_path)
+                return None
 
-    vid.release()
+            i = 1
+            while vid.isOpened():
+                ret, frm = vid.read()
+                if ret:
+                    video_data[..., i] = frm[..., 0]
+                    i += 1
+                else:
+                    break
+
+            vid.release()
+        case ".mat":
+            mat_data = read_mat(video_path)
+            for field in video_field:
+                mat_data = mat_data.get(field, None)
+
+                if mat_data is None:
+                    warnings.warn("Failed to open video: " + video_path)
+                    return None
+
+            video_data = mat_data
+
+        case ".npy":
+            pass
 
     meta = {"framerate": framerate}
 
@@ -84,10 +108,10 @@ def save_video(video_path, video_data, framerate = 30, scalar_mapper=None):
     cropx = int((video_data.shape[1]-cropw) / 2)
     cropy = int((video_data.shape[0]-croph) / 2)
 
-    crop_vid = video_data.astype(np.uint8)
-    crop_vid = crop_vid[cropy:cropy+croph, cropx:cropx+cropw, :]
+    crop_vid = video_data[cropy:cropy+croph, cropx:cropx+cropw, :]
 
     if scalar_mapper is None:
+        crop_vid = crop_vid.astype(np.uint8)
 
         vidout = cv2.VideoWriter(str(video_path), cv2.VideoWriter_fourcc(*"Y800"), framerate,
                                  (crop_vid.shape[1], crop_vid.shape[0]), isColor=False )
@@ -110,8 +134,8 @@ def save_video(video_path, video_data, framerate = 30, scalar_mapper=None):
         if vidout.isOpened():
             i = 0
             while (True):
-                frm = scalar_mapper.to_rgba(crop_vid[..., i]) * 255
-                vidout.write(cv2.cvtColor(frm[..., 0:3].astype("uint8"), cv2.COLOR_RGB2BGR))
+                frm = scalar_mapper.to_rgba(crop_vid[..., i],bytes=True)
+                vidout.write(cv2.cvtColor(frm[..., 0:3], cv2.COLOR_RGB2BGR))
 
                 i += 1
 

@@ -1,17 +1,6 @@
 {
   "version": "0.2",
-  "description": "The pipeline and analysis JSON for the OCVL's MEAOSLO, for pipelines that were run",
-  "raw": {
-    "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi",
-    "metadata": {
-      "type": "text_file",
-      "metadata_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.csv",
-      "fields_to_load": {
-        "timestamps": "Timestamp_us",
-        "stimulus_train": "StimulusOn"
-      }
-    }
-  },
+  "description": "The pipeline and analysis JSON for data that comes from the Retitrack.",
   "preanalysis": {
     "image_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_avg.tif",
     "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped.avi",
@@ -32,11 +21,18 @@
         "width": -1,
         "height": -1
       },
-      "modalities": ["760nm"],
+      "trim": {
+        "start_frm": 0,
+        "end_frm": 210
+      },
+      "alignment_reference_modality": null,
+      "modalities": ["Confocal"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
-      "flat_field": false,
+      "intra_stack_xform": "rigid",
+      "inter_stack_xform": "rigid",
+      "flat_field": true,
       "custom": {
         "dewarp": "ocvl"
       }
@@ -45,24 +41,22 @@
   "analysis": {
     "image_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_ALL_ACQ_AVG.tif",
     "queryloc_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_ALL_ACQ_AVG_{QueryLoc:s?}coords.csv",
-    "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_piped.avi",
+    "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_piped.avi",
     "metadata": {
       "type": "text_file",
-      "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_piped.csv",
+      "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_piped.csv",
       "fields_to_load": {
         "framestamps": "FrameStamps"
       }
     },
-    "recursive_search": true,
+    "recursive_search": false,
     "control": {
       "location": "folder",
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": ["760nm"],
+      "modalities": ["Confocal"],
       "output_folder": "Results",
-      "output_subfolder": true,
-      "output_subfolder_method": "DateTime",
       "normalization": {
         "method": "score",
         "rescaled": true,
@@ -70,65 +64,50 @@
         "rescale_std": 35
       },
       "segmentation": {
-        "refine_to_ref": true,
+        "refine_to_ref": false,
         "refine_to_vid": false,
-        "radius": "auto",
-        "shape": "disk",
+        "radius": 1,
+        "shape": "box",
         "summary": "mean",
-        "pixelwise": false
+        "pixelwise": true
       },
       "exclusion_criteria": {
         "type": "stim-relative",
         "units": "time",
         "start": -0.2,
         "stop": 0.2,
-        "fraction": 0.5
+        "fraction": 0.2
       },
       "standardization": {
         "method": "mean_sub",
         "type": "stim-relative",
         "units": "time",
-        "start": -2
+        "start": -1
       },
       "summary": {
         "method": "rms",
-        "control": "subtraction",
+        "control": "none",
         "metrics": {
-          "type": ["amp", "logamp", "amp_imp_time", "halfamp_imp_time"],
+          "type": ["amp", "logamp", "halfamp_imp_time"],
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],
-          "poststim": [0, 1]
+          "poststim": [0, 2]
         },
-        "indiv_cutoff": 5
+        "indiv_cutoff": 2
       },
+      "flat_field": true,
       "gaus_blur": 0.0,
       "mask_roi": {
-        "r": -1,
-        "c": -1,
+        "r": 0,
+        "c": 0,
         "width": -1,
         "height": -1
       }
     },
     "display_params": {
-      "debug":{
-        "output_norm_video": false,
-        "plot_refine_to_ref": false,
-        "plot_refine_to_vid": false,
-        "plot_pop_extracted_orgs": false,
-        "plot_pop_stdize_orgs": false,
-        "plot_indiv_stdize_orgs": false,
-        "output_indiv_stdize_orgs": false,
-        "stimulus": true,
-        "control": true,
-        "axes": {
-          "xmin": 0,
-          "xmax": 6,
-          "ymin": -255,
-          "ymax": 255,
-          "cmap": "viridis",
-          "legend": true
-        }
+        "debug":{
+        "output_norm_video": false
       },
       "pop_summary_overlap": {
         "stimulus": true,
@@ -139,8 +118,7 @@
           "xmin": 0,
           "xmax": 4,
           "ymin": -5,
-          "ymax": 60,
-          "cmap": "plasma",
+          "ymax": 30,
           "legend": true
         }
       },
@@ -152,8 +130,7 @@
           "xmin": 0,
           "xmax": 4,
           "ymin": 0,
-          "ymax": 60,
-          "cmap": "plasma",
+          "ymax": 20,
           "legend": true
         }
       },
@@ -165,19 +142,19 @@
           "xmin": null,
           "xmax": null,
           "ymin": null,
-          "ymax": null,
-          "cmap": "plasma"
+          "ymax": null
         }
       },
       "indiv_summary": {
-        "histogram": true,
-        "cumulative_histogram": true,
-        "map_overlay": true,
+        "histogram": false,
+        "cumulative_histogram": false,
+        "map_overlay": false,
+        "org_video": true,
         "axes": {
           "xmin": null,
           "xstep": null,
           "xmax": null,
-          "cmap": "plasma",
+          "cmap": "inferno",
           "legend": true
         }
       },

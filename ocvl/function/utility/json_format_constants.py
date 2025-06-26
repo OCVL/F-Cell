@@ -43,46 +43,56 @@ class MetaTags(StrEnum):
     STIMULUS_SEQ = "stimulus_sequence"
     FRAMERATE = "framerate"
     QUERY_LOCATIONS = "query_locations"
+    VIDEO = "video"
+    MASK = "mask"
+
 
 class AcquisiTags(StrEnum):
     DATASET = "Dataset"
     DATA_PATH = "Data_Path"
-    OUTPUT_PATH = "Output_Path",
-    VIDEO_PATH = "Video_Path",
-    IMAGE_PATH = "Image_Path",
-    QUERYLOC_PATH = "QueryLocation_Path",
-    STIMSEQ_PATH = "Stimulus_Sequence_Path",
-    MODALITY = "Modality",
-    PREFIX = "Output_Prefix",
-    BASE_PATH = "Base_Path",
-    MASK_PATH = "Mask_Path",
-    META_PATH = "Metadata_Path",
+    OUTPUT_PATH = "Output_Path"
+    VIDEO_PATH = "Video_Path"
+    IMAGE_PATH = "Image_Path"
+    QUERYLOC_PATH = "QueryLocation_Path"
+    STIMSEQ_PATH = "Stimulus_Sequence_Path"
+    MODALITY = "Modality"
+    PREFIX = "Output_Prefix"
+    BASE_PATH = "Base_Path"
+    MASK_PATH = "Mask_Path"
+    META_PATH = "Metadata_Path"
     STIM_PRESENT = "Stimulus_Present"
 
 class PreAnalysisPipeline(StrEnum):
     NAME = "preanalysis"
     PARAMS = "pipeline_params"
-    GAUSSIAN_BLUR = "gaus_blur",
-    MASK_ROI = "mask_roi",
-    TRIM = "trim",
-    FLAT_FIELD = "flat_field",
-    MODALITIES = "modalities",
-    ALIGNMENT_REF_MODE = "alignment_reference_modality",
-    CORRECT_TORSION = "correct_torsion",
+    GAUSSIAN_BLUR = "gaus_blur"
+    MASK_ROI = "mask_roi"
+    TRIM = "trim"
+    FLAT_FIELD = "flat_field"
+    MODALITIES = "modalities"
+    ALIGNMENT_REF_MODE = "alignment_reference_modality"
+    CORRECT_TORSION = "correct_torsion"
     CUSTOM = "custom"
     OUTPUT_FOLDER = "output_folder"
     GROUP_BY = "group_by"
+    INTRA_STACK_XFORM = "intra_stack_xform"
+    INTER_STACK_XFORM = "inter_stack_xform"
 
 class Analysis(StrEnum):
     NAME = "analysis"
     PARAMS = "analysis_params"
+    FLAT_FIELD = "flat_field"
+    GAUSSIAN_BLUR = "gaus_blur"
     OUTPUT_FOLDER = "output_folder"
     OUTPUT_SUBFOLDER = "output_subfolder"
     OUTPUT_SUBFOLDER_METHOD = "output_subfolder_method"
+    MODALITIES = "modalities"
 
 class DebugParams(StrEnum):
     NAME = "debug"
     OUTPUT_NORM_VIDEO = "output_norm_video"
+    PLOT_REFINE_TO_REF = "plot_refine_to_ref"
+    PLOT_REFINE_TO_VID = "plot_refine_to_vid"
     PLOT_POP_EXTRACTED_ORGS = "plot_pop_extracted_orgs"
     PLOT_POP_STANDARDIZED_ORGS = "plot_pop_stdize_orgs"
     PLOT_INDIV_STANDARDIZED_ORGS = "plot_indiv_stdize_orgs"
@@ -157,6 +167,7 @@ class DisplayParams(StrEnum):
     HISTOGRAM = "histogram"
     CUMULATIVE_HISTOGRAM = "cumulative_histogram"
     MAP_OVERLAY = "map_overlay"
+    ORG_VIDEO = "org_video"
     DISP_STIMULUS = "stimulus"
     DISP_CONTROL = "control"
     DISP_RELATIVE = "relative"
@@ -172,4 +183,6 @@ class DisplayParams(StrEnum):
     YMIN = "ymin"
     YMAX = "ymax"
     CMAP = "cmap"
+    CMIN = "cmin"
+    CMAX = "cmax"
     LEGEND = "legend"

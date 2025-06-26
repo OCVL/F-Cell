@@ -53,7 +53,7 @@
         "framestamps": "FrameStamps"
       }
     },
-    "recursive_search": true,
+    "recursive_search": false,
     "control": {
       "location": "folder",
       "folder_name": "control"
@@ -64,16 +64,14 @@
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
       "normalization": {
-        "method": "score",
-        "rescaled": true,
-        "rescale_mean": 70,
-        "rescale_std": 35
+        "method": "mean",
+        "rescaled": false
       },
       "segmentation": {
-        "refine_to_ref": true,
+        "refine_to_ref": false,
         "refine_to_vid": false,
         "radius": "auto",
-        "shape": "disk",
+        "shape": "box",
         "summary": "mean",
         "pixelwise": false
       },
@@ -85,13 +83,13 @@
         "fraction": 0.5
       },
       "standardization": {
-        "method": "mean_sub",
+        "method": "stddev",
         "type": "stim-relative",
         "units": "time",
         "start": -2
       },
       "summary": {
-        "method": "rms",
+        "method": "stddev",
         "control": "subtraction",
         "metrics": {
           "type": ["amp", "logamp", "amp_imp_time", "halfamp_imp_time"],
@@ -138,8 +136,8 @@
         "axes": {
           "xmin": 0,
           "xmax": 4,
-          "ymin": -5,
-          "ymax": 60,
+          "ymin": -2,
+          "ymax": 10,
           "cmap": "plasma",
           "legend": true
         }
@@ -152,7 +150,7 @@
           "xmin": 0,
           "xmax": 4,
           "ymin": 0,
-          "ymax": 60,
+          "ymax": 10,
           "cmap": "plasma",
           "legend": true
         }

@@ -1,6 +1,6 @@
 import warnings
 from itertools import repeat
-from multiprocessing import Pool
+from multiprocessing import Pool, shared_memory
 
 import numpy as np
 import pandas as pd
@@ -23,25 +23,32 @@ from ocvl.function.utility.resources import save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import densify_temporal_matrix, reconstruct_profiles
 
 
-def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", window_size=1, fraction_thresh=0.25):
+def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", window_size=1, fraction_thresh=0.25, pool=None):
     """
-    Summarizes the iORG on a supplied dataset, using a variety of power based summary methods published in
+    Summarizes the summary on a supplied dataset, using a variety of power based summary methods published in
     Gaffney et. al. 2024, Cooper et. al. 2020, and Cooper et. al. 2017.
 
-    :param temporal_signals: A NxM numpy matrix with N cells OR acquisitions from a single cell,
-                                and M temporal samples of some signal.
+    :param temporal_signals: If 2D, an NxM numpy matrix with N cells OR acquisitions from a single cell,
+                                and M temporal samples of some signal. If 3D, an NxCxM numpy matrix with N acquisitions
+                                from C cells, and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
     :param summary_method: The method used to summarize the population at each sample. Current options include:
-                            "var", "std", and "moving_rms". Default: "var"
+                            "rms, "variance", "stddev", and "avg". Default: "rms"
     :param window_size: The window size used to summarize the population at each sample. Can be an odd integer from
                         1 (no window) to M/2. Default: 1
     :param fraction_thresh: The fraction of the values inside the sample window that must be finite in order for the power
                             to be calculated- otherwise, the value will be considered np.nan.
+    :param pool: A multiprocessing pool object. Default: None
 
-    :return: a 1xM summarized iORG signal
+    :return: a NxM summarized summarized signal
     """
 
-    temporal_data = temporal_signals.copy()
+    chunk_size = 250
+    if pool is None:
+        pool = mp.Pool(processes=1)
+
+    num_signals = temporal_signals.shape[0]
+    num_samples = temporal_signals.shape[-1]
 
     if window_size != 0:
         if window_size % 2 < 1:
@@ -51,108 +58,208 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", 
     else:
         window_radius = 0
 
+    # If the window radius isn't 0, then densify the matrix, and pad our profiles
+    # and densify our matrix (add nans to make sure the signal has a sample for every point).
+    temporal_data=None
     if window_radius != 0:
-        # If the window radius isn't 0, then densify the matrix, and pad our profiles
-        # Densify our matrix a bit.
-        temporal_data = densify_temporal_matrix(temporal_data, framestamps)
-        temporal_data = np.pad(temporal_data, ((0, 0), (window_radius, window_radius)), "symmetric")
+        if len(temporal_signals.shape) == 2:
+            temporal_data= np.full((num_signals, 1, framestamps[-1]+1), np.nan)
+            temporal_data[:, 0, framestamps] = temporal_signals.copy()
 
-    num_signals = temporal_data.shape[0]
-    num_samples = temporal_data.shape[1]
+        if len(temporal_signals.shape) == 3:
+            temporal_data = np.full((num_signals, temporal_signals.shape[1], framestamps[-1]+1), np.nan)
+            temporal_data[:, :, framestamps] = temporal_signals.copy()
 
-    num_incl = np.zeros((num_samples,))
-    iORG = np.full((num_samples,), np.nan)
+        temporal_data = np.pad(temporal_data, ((0, 0), (0, 0), (window_radius, window_radius)), "symmetric")
+
+    else:
+        temporal_data = temporal_signals.copy()
+
+    if len(temporal_signals.shape) == 2:
+        num_incl = np.zeros((1, num_samples))
+        summary = np.full((1, num_samples), np.nan)
+    if len(temporal_signals.shape) == 3:
+        num_incl = np.zeros((temporal_signals.shape[1], num_samples))
+        summary = np.full((temporal_signals.shape[1], num_samples), np.nan)
+
+    shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_data.nbytes)
+    np_temporal = np.ndarray(temporal_data.shape, dtype=temporal_data.dtype, buffer=shared_block.buf)
+    # Copy data to our shared array.
+    np_temporal[:] = temporal_data[:]
 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="Mean of empty slice")
-        if summary_method == "var":
-            if window_radius == 0:
-                iORG = np.nanvar(temporal_data, axis=0)
-                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
 
+        if summary_method == "variance":
+
+            if window_radius == 0:
+                summary = np.nanvar(temporal_data, axis=0)
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):
 
-                for i in range(window_radius, num_samples - window_radius):
-
-                    samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
-                    if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
-                        iORG[i] = np.nanvar(samples[:])
-                        num_incl[i] = np.sum(samples[:] != np.nan)
-
-                iORG = iORG[window_radius:-window_radius]
-                iORG = iORG[framestamps]
-                num_incl = num_incl[framestamps]
+                res = pool.imap(_summary_variance, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
+                                                       repeat(temporal_data.shape), repeat(temporal_data.dtype),
+                                                       repeat(window_radius), repeat(fraction_thresh)),
+                                chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
-        elif summary_method == "std":
-            if window_radius == 0:
-                iORG = np.nanstd(temporal_data, axis=0)
-                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
+        elif summary_method == "stddev":
 
+            if window_radius == 0:
+                summary = np.nanstd(temporal_data, axis=0)
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):
 
-                for i in range(window_radius, num_samples - window_radius):
-
-                    samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
-                    if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
-                        iORG[i] = np.nanstd(samples[:])
-                        num_incl[i] = np.sum(samples[:] != np.nan)
-
-                iORG = iORG[window_radius:-window_radius]
-                iORG = iORG[framestamps]
-                num_incl = num_incl[framestamps]
+                res = pool.imap(_summary_stddev, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
+                                                     repeat(temporal_data.shape), repeat(temporal_data.dtype),
+                                                     repeat(window_radius), repeat(fraction_thresh)),
+                                chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
         elif summary_method == "rms":
+
             if window_radius == 0:
-
-                iORG = np.nanmean(temporal_data*temporal_data, axis=0)  # Average second
-                iORG = np.sqrt(iORG)  # Sqrt last
+                summary = np.nanmean(temporal_data*temporal_data, axis=0)  # Average second
+                summary = np.sqrt(summary)  # Sqrt last
                 num_incl = np.sum(np.isfinite(temporal_data), axis=0)
-
             elif window_size < (num_samples / 2):
 
-                temporal_data *= temporal_data  # Square first
-                for i in range(window_radius, num_samples - window_radius):
-
-                    samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
-                    if samples[:].size != 0 and np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
-                        iORG[i] = np.nanmean(samples[:])  # Average second
-                        iORG[i] = np.sqrt(iORG[i])  # Sqrt last
-                    # num_incl[i] = np.sum(samples[:] != np.nan)
-
-                iORG = iORG[window_radius:-window_radius]
-                iORG = iORG[framestamps]
-                # num_incl = num_incl[framestamps]
-                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
-                num_incl = num_incl[framestamps]
+                res = pool.imap(_summary_rms, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
+                                              repeat(temporal_data.shape), repeat(temporal_data.dtype),
+                                              repeat(window_radius), repeat(fraction_thresh)),
+                                              chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
         elif summary_method == "avg":
-            if window_radius == 0:
-                iORG = np.nanmean(temporal_data, axis=0)  # Average
-                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
 
+            if window_radius == 0:
+                summary = np.nanmean(temporal_data, axis=0)  # Average second
+                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):
 
-                for i in range(window_radius, num_samples - window_radius):
-
-                    samples = temporal_data[:, (i - window_radius):(i + window_radius + 1)]
-                    if samples[:].size != 0 and np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
-                        iORG[i] = np.nanmean(samples[:])  # Average
-
-                iORG = iORG[window_radius:-window_radius]
-                iORG = iORG[framestamps]
-                # num_incl = num_incl[framestamps]
-                num_incl = np.sum(np.isfinite(temporal_data), axis=0)
-                num_incl = num_incl[framestamps]
+                res = pool.imap(_summary_stddev, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
+                                                     repeat(temporal_data.shape), repeat(temporal_data.dtype),
+                                                     repeat(window_radius), repeat(fraction_thresh)),
+                                chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
         else:
             raise Exception("Invalid summary_method")
 
-    return iORG, num_incl
+        if window_radius != 0 and window_size < (num_samples / 2):
+            for c, summa, num_inc in res:
+                summa = summa[window_radius:-window_radius]
+                summa = summa[framestamps]
+                num_inc = num_inc[window_radius:-window_radius]
+                num_inc = num_inc[framestamps]
 
+                summary[c, :] = summa
+                num_incl[c] = num_inc
+
+
+        shared_block.close()
+        shared_block.unlink()
+
+
+    return summary, num_incl
+
+def _summary_variance(params):
+    c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
+
+        shared_block = shared_memory.SharedMemory(name=mem_name)
+        all_signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+        cell_signals = all_signals[:, c, :]
+        summary = np.full((cell_signals.shape[1],), np.nan)
+        num_incl = np.full((cell_signals.shape[1],), np.nan)
+
+        for i in range(window_radius, cell_signals.shape[1] - window_radius):
+
+            samples = cell_signals[:, (i - window_radius):(i + window_radius + 1)]
+            if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
+                summary[i] = np.nanvar(samples[:])
+                num_incl[i] = np.sum(np.isfinite(samples[:]))
+
+        shared_block.close()
+
+    return c, summary, num_incl
+
+def _summary_stddev(params):
+    c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
+
+        shared_block = shared_memory.SharedMemory(name=mem_name)
+        all_signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+        cell_signals = all_signals[:, c, :]
+        summary = np.full((cell_signals.shape[1],), np.nan)
+        num_incl = np.full((cell_signals.shape[1],), np.nan)
+
+        for i in range(window_radius, cell_signals.shape[1] - window_radius):
+
+            samples = cell_signals[:, (i - window_radius):(i + window_radius + 1)]
+            if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
+                summary[i] = np.nanstd(samples[:])
+                num_incl[i] = np.sum(np.isfinite(samples[:]))
+
+        shared_block.close()
+
+    return c, summary, num_incl
+
+def _summary_rms(params):
+    c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
+
+        shared_block = shared_memory.SharedMemory(name=mem_name)
+        all_signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+        cell_signals = all_signals[:, c, :]
+        summary = np.full((cell_signals.shape[1],), np.nan)
+        num_incl = np.full((cell_signals.shape[1],), np.nan)
+
+        cell_signals *= cell_signals  # Square first
+        for i in range(window_radius, cell_signals.shape[1] - window_radius):
+
+            samples = cell_signals[:, (i - window_radius):(i + window_radius + 1)]
+            if samples[:].size != 0 and np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
+                summary[i] = np.nanmean(samples[:])  # Average second
+                summary[i] = np.sqrt(summary[i])  # Sqrt last
+                num_incl[i] = np.sum(np.isfinite(samples[:]))
+
+        shared_block.close()
+
+    return c, summary, num_incl
+
+def _summary_avg(params):
+    c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
+
+        shared_block = shared_memory.SharedMemory(name=mem_name)
+        all_signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+        cell_signals = all_signals[:, c, :]
+        summary = np.full((cell_signals.shape[1],), np.nan)
+        num_incl = np.full((cell_signals.shape[1],), np.nan)
+
+        for i in range(window_radius, cell_signals.shape[1] - window_radius):
+
+            samples = cell_signals[:, (i - window_radius):(i + window_radius + 1)]
+            if np.sum(np.isfinite(samples[:])) > np.ceil(samples.size * fraction_thresh):
+                summary[i] = np.nanmean(samples[:])
+                num_incl[i] = np.sum(np.isfinite(samples[:]))
+
+        shared_block.close()
+
+    return c, summary, num_incl
 
 def wavelet_iORG(temporal_signals, framestamps, fps, sig_threshold=None, display=False):
     padtype = "reflect"
@@ -404,77 +511,91 @@ def extract_texture_profiles(full_iORG_profiles, summary_methods=("all"), numlev
 
 
 def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
-                        prestim_window_idx=None, poststim_window_idx=None):
+                        desired_prestim_frms=None, desired_poststim_frms=None, pool=None):
 
     if temporal_signals.ndim == 1:
         temporal_signals = temporal_signals[None, :]
 
     finite_data = np.isfinite(temporal_signals)
 
-    if np.all(~finite_data) or len(prestim_window_idx) == 0 or len(poststim_window_idx)==0:
-        return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
-               np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
-    if prestim_window_idx is None:
-        prestim_window_idx = np.zeros((1,))
+        # Find the indexes of the framestamps corresponding to our pre and post stim frames;
+        prestim_window_idx = np.flatnonzero(np.isin(framestamps, desired_prestim_frms))
+        poststim_window_idx = np.flatnonzero(np.isin(framestamps, desired_poststim_frms))
 
-    if poststim_window_idx is None:
-        poststim_window_idx = np.arange(1, temporal_signals.shape[1])
+        if np.all(~finite_data) or len(desired_prestim_frms) == 0 or len(desired_poststim_frms)==0:
+            return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
+                   np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
 
-    grad_profiles = np.sqrt((1/(framerate**2)) + (np.gradient(temporal_signals, axis=1) ** 2)) # Don't need to factor in the dx, because it gets removed anyway in the next step.
+        if prestim_window_idx is None:
+            prestim_window_idx = np.zeros((1,))
 
-    pre_abs_diff_profiles = np.abs(grad_profiles[:, prestim_window_idx])
-    if np.size(pre_abs_diff_profiles) <=1:
-        pre_abs_diff_profiles = np.zeros((1,1))
-    cum_pre_abs_diff_profiles = np.nancumsum(pre_abs_diff_profiles, axis=1)
+        if poststim_window_idx is None:
+            poststim_window_idx = np.arange(1, temporal_signals.shape[1])
 
-    post_abs_diff_profiles = np.abs(grad_profiles[:, poststim_window_idx])
-    cum_post_abs_diff_profiles = np.nancumsum(post_abs_diff_profiles, axis=1)
+        chunk_size = 250
+        if pool is None:
+            pool = mp.Pool(processes=1)
 
-    cum_pre_abs_diff_profiles[cum_pre_abs_diff_profiles == 0] = np.nan
-    cum_post_abs_diff_profiles[cum_post_abs_diff_profiles == 0] = np.nan
-    prefad = np.amax(cum_pre_abs_diff_profiles, axis=1)
-    postfad = np.amax(cum_post_abs_diff_profiles, axis=1)
+        grad_profiles = np.sqrt((1/(framerate**2)) + (np.gradient(temporal_signals, axis=1) ** 2)) # Don't need to factor in the dx, because it gets removed anyway in the next step.
 
-    prestim = temporal_signals[:, prestim_window_idx]
-    prestim_frms = framestamps[prestim_window_idx]
-    poststim = temporal_signals[:, poststim_window_idx]
-    poststim_frms = framestamps[poststim_window_idx]
+        pre_abs_diff_profiles = np.abs(grad_profiles[:, prestim_window_idx])
+        if np.size(pre_abs_diff_profiles) <=1:
+            pre_abs_diff_profiles = np.zeros((1,1))
+        cum_pre_abs_diff_profiles = np.nancumsum(pre_abs_diff_profiles, axis=1)
 
-    prestim_val = np.nanmedian(prestim, axis=1)
-    poststim_val = np.nanquantile(poststim, [0.99], axis=1).flatten()
+        post_abs_diff_profiles = np.abs(grad_profiles[:, poststim_window_idx])
+        cum_post_abs_diff_profiles = np.nancumsum(post_abs_diff_profiles, axis=1)
 
-    # ** Amplitude **
-    amplitude = np.abs(poststim_val - prestim_val)
+        cum_pre_abs_diff_profiles[cum_pre_abs_diff_profiles == 0] = np.nan
+        cum_post_abs_diff_profiles[cum_post_abs_diff_profiles == 0] = np.nan
+        prefad = np.amax(cum_pre_abs_diff_profiles, axis=1)
+        postfad = np.amax(cum_post_abs_diff_profiles, axis=1)
 
-    # ** Area Under the Response (est. by trapezoidal rule) **
-    auc = np.full((temporal_signals.shape[0],), np.nan)
-    for c in range(temporal_signals.shape[0]):
-        auc[c] = np.trapezoid(np.abs(poststim[c, np.isfinite(poststim[c,:])]), x=poststim_frms[np.isfinite(poststim[c,:])] / framerate)
+        prestim = temporal_signals[:, prestim_window_idx]
+        prestim_frms = framestamps[prestim_window_idx]
+        poststim = temporal_signals[:, poststim_window_idx]
+        poststim_frms = framestamps[poststim_window_idx]
 
-    final_val = np.nanmean(temporal_signals[:, -5:], axis=1)
+        prestim_val = np.nanmedian(prestim, axis=1)
+        poststim_val = np.nanquantile(poststim, [0.99], axis=1).flatten()
 
-    # ** Recovery percentage **
-    recovery = 1 - ((final_val-prestim_val)/amplitude)
+        # ** Amplitude **
+        amplitude = np.abs(poststim_val - prestim_val)
 
-    # ** Implicit time **
-    amp_implicit_time = np.full_like(amplitude, np.nan)
-    halfamp_implicit_time = np.full_like(amplitude, np.nan)
-    for c in range(temporal_signals.shape[0]):
+        # ** Recovery percentage **
+        final_val = np.nanmean(temporal_signals[:, -5:], axis=1)
+        recovery = 1 - ((final_val-prestim_val)/amplitude)
 
-        finite_frms = poststim_frms[np.isfinite(poststim[c, :])]
-        finite_data = poststim[c, np.isfinite(poststim[c, :])]
+        # ** Area Under the Response (est. by trapezoidal rule) **
+        auc = np.full((temporal_signals.shape[0],), np.nan)
 
-        amp_val_interp = Akima1DInterpolator(finite_frms, finite_data-poststim_val[c], method="makima")
-        halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data-((amplitude[c]/2)+prestim_val[c]), method="makima")
+        # ** Implicit time **
+        amp_implicit_time = np.full_like(amplitude, np.nan)
+        halfamp_implicit_time = np.full_like(amplitude, np.nan)
 
-        # plt.figure()
-        # plt.plot(np.arange(start=60,stop=70,step=0.1), halfamp_val_interp(np.arange(start=60,stop=70,step=0.1)), "k")
-        # plt.show(block=False)
-        # plt.waitforbuttonpress()
+        shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_signals.nbytes)
+        np_temporal_signals = np.ndarray(temporal_signals.shape, dtype=temporal_signals.dtype, buffer=shared_block.buf)
+        # Copy data to our shared array.
+        np_temporal_signals[:] = temporal_signals[:]
 
-        amp_implicit_time[c] = (amp_val_interp.roots()[0] - prestim_frms[-1]) / framerate
-        halfamp_implicit_time[c] = (halfamp_val_interp.roots()[0] - prestim_frms[-1]) / framerate
+
+        res = pool.imap(_interp_implicit, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype), repeat(framestamps),
+                                       repeat(desired_poststim_frms), repeat(framerate),
+                                       prestim_val, poststim_val, amplitude),
+                                       chunksize=chunk_size)
+
+        for i, amp_imp, halfamp_imp, au in res:
+            amp_implicit_time[i] = (amp_imp- prestim_frms[-1]) / framerate
+            halfamp_implicit_time[i] = (halfamp_imp - prestim_frms[-1]) / framerate
+            auc[i] = au
+
+        shared_block.close()
+        shared_block.unlink()
 
     return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery
 
@@ -590,3 +711,61 @@ def pooled_variance(data, axis=1):
 
     return np.sum(datavar*datacount) / np.sum(datacount), np.sum(datamean*datacount) / np.sum(datacount)
 
+def _interp_implicit(params):
+    (i, mem_name, signal_shape, the_dtype, framestamps,
+     desired_poststim_frms, framerate, prestim_val, poststim_val, amplitude) = params
+
+    shared_block = shared_memory.SharedMemory(name=mem_name)
+    temporal_signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
+
+    finite_iORG = np.isfinite(temporal_signals[i, :])
+    if np.sum(finite_iORG) > 1:
+        valid_auc = True
+
+        finite_data = temporal_signals[i, finite_iORG]
+        finite_frms = framestamps[finite_iORG]
+
+        # if we're missing an *end* framestamp in our window, interpolate to find the value there,
+        # and add it temporarily to our signal to make sure things like AUR work correctly.
+        if not np.any(finite_frms == desired_poststim_frms[-1]):
+            inter_val = np.interp(desired_poststim_frms[-1], finite_frms, finite_data)
+            # Find where to insert the interpolant and its framestamp
+            if np.any(finite_frms > desired_poststim_frms[-1]):
+                next_highest = np.argmax(finite_frms > desired_poststim_frms[-1])
+                finite_data = np.insert(finite_data, next_highest, inter_val)
+                finite_frms = np.insert(finite_frms, next_highest, desired_poststim_frms[-1])
+            else: # If we don't have any data past the desired_poststim_frm, we can't analyze auc.
+                valid_auc=False
+
+        poststim_window_idx = np.flatnonzero(np.isin(finite_frms, desired_poststim_frms))
+
+        finite_data = finite_data[poststim_window_idx]
+        finite_frms = finite_frms[poststim_window_idx]
+
+        if finite_frms.size > 1:
+            if valid_auc:
+                auc = np.trapezoid(finite_data, x=finite_frms / framerate)
+            else:
+                auc = np.nan
+
+            amp_val_interp = Akima1DInterpolator(finite_frms, finite_data - poststim_val, method="makima")
+            halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
+                                                     method="makima")
+
+            if amp_val_interp.roots().size != 0:
+                amp_implicit_time = amp_val_interp.roots()[0]
+            else:
+                amp_implicit_time = np.nan
+
+            if halfamp_val_interp.roots().size != 0:
+                halfamp_implicit_time = halfamp_val_interp.roots()[0]
+            else:
+                halfamp_implicit_time = np.nan
+        else:
+            shared_block.close()
+            return i, np.nan, np.nan, np.nan
+    else:
+        shared_block.close()
+        return i, np.nan, np.nan, np.nan
+
+    return i, amp_implicit_time, halfamp_implicit_time, auc

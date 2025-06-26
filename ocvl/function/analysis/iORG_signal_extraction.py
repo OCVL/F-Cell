@@ -53,6 +53,8 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     debug_params = display_params.get(DebugParams.NAME, dict())
     plot_extracted_orgs = debug_params.get(DebugParams.PLOT_POP_EXTRACTED_ORGS, False)
     plot_stdize_orgs = debug_params.get(DebugParams.PLOT_POP_STANDARDIZED_ORGS, False)
+    plot_refine_to_ref = debug_params.get(DebugParams.PLOT_REFINE_TO_REF, False)
+    plot_refine_to_vid = debug_params.get(DebugParams.PLOT_REFINE_TO_VID, False)
 
     # Snag all of our parameter dictionaries that we'll use here.
     # Default to an empty dictionary so that we can query against it with fewer if statements.
@@ -81,7 +83,17 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     # If the refine to ref parameter is set to true, and these query points aren't pixelwise or xor.
     if seg_params.get(SegmentParams.REFINE_TO_REF, True) and query_loc_name != "All Pixels" and seg_shape != "xor":
+
+        if plot_refine_to_ref:
+            display_iORGs(image=dataset.avg_image_data, cell_loc=query_loc, figure_label="Refine to dataset average")
+
         query_loc, valid, excl_reason = refine_coord(dataset.avg_image_data, query_loc.copy())
+
+        if plot_refine_to_ref:
+            display_iORGs(image=np.zeros((1,1)), cell_loc=query_loc, figure_label="Refine to dataset average")
+            plt.waitforbuttonpress()
+            plt.close()
+
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
         valid = np.full((query_loc.shape[0]), True)
@@ -93,8 +105,23 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
 
     if seg_params.get(SegmentParams.REFINE_TO_VID, True) and query_loc_name != "All Pixels" and seg_shape != "xor":
+
+        if plot_refine_to_vid:
+            stack_im = np.nanmean(dataset.video_data, axis=-1)
+            stack_im[stack_im < 0] = 0
+            stack_im[stack_im > 255] = 255
+            stack_im = stack_im.astype("uint8")
+            display_iORGs(image=stack_im, cell_loc=query_loc, figure_label="Refine to video average")
+
         query_loc, valid, excl_reason = refine_coord_to_stack(dataset.video_data, dataset.avg_image_data,
                                                               query_loc.copy())
+
+        if plot_refine_to_vid:
+            display_iORGs(image=np.zeros((1,1)), cell_loc=query_loc, figure_label="Refine to video average")
+            plt.show(block=False)
+            plt.waitforbuttonpress()
+            plt.close()
+
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
         valid = np.full((query_loc.shape[0]), True)
@@ -172,7 +199,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     if excl_type == "stim-relative":
         excl_start_ind = stimtrain_frame_stamps[0] + excl_start_ind
-        excl_stop_ind = stimtrain_frame_stamps[1] + excl_stop_ind
+        excl_stop_ind = stimtrain_frame_stamps[0] + excl_stop_ind
     else:  # if type == "absolute":
         pass
         # excl_start_ind = excl_start_ind
@@ -180,7 +207,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     crit_region = np.arange(excl_start_ind, excl_stop_ind)
 
 
-    iORG_signals, valid, excl_reason = exclude_signals(iORG_signals, dataset.framestamps,
+    iORG_signals, valid, excl_reason = exclude_signals(iORG_signals.copy(), dataset.framestamps,
                                                        critical_region=crit_region,
                                                        critical_fraction=excl_cutoff_fraction)
 
@@ -199,11 +226,11 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     if std_type == "stim-relative":
         std_start_ind = stimtrain_frame_stamps[0] + std_start_ind
-        std_stop_ind = stimtrain_frame_stamps[1] + std_stop_ind
+        std_stop_ind = stimtrain_frame_stamps[0] + std_stop_ind
 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 
-    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals, dataset.framestamps, std_indices=std_ind,
+    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals.copy(), dataset.framestamps, std_indices=std_ind,
                                                            method=std_meth, pool=thread_pool)
 
     # Update our audit path.
@@ -218,11 +245,6 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
         plt.show(block=False)
         plt.waitforbuttonpress()
         plt.close()
-
-
-    summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
-                                                                     summary_method=sum_method,
-                                                                     window_size=sum_window)
 
     # If the user has a mask definition, then make sure we invalidate cells outside of it.
     mask_roi = analysis_params.get(PreAnalysisPipeline.MASK_ROI)
@@ -243,23 +265,15 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
             height = np.amax(query_loc[:, 1])
 
         # Generate an inclusion list for our coordinates- those that are unanalyzable should be excluded before analysis.
-        pluscoord = query_loc.copy()
-        pluscoord[:, 0] = pluscoord[:, 0] + c
-        pluscoord[:, 1] = pluscoord[:, 1] + r
-        valid = pluscoord[:, 0] < width
-        valid &= pluscoord[:, 1] < height
-        excl_reason[pluscoord[:, 0] >= width] = "Outside of user selected ROI (right side)"
-        excl_reason[pluscoord[:, 1] >= height] = "Outside of user selected ROI (bottom side)"
-        del pluscoord
+        valid = query_loc[:, 0] >= c
+        valid &= query_loc[:, 0] <= c + width
+        valid &= query_loc[:, 1] >= r
+        valid &= query_loc[:, 1] <= r + height
 
-        minuscoord = query_loc.copy()
-        minuscoord[:, 0] = minuscoord[:, 0] - c
-        minuscoord[:, 1] = minuscoord[:, 1] - r
-        valid &= minuscoord[:, 0] >= 0
-        valid &= minuscoord[:, 1] >= 0
-        excl_reason[minuscoord[:, 0] < 0] = "Outside of user selected ROI (left side)"
-        excl_reason[minuscoord[:, 1] < 0] = "Outside of user selected ROI (top side)"
-        del minuscoord
+        excl_reason[query_loc[:, 0] < c] = "Outside of user selected ROI (left side)"
+        excl_reason[query_loc[:, 1] < r] = "Outside of user selected ROI (top side)"
+        excl_reason[query_loc[:, 0] > c + width] = "Outside of user selected ROI (right side)"
+        excl_reason[query_loc[:, 1] > r + height] = "Outside of user selected ROI (bottom side)"
 
     else:
         excl_reason = np.full(query_loc.shape[0], "Included", dtype=object)
@@ -274,6 +288,11 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     # Wipe out the signals of the invalid signals.
     iORG_signals[~valid_signals, :] = np.nan
     print(Fore.YELLOW+str(np.sum(~valid_signals)) + "/" + str(valid_signals.shape[0]) + " query locations were removed from consideration.")
+
+    summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
+                                                                     summary_method=sum_method,
+                                                                     window_size=sum_window,
+                                                                     pool=thread_pool)
 
     return iORG_signals, summarized_iORG, query_status, query_loc
 
@@ -325,9 +344,18 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
+        warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
         ref_image = ref_image.astype("uint8")
-        image_stack = image_stack.astype("uint8")
+
+        stack_im = np.nanmean(image_stack, axis=-1)
+        stack_im[stack_im < 0] = 0
+        stack_im[stack_im > 255] = 255
+        stack_im = stack_im.astype("uint8")
+
+        stack_im = cv2.GaussianBlur(stack_im, (3, 3), 0)
+        ref_image = cv2.GaussianBlur(ref_image, (3, 3), 0)
+
 
     im_size = image_stack.shape
 
@@ -356,14 +384,13 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
         if includelist[i]:
             coord = coordinates[i, :]
 
-            stack_data = image_stack[(coord[1] - search_region):(coord[1] + search_region + 1),
-                                     (coord[0] - search_region):(coord[0] + search_region + 1),
-                                      :]
-            stack_im = np.nanmean(stack_data, axis=-1).astype("uint8")
+            stack_data = stack_im[(coord[1] - search_region):(coord[1] + search_region + 1),
+                                   (coord[0] - search_region):(coord[0] + search_region + 1)]
+
             ref_template = ref_image[(coord[1] - search_radius):(coord[1] + search_radius + 1),
                                      (coord[0] - search_radius):(coord[0] + search_radius + 1)]
 
-            match_reg = cv2.matchTemplate(stack_im, ref_template, cv2.TM_CCOEFF_NORMED)
+            match_reg = cv2.matchTemplate(stack_data, ref_template, cv2.TM_CCOEFF_NORMED)
             minV, maxV, minL, maxL = cv2.minMaxLoc(match_reg)
             maxL = np.array(maxL) - search_radius  # Make relative to the center.
             if threshold < maxV: # If the alignment is over our NCC threshold (empirically, 0.3 works well), then do the alignment.
@@ -384,6 +411,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     :param summary: the method used to summarize the area inside the segmentation radius. Default: "mean",
                     Options: "mean", "median"
     :param sigma: Precede extraction with a per-frame Gaussian filter of a supplied sigma. If none, no filtering is applied.
+    :param pool: A multiprocessing pool object. Default: None
 
     :return: an NxM numpy matrix with N cells and M temporal samples of some signal.
     """
@@ -689,7 +717,7 @@ def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, vide
         return np.divide(temporal_signals, framewise_norm[None, :])
 
 
-def standardize_signals(temporal_signals, framestamps, std_indices, method="linear_std", critical_fraction=0.3, pool=None):
+def standardize_signals(temporal_signals, framestamps, std_indices, method="mean_sub", critical_fraction=0.3, pool=None):
     """
     This function standardizes each temporal profile (here, the rows of the supplied data) according to the provided
     arguments.
@@ -697,16 +725,18 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     :param temporal_signals: A NxM numpy matrix with N cells and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
     :param std_indices: The range of indices to use when standardizing.
-    :param method: The method used to standardize. Default is "linear_std", which subtracts a linear fit to
+    :param method: The method used to standardize. Default is "linear_stddev", which subtracts a linear fit to
                     each signal before stimulus_stamp, followed by a standardization based on that pre-stamp linear-fit
                     subtracted data. This was used in Cooper et al 2017/2020.
-                    Current options include: "linear_std", "linear_vast", "relative_change", and "mean_sub"
+                    Current options include: "stddev", "linear_stddev", "linear_vast", "relative_change", and "mean_sub"
     :param critical_fraction: The fraction of real values required to consider the signal valid.
+    :param pool: A multiprocessing pool object. Default: None
 
     :return: a NxM numpy matrix of standardized temporal profiles
     """
 
-    req_framenums = int(np.floor(len(std_indices)*critical_fraction))
+    total_num_inds = len(std_indices)
+    req_framenums = int(np.floor(total_num_inds*critical_fraction))
     prestim_frmstmp, _, std_indices = np.intersect1d(std_indices, framestamps, return_indices=True)
 
     if len(std_indices) == 0:
@@ -732,12 +762,12 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
         pool = mp.Pool(processes=1)
 
     res = None
-    if method == "std":
+    if method == "stddev":
         res = pool.imap(_std, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
                                       repeat(std_indices), repeat(req_framenums) ),
                                       chunksize=chunk_size)
-    elif method == "linear_std":
+    elif method == "linear_stddev":
         # Standardize using Autoscaling preceded by a linear fit to remove
         # any residual low-frequency changes
 
@@ -768,12 +798,17 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
                                       repeat(std_indices), repeat(req_framenums) ),
                                       chunksize=chunk_size)
+    else:
+        res = pool.imap(_mean_sub, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                      repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
+                                      repeat(std_indices), repeat(req_framenums) ),
+                                      chunksize=chunk_size)
 
     for i, signal, valid, numgoodind in res:
         stdized_signals[i,: ] = signal
         valid_stdization[i] = valid
         if not valid:
-            query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / req_framenums) + ")"
+            query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / total_num_inds) + ")"
 
     shared_block.close()
     shared_block.unlink()
