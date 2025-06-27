@@ -517,7 +517,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 def _extract_box(params):
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
-    signal_data = np.full((vid_shape[-1], ), np.nan)
+    signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
 
     shared_vid_block = shared_memory.SharedMemory(name=vid_name)
     video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_vid_block.buf)
@@ -559,7 +559,7 @@ def _extract_box(params):
 def _extract_disk(params):
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
-    signal_data = np.full((vid_shape[-1], ), np.nan)
+    signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
 
     shared_vid_block = shared_memory.SharedMemory(name=vid_name)
     video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_vid_block.buf)

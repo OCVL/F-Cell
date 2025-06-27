@@ -1,3 +1,4 @@
+import gc
 import json
 import os
 import multiprocessing as mp
@@ -414,6 +415,7 @@ if __name__ == "__main__":
                                         warnings.warn("Does not qualify for fast control processing: The query locations do not match.")
                                         uniform_datasets = False
                                         break
+                                del the_locs
                             else:
                                 warnings.warn("Does not qualify for fast control processing: The number of query locations do not match.")
                                 uniform_datasets = False
@@ -512,6 +514,10 @@ if __name__ == "__main__":
                                         control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
                                         control_pop_iORG_summaries[cd, control_data.framestamps] = control_data.summarized_iORGs[q]
 
+                                        # Wipe these immediately as they're not used again.
+                                        control_data.iORG_signals[q] = None
+                                        control_data.summarized_iORGs[q] = None
+
                                         # Summarize each of the cells' iORGs
                                         # *** Removed for now, may add later.
                                         # for c in range(control_iORG_signals.shape[1]):
@@ -544,6 +550,12 @@ if __name__ == "__main__":
                                     # First write the control data to a file.
                                     control_query_status[q].to_csv(result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + str(mode) + "_query_loc_status_" +
                                                                 query_loc_names[q] + "coords_controldata_"+ start_timestamp+".csv"))
+                                del control_query_stat
+                                del control_iORG_sigs
+                                del control_query_status
+                                del control_pop_iORG_N
+                                del control_pop_iORG_summaries
+                                gc.collect()
 
                         ''' *** Population iORG analyses here *** '''
                         for q in range(len(stim_dataset.query_loc)):
@@ -679,7 +691,7 @@ if __name__ == "__main__":
 
                                 ''' Clean up old data so that we minimize our memory footprint '''
                                 stim_dataset.iORG_signals[q] = []
-
+                        gc.collect()
                         pooled_framerate = np.unique(pooled_framerate)
                         if len(pooled_framerate) != 1:
                             warnings.warn("The framerate of the iORGs analyzed in "+folder.name + " is inconsistent: ("+str(pooled_framerate)+"). Pooled results may be incorrect.")
@@ -709,6 +721,8 @@ if __name__ == "__main__":
                                     if debug_params.get(DebugParams.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
                                         sigout = pd.DataFrame(stim_iORG_signals[q][:, c, :], index=stim_data_vidnums)
                                         sigout.to_csv(result_path.joinpath(overlap_label+".csv"))
+                                        del sigout
+                                        gc.collect()
 
                                     if control_iORG_signals[q]:
                                         display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
