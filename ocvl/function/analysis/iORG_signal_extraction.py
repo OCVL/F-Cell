@@ -42,11 +42,12 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     query_status = np.full(query_loc.shape[0], "Included", dtype=object)
     valid_signals = np.full((query_loc.shape[0]), True)
+    auto_detect_vals = {} # Automatically detected values
 
     # Round the query locations
     query_loc = np.round(query_loc.copy())
 
-    analysis_params = analysis_dat_format.get(Analysis.PARAMS)
+    analysis_params = analysis_dat_format.get(Analysis.PARAMS, dict())
 
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
     display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
@@ -160,6 +161,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
         segmentation_radius = 1
         print("Pixelwise segmentation radius: " + str(segmentation_radius))
 
+    auto_detect_vals[SegmentParams.RADIUS] = segmentation_radius
 
     # Extract the signals
     iORG_signals, excl_reason, coordinates = extract_signals(dataset.video_data, query_loc.copy(),
@@ -294,7 +296,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
                                                                      window_size=sum_window,
                                                                      pool=thread_pool)
 
-    return iORG_signals, summarized_iORG, query_status, query_loc
+    return iORG_signals, summarized_iORG, query_status, query_loc, auto_detect_vals
 
 
 def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):

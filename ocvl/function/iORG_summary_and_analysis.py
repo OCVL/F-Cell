@@ -294,6 +294,7 @@ if __name__ == "__main__":
                     first = True
                     # If we detected query locations, then initialize this folder and mode with their metadata.
                     all_query_status[mode][folder] = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & qloc_filter).sum())]
+                    auto_selected_values = pd.DataFrame(columns=query_loc_names)
 
                     pb["maximum"] = len(data_vidnums)+1
                     # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
@@ -333,8 +334,6 @@ if __name__ == "__main__":
                                 all_query_status[mode][folder][q].loc[:, vidnum] = "Dataset Failed To Load"
                             warnings.warn("Video number " + str(vidnum) + ": Dataset Failed To Load")
 
-
-
                         # Perform analyses on each query location set for each stimulus dataset.
                         for q in range(len(dataset.query_loc)):
                             pb_label["text"] = "Processing query locs \"" + query_loc_names[q] + "\" in dataset #" + str(vidnum) + " from the " + str(
@@ -351,7 +350,8 @@ if __name__ == "__main__":
                             (dataset.iORG_signals[q],
                              dataset.summarized_iORGs[q],
                              dataset.query_status[q],
-                             dataset.query_loc[q]) = extract_n_refine_iorg_signals(dataset, analysis_dat_format,#
+                             dataset.query_loc[q],
+                             auto_detect_vals) = extract_n_refine_iorg_signals(dataset, analysis_dat_format,#
                                                                                    query_loc=dataset.query_loc[q],
                                                                                    query_loc_name=query_loc_names[q],
                                                                                    thread_pool=the_pool)
@@ -359,10 +359,13 @@ if __name__ == "__main__":
 
                             # If this is the first time a video of this mode and this folder is loaded, then initialize the query status dataframe
                             # Such that each row corresponds to the original coordinate locations based on the reference image.
+                            # Also add to our auto-detection tracking dataframe.
                             if first:
                                 # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
                                 all_query_status[mode][folder][q] = all_query_status[mode][folder][q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
-                                #all_query_status[mode][folder][q].sort_index(inplace=True)
+
+                                auto_detect_vals = pd.DataFrame.from_dict(auto_detect_vals, orient="index", columns=[query_loc_names[q]])
+                                auto_selected_values = auto_selected_values.combine_first(auto_detect_vals)
 
                         first = False
 
@@ -502,7 +505,8 @@ if __name__ == "__main__":
                                         (control_data.iORG_signals[q],
                                          control_data.summarized_iORGs[q],
                                          control_query_stat,
-                                         control_data.query_loc[q]) = extract_n_refine_iorg_signals(control_data,
+                                         control_data.query_loc[q],
+                                         _) = extract_n_refine_iorg_signals(control_data,
                                                                                                     control_dat_format_params,
                                                                                                     query_loc=stim_dataset.query_loc[q],
                                                                                                     query_loc_name=query_loc_names[q],
@@ -965,8 +969,9 @@ if __name__ == "__main__":
 
                         all_query_status[mode][folder][q].sort_index(inplace=True)
                         all_query_status[mode][folder][q].to_csv(result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_query_loc_status_" + str(folder.name) +
-                                                   "_" + query_loc_names[q] + "coords_" + start_timestamp + ".csv"))
+                                                   "_" + query_loc_names[q] + "_coords_" + start_timestamp + ".csv"))
 
+                    auto_selected_values.to_csv(result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_autodetected_params_" + str(folder.name) +"_"+ start_timestamp + ".csv"))
 
                     respath = result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pop_summary_metrics_" + start_timestamp +".csv")
                     tryagain = True
