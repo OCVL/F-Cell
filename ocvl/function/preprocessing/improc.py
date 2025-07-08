@@ -276,6 +276,9 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     template = template_im.astype("float32")
     reference = reference_im.astype("float32")
 
+    template[np.isnan(template)] = 0
+    reference[np.isnan(reference)] = 0
+
     # Speed up FFT by padding to optimal size.
     ogrows = temp_size[0] + ref_size[0] - 1
     ogcols = temp_size[1] + ref_size[1] - 1
@@ -330,15 +333,15 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     xcorr_out = numerator / (denom + 1)
 
     # By default, the images have to overlap by more than 20% of their maximal overlap.
-    if not required_overlap:
+    if required_overlap is None:
         required_overlap = np.amax(pixelwise_overlap)*.5
     xcorr_out[pixelwise_overlap < required_overlap ] = 0
 
     maxval = np.amax(xcorr_out[:])
     maxloc = np.unravel_index(np.argmax(xcorr_out[:]), xcorr_out.shape)
     maxshift = (-float(maxloc[1]-np.floor(ogcols/2.0)), -float(maxloc[0]-np.floor(ogrows/2.0))) #Output as X and Y.
-    # pyplot.imshow(xcorr_out, cmap='gray')
-    # pyplot.show()
+    pyplot.imshow(xcorr_out, cmap='gray')
+    pyplot.show()
 
     return maxshift, maxval, xcorr_out
 
