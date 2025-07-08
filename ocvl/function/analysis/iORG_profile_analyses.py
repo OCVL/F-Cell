@@ -526,6 +526,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         prestim_window_idx = np.flatnonzero(np.isin(framestamps, desired_prestim_frms))
         poststim_window_idx = np.flatnonzero(np.isin(framestamps, desired_poststim_frms))
 
+
         if np.all(~finite_data) or len(desired_prestim_frms) == 0 or len(desired_poststim_frms)==0:
             return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
                    np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
@@ -568,7 +569,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
         # ** Recovery percentage **
         final_val = np.nanmean(temporal_signals[:, -5:], axis=1)
-        recovery = 1 - ((final_val-prestim_val)/amplitude)
+        recovery =  ((final_val-prestim_val)-amplitude)/(framestamps[-1]-poststim_frms[0]) #np.abs(((final_val-prestim_val)-amplitude)/amplitude)
 
         # ** Area Under the Response (est. by trapezoidal rule) **
         auc = np.full((temporal_signals.shape[0],), np.nan)

@@ -303,6 +303,7 @@ class MEAODataset:
 
             print("Ref frame:"+str(self.reference_frame_idx))
             tmp, xforms, inliers = optimizer_stack_align(self.ref_video_data, self.ref_mask_data,
+                                                         determine_initial_shifts=False,
                                                          reference_idx=self.reference_frame_idx,
                                                          dropthresh=0)
 

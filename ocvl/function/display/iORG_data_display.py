@@ -213,7 +213,7 @@ def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_deli
     plt.subplot(seq_row, 5, (vidnum_seq % num_in_seq) + 1)
 
     plt.title("Acquisition " + str(vidnum_seq % num_in_seq) + " of " + str(num_in_seq))
-    plt.plot(framestamps / framerate, pop_summary)
+    plt.plot(framestamps / framerate, pop_summary, label=str(vidnum_seq))
     plt.xlabel("Time (s)")
     plt.ylabel(sum_method.upper())
     if not None in xlimits: plt.xlim(xlimits)

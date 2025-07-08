@@ -728,22 +728,23 @@ if __name__ == "__main__":
                                         del sigout
                                         gc.collect()
 
-                                    if control_iORG_signals[q]:
-                                        display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
-                                                      finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
-                                                      stim_datasets[0].avg_image_data, stim_datasets[0].query_loc[q][c,:],
-                                                      stim_delivery_frms = stimtrain, framerate = pooled_framerate,
-                                                      figure_label = overlap_label, params = debug_params)
-                                    else:
-                                        display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
-                                                      image=stim_datasets[0].avg_image_data, cell_loc=stim_datasets[0].query_loc[q][c,:],
-                                                      stim_delivery_frms = stimtrain, framerate = pooled_framerate,
-                                                      figure_label = overlap_label, params = debug_params)
+                                    if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
+                                        if control_iORG_signals[q]:
+                                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
+                                                          finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
+                                                          stim_datasets[0].avg_image_data, stim_datasets[0].query_loc[q][c,:],
+                                                          stim_delivery_frms = stimtrain, framerate = pooled_framerate,
+                                                          figure_label = overlap_label, params = debug_params)
+                                        else:
+                                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
+                                                          image=stim_datasets[0].avg_image_data, cell_loc=stim_datasets[0].query_loc[q][c,:],
+                                                          stim_delivery_frms = stimtrain, framerate = pooled_framerate,
+                                                          figure_label = overlap_label, params = debug_params)
 
-                                    if len(cell_inds) > 10:
-                                        plt.show(block=False)
-                                        plt.waitforbuttonpress()
-                                        plt.close()
+                                        if len(cell_inds) > 10:
+                                            plt.show(block=False)
+                                            plt.waitforbuttonpress()
+                                            plt.close()
 
                         ''' *** Pool the summarized population iORGs *** '''
                         with warnings.catch_warnings():
@@ -751,6 +752,10 @@ if __name__ == "__main__":
                             nandata = np.all(np.isnan(stim_pop_iORG_summaries), axis=0)
                             stim_pop_iORG_summary[q] = np.nansum(stim_pop_iORG_N * stim_pop_iORG_summaries,axis=0) / np.nansum(stim_pop_iORG_N, axis=0)
                             stim_pop_iORG_summary[q][nandata] = np.nan
+
+                        if debug_params.get(DebugParams.OUTPUT_SUMPOP_ORGS, False):
+                            pop_iORG_summary = pd.DataFrame(stim_pop_iORG_summaries, index=stim_data_vidnums)
+                            pop_iORG_summary.to_csv(result_path.joinpath( str(subject_IDs[0]) +"_"+folder.name+"_"+mode+"_pooled_pop_iORG_"+sum_method+"_overlapping_"+start_timestamp + ".csv" ))
 
                         metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
                         metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
@@ -793,7 +798,7 @@ if __name__ == "__main__":
                         ''' *** Display the pooled population data *** '''
                         if pop_overlap_params.get(DisplayParams.DISP_POOLED, False):
                             overlap_label = "Pooled data summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
-                            display_dict[str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pooled_pop_iORG_" + sum_method + "_overlapping_"+ start_timestamp] = overlap_label
+                            display_dict[str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pooled_pop_iORG_" + sum_method + "_"+ start_timestamp] = overlap_label
 
                             display_iORG_pop_summary(np.arange(max_frmstamp + 1), stim_pop_iORG_summary[q], stim_vidnum=query_loc_names[q],
                                                      stim_delivery_frms=stimtrain, framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
