@@ -505,8 +505,7 @@ if __name__ == "__main__":
                                         (control_data.iORG_signals[q],
                                          control_data.summarized_iORGs[q],
                                          control_query_stat,
-                                         control_data.query_loc[q],
-                                         _) = extract_n_refine_iorg_signals(control_data,
+                                         control_data.query_loc[q], _) = extract_n_refine_iorg_signals(control_data,
                                                                                                     control_dat_format_params,
                                                                                                     query_loc=stim_dataset.query_loc[q],
                                                                                                     query_loc_name=query_loc_names[q],
@@ -522,18 +521,6 @@ if __name__ == "__main__":
                                         control_data.iORG_signals[q] = None
                                         control_data.summarized_iORGs[q] = None
 
-                                        # Summarize each of the cells' iORGs
-                                        # *** Removed for now, may add later.
-                                        # for c in range(control_iORG_signals.shape[1]):
-                                        #     tot_sig = np.nansum(np.any(np.isfinite(control_iORG_signals[:, c, :]), axis=1))
-                                        #     control_query_status[q].loc[c, "Num Viable iORGs"] = tot_sig
-                                        #
-                                        #     if tot_sig > sum_params.get(SummaryParams.INDIV_CUTOFF, 5):
-                                        #         control_query_status[q].loc[c, "Viable for single-cell summary?"] = True
-                                        #         control_iORG_summary[q][c, :], _ = summarize_iORG_signals(control_iORG_signals[:, c, :],
-                                        #                                                                np.arange(max_frmstamp + 1),
-                                        #                                                                summary_method=sum_method,
-                                        #                                                                window_size=sum_window)
                                     if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
                                         control_iORG_signals[q] = control_iORG_sigs
                                     else:
@@ -667,7 +654,7 @@ if __name__ == "__main__":
                     for q in range(len(all_locs)):
 
                         indiv_iORG_result[q] = pd.DataFrame(index=all_query_status[mode][folder][q].index, columns=list(MetricTags))
-                        #indiv_iORG_result[q].sort_index(inplace=True)
+
                         stim_pop_iORG_summaries = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
                         stim_pop_iORG_N = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
                         stimtrain = [None] * len(stim_datasets)
@@ -693,8 +680,21 @@ if __name__ == "__main__":
                             if uniform_datasets:
                                 stim_iORG_signals[q][d, :, stim_dataset.framestamps] = stim_dataset.iORG_signals[q].T
 
-                                ''' Clean up old data so that we minimize our memory footprint '''
-                                stim_dataset.iORG_signals[q] = []
+                            if analysis_params.get(Analysis.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
+                                result_datafolder = result_path.joinpath("iORG_Data")
+                                result_datafolder.mkdir(parents=True, exist_ok=True)
+
+                                sigout = pd.DataFrame(stim_dataset.iORG_signals[q], index=all_query_status[mode][folder][q].index, columns=stim_dataset.framestamps/stim_dataset.framerate)
+                                sigout.to_csv(result_datafolder.joinpath(str(subject_IDs[0]) + "_" + folder.name + "_" + mode +
+                                                                 "_vid_" + stim_data_vidnums[d] +"_" + query_loc_names[q] +"_coords_" + start_timestamp + "_iORGs.csv"),
+                                              index_label=["X", "Y"])
+
+                                del sigout
+                                gc.collect()
+
+                            ''' Clean up old data so that we minimize our memory footprint '''
+                            stim_dataset.iORG_signals[q] = []
+
                         gc.collect()
                         pooled_framerate = np.unique(pooled_framerate)
                         if len(pooled_framerate) != 1:
@@ -708,9 +708,7 @@ if __name__ == "__main__":
                         stimtrain = stimtrain[0]
 
                         # Debug - to look at individual cell raw traces.
-                        if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False) or \
-                           debug_params.get(DebugParams.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
-
+                        if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
                             if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, "all") == "all":
                                 cell_inds = range(stim_iORG_signals[q].shape[1])
                             else:
@@ -722,11 +720,6 @@ if __name__ == "__main__":
                                     display_dict[query_loc_names[q]+"_stdz_" + mode + "_iORGs_" + folder.name + "_"+str(c)+ "_at_" + str(stim_datasets[0].query_loc[q][c,:])] = overlap_label
 
                                 if np.any(np.isfinite(stim_iORG_signals[q][:, c, :])):
-                                    if debug_params.get(DebugParams.OUTPUT_INDIV_STANDARDIZED_ORGS, False):
-                                        sigout = pd.DataFrame(stim_iORG_signals[q][:, c, :], index=stim_data_vidnums)
-                                        sigout.to_csv(result_path.joinpath(overlap_label+".csv"))
-                                        del sigout
-                                        gc.collect()
 
                                     if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
                                         if control_iORG_signals[q]:
@@ -753,9 +746,15 @@ if __name__ == "__main__":
                             stim_pop_iORG_summary[q] = np.nansum(stim_pop_iORG_N * stim_pop_iORG_summaries,axis=0) / np.nansum(stim_pop_iORG_N, axis=0)
                             stim_pop_iORG_summary[q][nandata] = np.nan
 
-                        if debug_params.get(DebugParams.OUTPUT_SUMPOP_ORGS, False):
-                            pop_iORG_summary = pd.DataFrame(stim_pop_iORG_summaries, index=stim_data_vidnums)
-                            pop_iORG_summary.to_csv(result_path.joinpath( str(subject_IDs[0]) +"_"+folder.name+"_"+mode+"_pooled_pop_iORG_"+sum_method+"_overlapping_"+start_timestamp + ".csv" ))
+                        if analysis_params.get(Analysis.OUTPUT_SUMPOP_ORGS, False):
+                            result_datafolder = result_path.joinpath("iORG_Data")
+                            result_datafolder.mkdir(parents=True, exist_ok=True)
+
+                            pop_iORG_summary = pd.DataFrame(stim_pop_iORG_summaries, index=stim_data_vidnums, columns=finite_iORG_frmstmp/pooled_framerate)
+                            pop_iORG_summary.to_csv(result_datafolder.joinpath(str(subject_IDs[0]) + "_" + folder.name + "_" + mode + "_pop_sum_iORG_" + sum_method + "_"
+                                                                               + start_timestamp + ".csv"),
+                                                    index_label="Video Number")
+                            del pop_iORG_summary
 
                         metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
                         metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
@@ -857,6 +856,18 @@ if __name__ == "__main__":
                                                              all_frmstmp, control_pop_iORG_summary_pooled[q],
                                                              stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                              figure_label=overlap_label, params=indiv_overlap_params)
+
+                            if analysis_params.get(Analysis.OUTPUT_SUM_INDIV_ORGS, False):
+                                result_datafolder = result_path.joinpath("iORG_Data")
+                                result_datafolder.mkdir(parents=True, exist_ok=True)
+
+                                sigout = pd.DataFrame(stim_iORG_summary[q], index=all_query_status[mode][folder][q].index, columns=all_frmstmp/pooled_framerate)
+                                sigout.to_csv(result_datafolder.joinpath(str(subject_IDs[0]) + "_" + folder.name + "_" + mode + "_indiv_sum_iORG_" + sum_method + "_"
+                                                                               + start_timestamp + ".csv"),
+                                                    index_label=["X", "Y"])
+
+                                del sigout
+                                gc.collect()
 
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
                             res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool)

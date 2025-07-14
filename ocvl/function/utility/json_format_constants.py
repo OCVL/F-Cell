@@ -86,6 +86,9 @@ class Analysis(StrEnum):
     OUTPUT_FOLDER = "output_folder"
     OUTPUT_SUBFOLDER = "output_subfolder"
     OUTPUT_SUBFOLDER_METHOD = "output_subfolder_method"
+    OUTPUT_INDIV_STANDARDIZED_ORGS = "output_indiv_stdize_orgs"
+    OUTPUT_SUMPOP_ORGS = "output_sum_pop_orgs"
+    OUTPUT_SUM_INDIV_ORGS = "output_sum_indiv_orgs"
     MODALITIES = "modalities"
 
 class DebugParams(StrEnum):
@@ -96,8 +99,6 @@ class DebugParams(StrEnum):
     PLOT_POP_EXTRACTED_ORGS = "plot_pop_extracted_orgs"
     PLOT_POP_STANDARDIZED_ORGS = "plot_pop_stdize_orgs"
     PLOT_INDIV_STANDARDIZED_ORGS = "plot_indiv_stdize_orgs"
-    OUTPUT_INDIV_STANDARDIZED_ORGS = "output_indiv_stdize_orgs"
-    OUTPUT_SUMPOP_ORGS = "output_sum_pop_orgs"
     CELL_VIABILITY = "cell_viability"
 
 class NormParams(StrEnum):

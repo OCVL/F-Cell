@@ -53,7 +53,7 @@
         "framestamps": "FrameStamps"
       }
     },
-    "recursive_search": true,
+    "recursive_search": false,
     "control": {
       "location": "folder",
       "folder_name": "control"
@@ -63,6 +63,9 @@
       "output_folder": "Results",
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
+      "output_indiv_stdize_orgs": false,
+      "output_sum_pop_orgs": false,
+      "output_sum_indiv_orgs": false,
       "normalization": {
         "method": "score",
         "rescaled": true,
@@ -88,13 +91,13 @@
         "method": "mean_sub",
         "type": "stim-relative",
         "units": "time",
-        "start": -2
+        "start": -1
       },
       "summary": {
         "method": "rms",
         "control": "subtraction",
         "metrics": {
-          "type": ["amp", "logamp", "amp_imp_time", "halfamp_imp_time"],
+          "type": ["amp","logamp", "halfamp_imp_time", "rec_amp"],
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],
@@ -102,6 +105,7 @@
         },
         "indiv_cutoff": 5
       },
+      "flat_field": false,
       "gaus_blur": 0.0,
       "mask_roi": {
         "r": -1,
@@ -118,7 +122,6 @@
         "plot_pop_extracted_orgs": false,
         "plot_pop_stdize_orgs": false,
         "plot_indiv_stdize_orgs": false,
-        "output_indiv_stdize_orgs": false,
         "stimulus": true,
         "control": true,
         "axes": {
@@ -147,11 +150,11 @@
       "pop_summary_seq": {
         "stimulus": false,
         "relative": false,
-        "num_in_seq": 8,
+        "num_in_seq": 10,
         "axes": {
           "xmin": 0,
           "xmax": 4,
-          "ymin": 0,
+          "ymin": -5,
           "ymax": 60,
           "cmap": "plasma",
           "legend": true
@@ -173,6 +176,7 @@
         "histogram": true,
         "cumulative_histogram": true,
         "map_overlay": true,
+        "org_video": false,
         "axes": {
           "xmin": null,
           "xstep": null,
