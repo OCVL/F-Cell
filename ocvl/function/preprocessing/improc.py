@@ -334,7 +334,10 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
 
     # By default, the images have to overlap by more than 20% of their maximal overlap.
     if required_overlap is None:
-        required_overlap = np.amax(pixelwise_overlap)*.5
+        required_overlap = np.amax(pixelwise_overlap)*0.5
+    else:
+        required_overlap = np.amax(pixelwise_overlap)*required_overlap
+
     xcorr_out[pixelwise_overlap < required_overlap ] = 0
 
     maxval = np.amax(xcorr_out[:])
@@ -346,7 +349,7 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     return maxshift, maxval, xcorr_out
 
 
-def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0):
+def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0, overlap =0.5):
     num_frames = im_stack.shape[-1]
     shifts = [None] * num_frames
     # flattened = flat_field(im_stack)
@@ -356,12 +359,13 @@ def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0):
         for f2 in range(0, num_frames):
             shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx],
                                                       template_mask=mask_stack[..., f2],
-                                                      reference_mask=mask_stack[..., ref_idx])
+                                                      reference_mask=mask_stack[..., ref_idx],
+                                                      required_overlap=overlap)
             #print("Found shift of: " + str(shift) + ", value of " + str(val))
             shifts[f2] = shift
     else:
         for f2 in range(0, num_frames):
-            shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx])
+            shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx], required_overlap=overlap)
             #print("Found shift of: " + str(shift) + ", value of " + str(val))
             shifts[f2] = shift
 

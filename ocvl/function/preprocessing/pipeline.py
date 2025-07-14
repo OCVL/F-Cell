@@ -194,7 +194,8 @@ if __name__ == "__main__":
 
                 dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                             repeat(None),
-                                                                            np.arange(len(datasets))))
+                                                                            np.arange(len(datasets)),
+                                                                            repeat(0.3)))
                 shift_info = dist_res.get()
 
                 # Determine the average
@@ -245,7 +246,8 @@ if __name__ == "__main__":
 
                     dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                                 repeat(None),
-                                                                                np.arange(len(datasets)) ))
+                                                                                np.arange(len(datasets)),
+                                                                                repeat(0.3)))
                     shift_info = dist_res.get()
 
                     # Determine the average
