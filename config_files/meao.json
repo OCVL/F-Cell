@@ -147,6 +147,7 @@
         "control": true,
         "relative": true,
         "pooled": true,
+        "annotations": true,
         "axes": {
           "xmin": 0,
           "xmax": 4,

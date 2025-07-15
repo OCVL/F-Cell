@@ -150,10 +150,11 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
             coorddist[coorddist == 0] = np.amax(coorddist.flatten())
             mindist[i] = np.amin(coorddist.flatten())
 
+        print(f"Detected segmentation radius: {(np.nanmean(mindist) / 4): 0.2f} (Rounded to: "+ str(int(np.round(np.nanmean(mindist) / 4))) +")")
         segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
 
         segmentation_radius = int(segmentation_radius)
-        print("Detected segmentation radius: " + str(segmentation_radius))
+
     elif segmentation_radius != "auto":
         segmentation_radius = int(segmentation_radius)
         print("Chosen segmentation radius: " + str(segmentation_radius))

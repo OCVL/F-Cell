@@ -174,6 +174,7 @@ class DisplayParams(StrEnum):
     DISP_CONTROL = "control"
     DISP_RELATIVE = "relative"
     DISP_POOLED = "pooled"
+    DISP_ANNOTATIONS = "annotations"
     SAVEAS = "saveas"
     PAUSE_PER_FOLDER = "pause_per_folder"
     NUM_IN_SEQ = "num_in_seq"

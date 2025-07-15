@@ -3,7 +3,6 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-
 from ocvl.function.utility.json_format_constants import DisplayParams, MetricTags
 
 
@@ -35,7 +34,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if disp_stim:
         dispinds = np.isfinite(stim_pop_summary)
         plt.title(sum_method.upper()+"-summarized iORGs\n(Stimulus acquisitions)")
-        plt.plot(stim_framestamps[dispinds] / framerate, stim_pop_summary[dispinds],label=str(stim_vidnum))
+        plt.plot(stim_framestamps[dispinds] / framerate, stim_pop_summary[dispinds], label=str(stim_vidnum))
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method.upper())
 

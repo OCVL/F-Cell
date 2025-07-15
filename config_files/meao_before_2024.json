@@ -97,7 +97,7 @@
         "method": "rms",
         "control": "subtraction",
         "metrics": {
-          "type": ["amp","logamp", "halfamp_imp_time", "rec_amp"],
+          "type": ["aur","amp","logamp","amp_imp_time", "halfamp_imp_time", "rec_amp"],
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],
@@ -138,6 +138,7 @@
         "control": true,
         "relative": true,
         "pooled": true,
+        "annotations": true,
         "axes": {
           "xmin": 0,
           "xmax": 4,

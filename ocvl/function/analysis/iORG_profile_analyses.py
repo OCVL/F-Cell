@@ -591,14 +591,14 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
                                        chunksize=chunk_size)
 
         for i, amp_imp, halfamp_imp, au in res:
-            amp_implicit_time[i] = (amp_imp- prestim_frms[-1]) / framerate
-            halfamp_implicit_time[i] = (halfamp_imp - prestim_frms[-1]) / framerate
+            amp_implicit_time[i] = (amp_imp- desired_poststim_frms[0]) / framerate
+            halfamp_implicit_time[i] = (halfamp_imp - desired_poststim_frms[0]) / framerate
             auc[i] = au
 
         shared_block.close()
         shared_block.unlink()
 
-    return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery
+    return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery, prestim_frms, poststim_frms
 
 def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
 

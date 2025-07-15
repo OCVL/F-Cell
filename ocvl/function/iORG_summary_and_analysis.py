@@ -630,7 +630,7 @@ if __name__ == "__main__":
                             metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
                             metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
 
-                            amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(stim_dataset.summarized_iORGs[q][stim_dataset.framestamps],
+                            amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, _, _ = iORG_signal_metrics(stim_dataset.summarized_iORGs[q][stim_dataset.framestamps],
                                                                                                                      stim_dataset.framestamps, stim_dataset.framerate,
                                                                                                                      metrics_prestim, metrics_poststim, the_pool)
 
@@ -776,7 +776,7 @@ if __name__ == "__main__":
                                                      dtype=int)
 
 
-                        amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,
+                        amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, prestim_idx, poststim_idx = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,
                                                                                                                  pooled_framerate,
                                                                                                                  metrics_prestim, metrics_poststim, the_pool)
 
@@ -799,10 +799,74 @@ if __name__ == "__main__":
                             overlap_label = "Pooled data summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
                             display_dict[str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pooled_pop_iORG_" + sum_method + "_"+ start_timestamp] = overlap_label
 
-                            display_iORG_pop_summary(np.arange(max_frmstamp + 1), stim_pop_iORG_summary[q], stim_vidnum=query_loc_names[q],
+                            display_iORG_pop_summary(finite_iORG_frmstmp, stim_pop_iORG_summary[q], stim_vidnum=query_loc_names[q],
                                                      stim_delivery_frms=stimtrain, framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                      figure_label=overlap_label, params=pop_overlap_params)
+
+                            if pop_overlap_params.get(DisplayParams.DISP_ANNOTATIONS, True):
+                                linecolor = plt.gca().get_lines()[-1].get_color()
+                                for metric in metrics_type:
+                                    match metric:
+                                        case "aur":
+                                            aurrange = finite_iORG_frmstmp[poststim_idx] / pooled_framerate
+
+                                            plt.gca().fill_between(aurrange, stim_pop_iORG_summary[q][poststim_idx],
+                                                                   np.zeros_like(stim_pop_iORG_summary[q][poststim_idx]),
+                                                                   facecolor=linecolor, alpha=0.5)
+                                            plt.gca().annotate(f"AUC:\n{aur[0]: .2f}",
+                                                               (aurrange[0] + (aurrange[-1] - aurrange[0]) / 2.0, np.nanmax(stim_pop_iORG_summary[q][poststim_idx]) / 2.0),
+                                                               bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.4)),
+                                                               color=linecolor,
+                                                               horizontalalignment="center", verticalalignment="center", multialignment="center", weight="bold")
+
+                                        case "amp":
+                                            prestim_val = np.nanmedian( stim_pop_iORG_summary[q][prestim_idx])
+                                            poststim_val = np.nanquantile( stim_pop_iORG_summary[q][poststim_idx],  [0.99]).flatten()
+                                            prestim_start = finite_iORG_frmstmp[metrics_prestim[0]]
+
+                                            midline = (prestim_start + (stimtrain[0]-prestim_start)/2) / pooled_framerate
+                                            impl_time = (stimtrain[0] / pooled_framerate)+amp_implicit_time[0]
+                                            halfamp_impl_time = (stimtrain[0] / pooled_framerate) + halfamp_implicit_time[0]
+
+                                            plt.gca().hlines(prestim_val,
+                                                             prestim_start/ pooled_framerate,
+                                                             (stimtrain[0] / pooled_framerate),
+                                                             colors=linecolor, alpha=0.5, capstyle="round")
+                                            plt.gca().vlines(midline,
+                                                             prestim_val,
+                                                             poststim_val,
+                                                             colors=linecolor, alpha=0.5, capstyle="round")
+                                            plt.gca().hlines(poststim_val,
+                                                             midline,
+                                                             impl_time,
+                                                             colors=linecolor, alpha=0.5, capstyle="round")
+                                            plt.gca().annotate(f"Amplitude:\n{amplitude[0]: .2f} "+sum_method, xy=(midline, prestim_val+amplitude[0]/2),
+                                                               xytext=(prestim_start/ pooled_framerate, prestim_val+amplitude[0]/2),
+                                                               horizontalalignment="right", verticalalignment="center", multialignment="center", weight="bold",
+                                                               color=linecolor,
+                                                               bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
+                                                               arrowprops=dict(arrowstyle="-",color=linecolor, alpha=0.7))
+
+                                        case "amp_imp_time":
+                                            plt.gca().annotate(f"Implicit Time:\n{amp_implicit_time[0]: .2f}s",
+                                                               xy=(impl_time, poststim_val),
+                                                               xytext=(impl_time, poststim_val*1.5),
+                                                               horizontalalignment="center", verticalalignment="top", multialignment="center", weight="bold",
+                                                               color=linecolor,
+                                                               bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
+                                                               arrowprops=dict(arrowstyle="-", color=linecolor, alpha=0.7))
+                                        case "halfamp_imp_time":
+                                            plt.gca().annotate(f"Halfamp Implicit Time:\n{halfamp_implicit_time[0]: .2f}s",
+                                                               xy=(halfamp_impl_time, prestim_val+amplitude[0]/2),
+                                                               xytext=(halfamp_impl_time, poststim_val*1.3),
+                                                               horizontalalignment="center", verticalalignment="top", multialignment="center", weight="bold",
+                                                               color=linecolor,
+                                                               bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
+                                                               arrowprops=dict(arrowstyle="-", color=linecolor, alpha=0.7))
+
+
                             plt.show(block=False)
+
                             if sum_control !=  "none":
                                 plt.title("Pooled "+ sum_method.upper() +" iORGs relative\nto control iORG via " + sum_control)
                             else:
