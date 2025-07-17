@@ -846,17 +846,22 @@ if __name__ == "__main__":
                                                                arrowprops=dict(arrowstyle="-",color=linecolor, alpha=0.7))
 
                                         case "amp_imp_time":
+
+                                            lims = plt.gca().get_ylim()
+                                            ypos = (lims[1]-lims[0]) * 0.9 + lims[0]
                                             plt.gca().annotate(f"Implicit Time:\n{amp_implicit_time[0]: .2f}s",
                                                                xy=(impl_time, poststim_val),
-                                                               xytext=(impl_time, poststim_val*1.5),
+                                                               xytext=(impl_time, ypos),
                                                                horizontalalignment="center", verticalalignment="top", multialignment="center", weight="bold",
                                                                color=linecolor,
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
                                                                arrowprops=dict(arrowstyle="-", color=linecolor, alpha=0.7))
                                         case "halfamp_imp_time":
+                                            lims = plt.gca().get_ylim()
+                                            ypos = (lims[1] - lims[0]) * 0.8 + lims[0]
                                             plt.gca().annotate(f"Halfamp Implicit Time:\n{halfamp_implicit_time[0]: .2f}s",
                                                                xy=(halfamp_impl_time, prestim_val+amplitude[0]/2),
-                                                               xytext=(halfamp_impl_time, poststim_val*1.3),
+                                                               xytext=(halfamp_impl_time, ypos),
                                                                horizontalalignment="center", verticalalignment="top", multialignment="center", weight="bold",
                                                                color=linecolor,
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
