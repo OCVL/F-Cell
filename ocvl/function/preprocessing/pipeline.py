@@ -298,33 +298,6 @@ if __name__ == "__main__":
                 central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder).mkdir(parents=True,
                                                                                                  exist_ok=True)
 
-                # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack
-                stackmeta_for_IJ = {'Labels': data_filenames}
-
-                stackfname = central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] +"_STK.tif"))
-                with tiff.TiffWriter(stackfname, imagej=True) as tif_writer:
-
-                    for f in range(avg_images.shape[-1]):
-                        if inliers[f]:
-                            avg_images[...,f] = cv2.warpAffine(avg_images[...,f], ref_xforms[f],
-                                                        (avg_images.shape[1], avg_images.shape[0]),
-                                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
-                                                        borderValue=np.nan)
-                        else:
-                            avg_images[..., f] = np.nan
-                        tif_writer.write(avg_images[..., f], contiguous=True, metadata=stackmeta_for_IJ)
-
-                # Z Project each of our image types
-                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images)
-
-                # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
-                # pipeline filename structure.
-                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
-                            avg_avg_images)
-
-                # save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname).with_suffix(".avi")),
-                #            avg_images, 1)
-
                 print("Outputting data...")
                 for dataset, xform in zip(datasets, ref_xforms):
 
@@ -366,8 +339,32 @@ if __name__ == "__main__":
 
                     out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
                     out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
-                    save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
+                    croprect = save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
                                framerate=dataset.framerate)
+
+                # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack
+                stackmeta_for_IJ = {'Labels': data_filenames}
+
+                stackfname = central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] +"_STK.tif"))
+                with tiff.TiffWriter(stackfname, imagej=True) as tif_writer:
+
+                    for f in range(avg_images.shape[-1]):
+                        if inliers[f]:
+                            avg_images[...,f] = cv2.warpAffine(avg_images[...,f], ref_xforms[f],
+                                                        (avg_images.shape[1], avg_images.shape[0]),
+                                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                                                        borderValue=np.nan)
+                        else:
+                            avg_images[..., f] = np.nan
+                        tif_writer.write(avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3], f], contiguous=True, metadata=stackmeta_for_IJ)
+
+                # Z Project each of our image types
+                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images)
+
+                # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
+                # pipeline filename structure.
+                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
+                            avg_avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3]])
 
             # Outputs the metadata for the group to the group folder
             group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, group+"_group_info.csv"), index=False)

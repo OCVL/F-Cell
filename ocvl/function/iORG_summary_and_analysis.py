@@ -113,8 +113,8 @@ if __name__ == "__main__":
     metrics_type = metrics.get(SummaryParams.TYPE, ["amplitude", "imp_time"])
     metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
     metrics_units = metrics.get(SummaryParams.UNITS, "time")
-    metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
-    metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
+    metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
+    metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
 
     metrics_tags =[]
     for metric in metrics_type:
@@ -613,8 +613,8 @@ if __name__ == "__main__":
                                     plt.show(block=False)
 
 
-                            metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
-                            metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
+                            metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
+                            metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
                             if metrics_units == "time":
                                 metrics_prestim = np.round(metrics_prestim * dataset.framerate)
                                 metrics_poststim = np.round(metrics_poststim * dataset.framerate)
@@ -756,8 +756,8 @@ if __name__ == "__main__":
                                                     index_label="Video Number")
                             del pop_iORG_summary
 
-                        metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]), dtype=int)
-                        metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]), dtype=int)
+                        metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
+                        metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
                         if metrics_units == "time":
                             metrics_prestim = np.round(metrics_prestim * pooled_framerate)
                             metrics_poststim = np.round(metrics_poststim * pooled_framerate)
@@ -770,10 +770,8 @@ if __name__ == "__main__":
                             metrics_poststim = stimtrain[0] + metrics_poststim
 
                         # Make the list of indices that should correspond to pre and post stimulus
-                        metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1,
-                                                    dtype=int)
-                        metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1,
-                                                     dtype=int)
+                        metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
+                        metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
 
 
                         amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, prestim_idx, poststim_idx = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,

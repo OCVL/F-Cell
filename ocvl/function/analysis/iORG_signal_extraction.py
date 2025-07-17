@@ -6,6 +6,7 @@ from multiprocessing import RawArray, shared_memory, get_context
 import cv2
 
 import numpy as np
+import pandas as pd
 from colorama import Fore
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
@@ -21,6 +22,9 @@ from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
     SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams, Analysis
 from scipy.spatial.distance import pdist, squareform
+
+from ocvl.function.utility.resources import save_tiff_stack
+
 
 def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
                                   thread_pool=None):
@@ -546,7 +550,7 @@ def _extract_box(params):
 
     if summary == "mean":
         signal_data[nani] = np.nan
-        signal_data[np.invert(nani)] = np.mean(coordcolumn[:, np.invert(nani)], axis=0)
+        signal_data[np.invert(nani)] = np.nanmean(coordcolumn[:, np.invert(nani)], axis=0)
     elif summary == "median":
         signal_data[nani] = np.nan
         signal_data[np.invert(nani)] = np.nanmedian(coordcolumn[:, np.invert(nani)], axis=0)
@@ -589,7 +593,7 @@ def _extract_disk(params):
     # Make our mask 0s into nans
     mask[mask == 0] = np.nan
     coordcolumn = coordcolumn * mask
-    coordcolumn[:, nani] = np.nan
+    # coordcolumn[:, nani] = np.nan
 
     if np.all(np.isnan(coordcolumn.flatten())):
         query_status = "Missing Data at Query Location"

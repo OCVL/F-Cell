@@ -649,8 +649,8 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
     norm_params = analysis_params.get(NormParams.NAME, dict())
     norm_method = norm_params.get(NormParams.NORM_METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
     rescale_norm = norm_params.get(NormParams.NORM_RESCALE, True)  # Default: Rescales the data back into AU to make results easier to interpret
-    res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
-    res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
+    res_mean = norm_params.get(NormParams.NORM_MEAN, 70.0)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.NORM_STD, 35.0)  # Default: Rescales to a std dev of 35
 
     # Flat field the video for analysis if desired.
     if analysis_params.get(Analysis.FLAT_FIELD, False):

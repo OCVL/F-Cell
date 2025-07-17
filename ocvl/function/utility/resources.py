@@ -144,6 +144,8 @@ def save_video(video_path, video_data, framerate = 30, scalar_mapper=None):
 
             vidout.release()
 
+    return (cropy, cropy+croph, cropx, cropx+cropw)
+
 
 class ResourceLoader:
     def __init__(self, file_paths):
