@@ -43,6 +43,9 @@ class MetaTags(StrEnum):
     STIMULUS_SEQ = "stimulus_sequence"
     FRAMERATE = "framerate"
     QUERY_LOCATIONS = "query_locations"
+    VIDEO = "video"
+    MASK = "mask"
+
 
 class AcquisiTags(StrEnum):
     DATASET = "Dataset"
@@ -72,6 +75,8 @@ class PreAnalysisPipeline(StrEnum):
     CUSTOM = "custom"
     OUTPUT_FOLDER = "output_folder"
     GROUP_BY = "group_by"
+    INTRA_STACK_XFORM = "intra_stack_xform"
+    INTER_STACK_XFORM = "inter_stack_xform"
 
 class Analysis(StrEnum):
     NAME = "analysis"
@@ -81,6 +86,10 @@ class Analysis(StrEnum):
     OUTPUT_FOLDER = "output_folder"
     OUTPUT_SUBFOLDER = "output_subfolder"
     OUTPUT_SUBFOLDER_METHOD = "output_subfolder_method"
+    OUTPUT_INDIV_STANDARDIZED_ORGS = "output_indiv_stdize_orgs"
+    OUTPUT_SUMPOP_ORGS = "output_sum_pop_orgs"
+    OUTPUT_SUM_INDIV_ORGS = "output_sum_indiv_orgs"
+    MODALITIES = "modalities"
 
 class DebugParams(StrEnum):
     NAME = "debug"
@@ -90,7 +99,6 @@ class DebugParams(StrEnum):
     PLOT_POP_EXTRACTED_ORGS = "plot_pop_extracted_orgs"
     PLOT_POP_STANDARDIZED_ORGS = "plot_pop_stdize_orgs"
     PLOT_INDIV_STANDARDIZED_ORGS = "plot_indiv_stdize_orgs"
-    OUTPUT_INDIV_STANDARDIZED_ORGS = "output_indiv_stdize_orgs"
     CELL_VIABILITY = "cell_viability"
 
 class NormParams(StrEnum):
@@ -166,6 +174,7 @@ class DisplayParams(StrEnum):
     DISP_CONTROL = "control"
     DISP_RELATIVE = "relative"
     DISP_POOLED = "pooled"
+    DISP_ANNOTATIONS = "annotations"
     SAVEAS = "saveas"
     PAUSE_PER_FOLDER = "pause_per_folder"
     NUM_IN_SEQ = "num_in_seq"

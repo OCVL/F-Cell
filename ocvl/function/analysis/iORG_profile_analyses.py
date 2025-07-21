@@ -23,7 +23,7 @@ from ocvl.function.utility.resources import save_tiff_stack
 from ocvl.function.utility.temporal_signal_utils import densify_temporal_matrix, reconstruct_profiles
 
 
-def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", window_size=1, fraction_thresh=0.25, pool=None):
+def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", window_size=1, fraction_thresh=0.25, pool=None):
     """
     Summarizes the summary on a supplied dataset, using a variety of power based summary methods published in
     Gaffney et. al. 2024, Cooper et. al. 2020, and Cooper et. al. 2017.
@@ -33,7 +33,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", 
                                 from C cells, and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
     :param summary_method: The method used to summarize the population at each sample. Current options include:
-                            "var", "std", and "moving_rms". Default: "var"
+                            "rms, "variance", "stddev", and "avg". Default: "rms"
     :param window_size: The window size used to summarize the population at each sample. Can be an odd integer from
                         1 (no window) to M/2. Default: 1
     :param fraction_thresh: The fraction of the values inside the sample window that must be finite in order for the power
@@ -64,23 +64,23 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", 
     if window_radius != 0:
         if len(temporal_signals.shape) == 2:
             temporal_data= np.full((num_signals, 1, framestamps[-1]+1), np.nan)
-            temporal_data[:, 0, framestamps] = temporal_signals.copy()
+            temporal_data[:, 0, framestamps] = temporal_signals
 
         if len(temporal_signals.shape) == 3:
             temporal_data = np.full((num_signals, temporal_signals.shape[1], framestamps[-1]+1), np.nan)
-            temporal_data[:, :, framestamps] = temporal_signals.copy()
+            temporal_data[:, :, framestamps] = temporal_signals
 
         temporal_data = np.pad(temporal_data, ((0, 0), (0, 0), (window_radius, window_radius)), "symmetric")
 
     else:
-        temporal_data = temporal_signals.copy()
+        temporal_data = temporal_signals
 
     if len(temporal_signals.shape) == 2:
-        num_incl = np.zeros((1, num_samples))
-        summary = np.full((1, num_samples), np.nan)
+        num_incl = np.zeros((1, num_samples), dtype=np.uint32)
+        summary = np.full((1, num_samples), np.nan, dtype=np.float32)
     if len(temporal_signals.shape) == 3:
-        num_incl = np.zeros((temporal_signals.shape[1], num_samples))
-        summary = np.full((temporal_signals.shape[1], num_samples), np.nan)
+        num_incl = np.zeros((temporal_signals.shape[1], num_samples), dtype=np.uint32)
+        summary = np.full((temporal_signals.shape[1], num_samples), np.nan, dtype=np.float32)
 
     shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_data.nbytes)
     np_temporal = np.ndarray(temporal_data.shape, dtype=temporal_data.dtype, buffer=shared_block.buf)
@@ -90,30 +90,30 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
-        if summary_method == "var":
+        if summary_method == "variance":
 
             if window_radius == 0:
                 summary = np.nanvar(temporal_data, axis=0)
                 num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):
 
-                res = pool.imap(_summary_var, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
-                                              repeat(temporal_data.shape), repeat(temporal_data.dtype),
-                                              repeat(window_radius), repeat(fraction_thresh)),
-                                              chunksize=250)
+                res = pool.imap(_summary_variance, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
+                                                       repeat(temporal_data.shape), repeat(temporal_data.dtype),
+                                                       repeat(window_radius), repeat(fraction_thresh)),
+                                chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
-        elif summary_method == "std":
+        elif summary_method == "stddev":
 
             if window_radius == 0:
                 summary = np.nanstd(temporal_data, axis=0)
                 num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):
 
-                res = pool.imap(_summary_std, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
-                                              repeat(temporal_data.shape), repeat(temporal_data.dtype),
-                                              repeat(window_radius), repeat(fraction_thresh)),
-                                              chunksize=250)
+                res = pool.imap(_summary_stddev, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
+                                                     repeat(temporal_data.shape), repeat(temporal_data.dtype),
+                                                     repeat(window_radius), repeat(fraction_thresh)),
+                                chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
         elif summary_method == "rms":
@@ -137,9 +137,9 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", 
                 num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):
 
-                res = pool.imap(_summary_std, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
-                                                  repeat(temporal_data.shape), repeat(temporal_data.dtype),
-                                                  repeat(window_radius), repeat(fraction_thresh)),
+                res = pool.imap(_summary_stddev, zip(range(temporal_data.shape[1]), repeat(shared_block.name),
+                                                     repeat(temporal_data.shape), repeat(temporal_data.dtype),
+                                                     repeat(window_radius), repeat(fraction_thresh)),
                                 chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
@@ -157,13 +157,13 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="var", 
                 num_incl[c] = num_inc
 
 
-        shared_block.close()
-        shared_block.unlink()
+    shared_block.close()
+    shared_block.unlink()
 
 
     return summary, num_incl
 
-def _summary_var(params):
+def _summary_variance(params):
     c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
 
     with warnings.catch_warnings():
@@ -187,7 +187,7 @@ def _summary_var(params):
 
     return c, summary, num_incl
 
-def _summary_std(params):
+def _summary_stddev(params):
     c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
 
     with warnings.catch_warnings():
@@ -526,9 +526,11 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         prestim_window_idx = np.flatnonzero(np.isin(framestamps, desired_prestim_frms))
         poststim_window_idx = np.flatnonzero(np.isin(framestamps, desired_poststim_frms))
 
+
         if np.all(~finite_data) or len(desired_prestim_frms) == 0 or len(desired_poststim_frms)==0:
             return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
-                   np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
+                   np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan), \
+                   np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
 
         if prestim_window_idx is None:
             prestim_window_idx = np.zeros((1,))
@@ -568,7 +570,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
         # ** Recovery percentage **
         final_val = np.nanmean(temporal_signals[:, -5:], axis=1)
-        recovery = 1 - ((final_val-prestim_val)/amplitude)
+        recovery =  ((final_val-prestim_val)-amplitude)/(framestamps[-1]-poststim_frms[0]) #np.abs(((final_val-prestim_val)-amplitude)/amplitude)
 
         # ** Area Under the Response (est. by trapezoidal rule) **
         auc = np.full((temporal_signals.shape[0],), np.nan)
@@ -590,14 +592,14 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
                                        chunksize=chunk_size)
 
         for i, amp_imp, halfamp_imp, au in res:
-            amp_implicit_time[i] = (amp_imp- prestim_frms[-1]) / framerate
-            halfamp_implicit_time[i] = (halfamp_imp - prestim_frms[-1]) / framerate
+            amp_implicit_time[i] = (amp_imp- desired_poststim_frms[0]) / framerate
+            halfamp_implicit_time[i] = (halfamp_imp - desired_poststim_frms[0]) / framerate
             auc[i] = au
 
         shared_block.close()
         shared_block.unlink()
 
-    return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery
+    return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery, prestim_frms, poststim_frms
 
 def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
 

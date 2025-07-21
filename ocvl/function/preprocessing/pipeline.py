@@ -30,6 +30,7 @@ from tkinter import filedialog, ttk, messagebox
 from colorama import Fore
 from scipy.ndimage import gaussian_filter
 import pandas as pd
+import tifffile as tiff
 
 
 from ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
@@ -167,7 +168,6 @@ if __name__ == "__main__":
         grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
         if grouping is not None:
             for row in allData.itertuples():
-                print( grouping.format_map(row._asdict()) )
                 allData.loc[row.Index, PreAnalysisPipeline.GROUP_BY] = grouping.format_map(row._asdict())
 
             groups = allData[PreAnalysisPipeline.GROUP_BY].unique().tolist()
@@ -197,7 +197,8 @@ if __name__ == "__main__":
 
                 dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                             repeat(None),
-                                                                            np.arange(len(datasets))))
+                                                                            np.arange(len(datasets)),
+                                                                            repeat(0.3)))
                 shift_info = dist_res.get()
 
                 # Determine the average
@@ -230,7 +231,7 @@ if __name__ == "__main__":
                                                                                   dist_ref_idx,
                                                                                   determine_initial_shifts=True,
                                                                                   dropthresh=0.0,
-                                                                                  transformtype="affine")
+                                                                                  transformtype=pipeline_params.get(PreAnalysisPipeline.INTER_STACK_XFORM, "affine"))
 
             for mode in modes_of_interest:
 
@@ -241,13 +242,15 @@ if __name__ == "__main__":
                 if not datasets:
                     continue
                 avg_images = np.dstack([data.avg_image_data for data in datasets])
+                data_filenames = [data.video_path.stem for data in datasets]
 
                 if alignment_ref_mode is None:
                     print("Selecting ideal central frame for mode and location: "+mode)
 
                     dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                                 repeat(None),
-                                                                                np.arange(len(datasets)) ))
+                                                                                np.arange(len(datasets)),
+                                                                                repeat(0.3)))
                     shift_info = dist_res.get()
 
                     # Determine the average
@@ -279,23 +282,9 @@ if __name__ == "__main__":
                                                                                         (align_dat > 0),
                                                                                         dist_ref_idx,
                                                                                         determine_initial_shifts=True,
-                                                                                        dropthresh=0.0, transformtype="affine")
+                                                                                        dropthresh=0.0, transformtype=pipeline_params.get(PreAnalysisPipeline.INTER_STACK_XFORM, "affine"))
                 else:
                     central_dataset = datasets[dist_ref_idx]
-
-                # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
-                for f in range(avg_images.shape[-1]):
-                    if inliers[f]:
-                        avg_images[...,f] = cv2.warpAffine(avg_images[...,f], ref_xforms[f],
-                                                    (avg_images.shape[1], avg_images.shape[0]),
-                                                    flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
-                                                    borderValue=np.nan)
-
-                # Z Project each of our image types
-                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images)
-
-                # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
-                # pipeline filename structure.
 
                 # Determine the filename for the superaverage using the central-most dataset.
                 pipelined_dat_format = dat_form.get(Analysis.NAME)
@@ -303,13 +292,14 @@ if __name__ == "__main__":
                     pipe_im_form = pipelined_dat_format.get(DataFormatType.IMAGE)
                     if pipe_im_form is not None:
                         pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
+                    else:
+                        pipe_im_fname = "    "
+                else:
+                    pipe_im_fname = "    "
 
                 # Make sure our output folder exists.
-                central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder).mkdir(parents=True, exist_ok=True)
-                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
-                            avg_avg_images)
-                save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname).with_suffix(".avi")),
-                           avg_images, 1)
+                central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder).mkdir(parents=True,
+                                                                                                 exist_ok=True)
 
                 print("Outputting data...")
                 for dataset, xform in zip(datasets, ref_xforms):
@@ -352,8 +342,32 @@ if __name__ == "__main__":
 
                     out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
                     out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
-                    save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
+                    croprect = save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
                                framerate=dataset.framerate)
+
+                # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack
+                stackmeta_for_IJ = {'Labels': data_filenames}
+
+                stackfname = central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] +"_STK.tif"))
+                with tiff.TiffWriter(stackfname, imagej=True) as tif_writer:
+
+                    for f in range(avg_images.shape[-1]):
+                        if inliers[f]:
+                            avg_images[...,f] = cv2.warpAffine(avg_images[...,f], ref_xforms[f],
+                                                        (avg_images.shape[1], avg_images.shape[0]),
+                                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                                                        borderValue=np.nan)
+                        else:
+                            avg_images[..., f] = np.nan
+                        tif_writer.write(avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3], f], contiguous=True, metadata=stackmeta_for_IJ)
+
+                # Z Project each of our image types
+                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images)
+
+                # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
+                # pipeline filename structure.
+                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
+                            avg_avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3]])
 
             # Outputs the metadata for the group to the group folder
             group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, group+"_group_info.csv"), index=False)

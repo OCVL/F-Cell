@@ -309,7 +309,6 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
             # Update the database, and update all of our logical indices
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
 
-
         # Check to see if our dataset's number of query locations matches the ones we thought we found
         # (can happen if the query location format doesn't match, but dataset was able to find a candidate)
         if len(query_info) < len(dataset.query_loc):
@@ -319,13 +318,11 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
             base_entry.loc[0, AcquisiTags.DATASET] = None
 
             for i in range(len(dataset.query_loc) - len(query_info)):
-                base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[i]
-                base_entry.loc[0, DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
+                base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.query_coord_paths[i]
+                base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
 
                 # Update the database, and update all of our logical indices
                 new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
-
-
 
         # If we can't find any query locations, or if we just want it, default to querying all pixels.
         if (len(dataset.query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset.query_coord_paths:
@@ -347,10 +344,10 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
             dataset.summarized_iORGs = [None] * len(dataset.query_loc)
 
             base_entry = database[slice_of_life & vidtype_filter].copy()
-            base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
-            base_entry.loc[0, AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
-            base_entry.loc[0, DataTags.QUERYLOC] = "All Pixels"
-            base_entry.loc[0, AcquisiTags.DATASET] = None
+            base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
+            base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "All Pixels"
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
             # Update the database, and update all of our logical indices
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
@@ -370,10 +367,14 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     metadata[AcquisiTags.META_PATH] = extra_metadata_path
 
     if video_path.exists():
-        resource = load_video(video_path)
+        resource = load_video(video_path, metadata.get(MetaTags.VIDEO, dict()).get(MetaTags.FIELDS_OF_INTEREST, None))
+
         video_data = resource.data
-        if MetaTags.FRAMERATE not in metadata:
+
+        if MetaTags.FRAMERATE not in metadata and MetaTags.FRAMERATE not in metadata.get(MetaTags.VIDEO, dict()):
             metadata[MetaTags.FRAMERATE] = resource.metadict.get(MetaTags.FRAMERATE)
+        elif MetaTags.FRAMERATE in metadata.get(MetaTags.VIDEO, dict()):
+            metadata[MetaTags.FRAMERATE] = metadata.get(MetaTags.VIDEO, None).get(MetaTags.FRAMERATE)
     else:
         warning("Video path does not exist at: "+str(video_path))
         return None
@@ -435,6 +436,45 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
             else:
                 warnings.warn("Query location path does not exist: "+str(locpath))
 
+
+    elif AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS in metadata and \
+        metadata.get(MetaTags.QUERY_LOCATIONS).get(MetaTags.FIELDS_OF_INTEREST, None) is not None: # @TODO: Remove duplicate code.
+        # If we have query locations defined in the metadata alongside fields to load, then that means we have specific fields
+        # from a query location file that we need to grab.
+
+        querylocs = metadata.get(AcquisiTags.QUERYLOC_PATH)
+        fieldnames = metadata.get(MetaTags.QUERY_LOCATIONS).get(MetaTags.FIELDS_OF_INTEREST, None)
+
+        for locpath in querylocs:
+            if locpath.exists():
+                match locpath.suffix:
+                    case ".csv":
+                        queryloc_data.append(pd.read_csv(locpath, usecols=fieldnames, encoding="utf-8-sig").to_numpy())
+                    case ".txt":
+                        queryloc_data.append(pd.read_csv(locpath, usecols=fieldnames, encoding="utf-8-sig").to_numpy())
+                    case "":
+                        if locpath.name == "All Pixels":
+                            xm, ym = np.meshgrid(np.arange(video_data.shape[1]),
+                                                 np.arange(video_data.shape[0]))
+
+                            xm = np.reshape(xm, (xm.size, 1))
+                            ym = np.reshape(ym, (ym.size, 1))
+
+                            allcoord_data = np.hstack((xm, ym))
+
+                            queryloc_data.append(allcoord_data)
+            elif locpath.name == "All Pixels":
+                xm, ym = np.meshgrid(np.arange(video_data.shape[1]),
+                                     np.arange(video_data.shape[0]))
+
+                xm = np.reshape(xm, (xm.size, 1))
+                ym = np.reshape(ym, (ym.size, 1))
+
+                allcoord_data = np.hstack((xm, ym))
+
+                queryloc_data.append(allcoord_data)
+            else:
+                warnings.warn("Query location path does not exist: " + str(locpath))
     elif MetaTags.QUERY_LOCATIONS in metadata:
         queryloc_data.append(metadata.get(MetaTags.QUERY_LOCATIONS))
 
@@ -446,10 +486,10 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
     # For importing metadata RE: the stimulus delivery
     stimulus_sequence = None
-    if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH).exists():
+    if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH, Path()).exists():
         stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None, encoding="utf-8-sig").to_numpy()
-    elif MetaTags.STIMULUS_SEQ in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH).exists():
-        stimulus_sequence = np.array(metadata.get(MetaTags.STIMULUS_SEQ), dtype="int")
+    elif MetaTags.STIMULUS_SEQ in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH, Path()).exists():
+        stimulus_sequence = np.cumsum(np.array(metadata.get(MetaTags.STIMULUS_SEQ), dtype="int"))
     elif stage == Stages.ANALYSIS:
         while Dataset.stimseq_fName is None:
             Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
@@ -577,7 +617,9 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
     if correct_torsion is not None and correct_torsion:
         align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, mask_dat,
                                                                      reference_idx=dataset.reference_frame_idx,
-                                                                     dropthresh=0, justalign=True, transformtype="rigid")
+                                                                     determine_initial_shifts=False,
+                                                                     dropthresh=0, justalign=True,
+                                                                     transformtype=params.get(PreAnalysisPipeline.INTRA_STACK_XFORM, "rigid"))
 
         # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
         og_dtype = dataset.video_data.dtype
@@ -607,8 +649,8 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
     norm_params = analysis_params.get(NormParams.NAME, dict())
     norm_method = norm_params.get(NormParams.NORM_METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
     rescale_norm = norm_params.get(NormParams.NORM_RESCALE, True)  # Default: Rescales the data back into AU to make results easier to interpret
-    res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
-    res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
+    res_mean = norm_params.get(NormParams.NORM_MEAN, 70.0)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.NORM_STD, 35.0)  # Default: Rescales to a std dev of 35
 
     # Flat field the video for analysis if desired.
     if analysis_params.get(Analysis.FLAT_FIELD, False):

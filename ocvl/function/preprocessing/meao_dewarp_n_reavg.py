@@ -175,7 +175,7 @@ if __name__ == "__main__":
                 thresh = 0.5
 
             # Determine and remove residual torsion.
-            _, xforms, inliers, _ = optimizer_stack_align(video_data, mask_data,
+            _, xforms, inliers, _ = optimizer_stack_align(video_data, mask_data,determine_initial_shifts=False,
                                                                 reference_idx=reference_frame_idx,
                                                                 dropthresh=thresh)
 

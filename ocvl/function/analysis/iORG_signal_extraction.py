@@ -6,6 +6,7 @@ from multiprocessing import RawArray, shared_memory, get_context
 import cv2
 
 import numpy as np
+import pandas as pd
 from colorama import Fore
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
@@ -21,6 +22,9 @@ from ocvl.function.preprocessing.improc import norm_video
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
     SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams, Analysis
 from scipy.spatial.distance import pdist, squareform
+
+from ocvl.function.utility.resources import save_tiff_stack
+
 
 def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
                                   thread_pool=None):
@@ -42,11 +46,12 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     query_status = np.full(query_loc.shape[0], "Included", dtype=object)
     valid_signals = np.full((query_loc.shape[0]), True)
+    auto_detect_vals = {} # Automatically detected values
 
     # Round the query locations
     query_loc = np.round(query_loc.copy())
 
-    analysis_params = analysis_dat_format.get(Analysis.PARAMS)
+    analysis_params = analysis_dat_format.get(Analysis.PARAMS, dict())
 
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
     display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
@@ -149,10 +154,11 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
             coorddist[coorddist == 0] = np.amax(coorddist.flatten())
             mindist[i] = np.amin(coorddist.flatten())
 
+        print(f"Detected segmentation radius: {(np.nanmean(mindist) / 4): 0.2f} (Rounded to: "+ str(int(np.round(np.nanmean(mindist) / 4))) +")")
         segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
 
         segmentation_radius = int(segmentation_radius)
-        print("Detected segmentation radius: " + str(segmentation_radius))
+
     elif segmentation_radius != "auto":
         segmentation_radius = int(segmentation_radius)
         print("Chosen segmentation radius: " + str(segmentation_radius))
@@ -160,6 +166,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
         segmentation_radius = 1
         print("Pixelwise segmentation radius: " + str(segmentation_radius))
 
+    auto_detect_vals[SegmentParams.RADIUS] = segmentation_radius
 
     # Extract the signals
     iORG_signals, excl_reason, coordinates = extract_signals(dataset.video_data, query_loc.copy(),
@@ -294,7 +301,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
                                                                      window_size=sum_window,
                                                                      pool=thread_pool)
 
-    return iORG_signals, summarized_iORG, query_status, query_loc
+    return iORG_signals, summarized_iORG, query_status, query_loc, auto_detect_vals
 
 
 def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
@@ -517,7 +524,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 def _extract_box(params):
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
-    signal_data = np.full((vid_shape[-1], ), np.nan)
+    signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
 
     shared_vid_block = shared_memory.SharedMemory(name=vid_name)
     video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_vid_block.buf)
@@ -543,7 +550,7 @@ def _extract_box(params):
 
     if summary == "mean":
         signal_data[nani] = np.nan
-        signal_data[np.invert(nani)] = np.mean(coordcolumn[:, np.invert(nani)], axis=0)
+        signal_data[np.invert(nani)] = np.nanmean(coordcolumn[:, np.invert(nani)], axis=0)
     elif summary == "median":
         signal_data[nani] = np.nan
         signal_data[np.invert(nani)] = np.nanmedian(coordcolumn[:, np.invert(nani)], axis=0)
@@ -559,7 +566,7 @@ def _extract_box(params):
 def _extract_disk(params):
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
-    signal_data = np.full((vid_shape[-1], ), np.nan)
+    signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
 
     shared_vid_block = shared_memory.SharedMemory(name=vid_name)
     video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_vid_block.buf)
@@ -586,7 +593,7 @@ def _extract_disk(params):
     # Make our mask 0s into nans
     mask[mask == 0] = np.nan
     coordcolumn = coordcolumn * mask
-    coordcolumn[:, nani] = np.nan
+    # coordcolumn[:, nani] = np.nan
 
     if np.all(np.isnan(coordcolumn.flatten())):
         query_status = "Missing Data at Query Location"
@@ -717,7 +724,7 @@ def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, vide
         return np.divide(temporal_signals, framewise_norm[None, :])
 
 
-def standardize_signals(temporal_signals, framestamps, std_indices, method="linear_std", critical_fraction=0.3, pool=None):
+def standardize_signals(temporal_signals, framestamps, std_indices, method="mean_sub", critical_fraction=0.3, pool=None):
     """
     This function standardizes each temporal profile (here, the rows of the supplied data) according to the provided
     arguments.
@@ -725,17 +732,18 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
     :param temporal_signals: A NxM numpy matrix with N cells and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
     :param std_indices: The range of indices to use when standardizing.
-    :param method: The method used to standardize. Default is "linear_std", which subtracts a linear fit to
+    :param method: The method used to standardize. Default is "linear_stddev", which subtracts a linear fit to
                     each signal before stimulus_stamp, followed by a standardization based on that pre-stamp linear-fit
                     subtracted data. This was used in Cooper et al 2017/2020.
-                    Current options include: "linear_std", "linear_vast", "relative_change", and "mean_sub"
+                    Current options include: "stddev", "linear_stddev", "linear_vast", "relative_change", and "mean_sub"
     :param critical_fraction: The fraction of real values required to consider the signal valid.
     :param pool: A multiprocessing pool object. Default: None
 
     :return: a NxM numpy matrix of standardized temporal profiles
     """
 
-    req_framenums = int(np.floor(len(std_indices)*critical_fraction))
+    total_num_inds = len(std_indices)
+    req_framenums = int(np.floor(total_num_inds*critical_fraction))
     prestim_frmstmp, _, std_indices = np.intersect1d(std_indices, framestamps, return_indices=True)
 
     if len(std_indices) == 0:
@@ -761,12 +769,12 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
         pool = mp.Pool(processes=1)
 
     res = None
-    if method == "std":
+    if method == "stddev":
         res = pool.imap(_std, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
                                       repeat(std_indices), repeat(req_framenums) ),
                                       chunksize=chunk_size)
-    elif method == "linear_std":
+    elif method == "linear_stddev":
         # Standardize using Autoscaling preceded by a linear fit to remove
         # any residual low-frequency changes
 
@@ -797,12 +805,17 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="line
                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
                                       repeat(std_indices), repeat(req_framenums) ),
                                       chunksize=chunk_size)
+    else:
+        res = pool.imap(_mean_sub, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                      repeat(temporal_signals.shape), repeat(temporal_signals.dtype),
+                                      repeat(std_indices), repeat(req_framenums) ),
+                                      chunksize=chunk_size)
 
     for i, signal, valid, numgoodind in res:
         stdized_signals[i,: ] = signal
         valid_stdization[i] = valid
         if not valid:
-            query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / req_framenums) + ")"
+            query_status[i] = "Incomplete signal for standardization (req'd " + "{:.2f}".format(critical_fraction) + ", had " + "{:.2f}".format(numgoodind / total_num_inds) + ")"
 
     shared_block.close()
     shared_block.unlink()
