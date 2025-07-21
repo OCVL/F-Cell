@@ -26,7 +26,7 @@ import numpy as np
 import multiprocessing as mp
 from tkinter import *
 from tkinter import filedialog, ttk, messagebox
-
+import matplotlib as mpl
 from colorama import Fore
 from scipy.ndimage import gaussian_filter
 import pandas as pd
@@ -48,6 +48,7 @@ from ocvl.function.utility.resources import save_video
 
 if __name__ == "__main__":
     mp.freeze_support()
+    mpl.use('qtagg')
 
 
     dt = datetime.datetime.now()

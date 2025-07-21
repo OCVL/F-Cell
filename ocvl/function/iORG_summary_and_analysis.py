@@ -31,6 +31,8 @@ from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, Met
     MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
 from ocvl.function.utility.resources import save_tiff_stack, save_video
 
+mpl.use('qtagg')
+
 if __name__ == "__main__":
     mp.freeze_support()
 
