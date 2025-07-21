@@ -46,8 +46,9 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
             line.set_color(mapper.to_rgba(l))
 
         if stim_delivery_frms is not None and len(the_lines) == 1:
-            plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
-                              float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+            for i in range(0, len(stim_delivery_frms), 2):
+                plt.gca().axvspan(float(stim_delivery_frms[i-1]/ framerate),
+                                  float(stim_delivery_frms[i]/ framerate), facecolor='g', alpha=0.5)
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
@@ -97,8 +98,9 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
             line.set_color(mapper.to_rgba(l))
 
         if stim_delivery_frms is not None and len(the_lines) == 1:
-            plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
-                              float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+            for i in range(0, len(stim_delivery_frms), 2):
+                plt.gca().axvspan(float(stim_delivery_frms[i-1]/ framerate),
+                                  float(stim_delivery_frms[i]/ framerate), facecolor='g', alpha=0.5)
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
@@ -165,8 +167,9 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
             line.set_color(mapper.to_rgba(l))
 
         if stim_delivery_frms is not None and len(the_lines) == 1:
-            plt.gca().axvspan(float(stim_delivery_frms[0]/ framerate),
-                              float(stim_delivery_frms[1]/ framerate), facecolor='g', alpha=0.5)
+            for i in range(0, len(stim_delivery_frms), 2):
+                plt.gca().axvspan(float(stim_delivery_frms[i-1]/ framerate),
+                                  float(stim_delivery_frms[i]/ framerate), facecolor='g', alpha=0.5)
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
@@ -226,9 +229,9 @@ def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_deli
         line.set_color(mapper.to_rgba(l))
 
     if stim_delivery_frms is not None and len(the_lines) == 1:
-        plt.gca().axvspan(float(stim_delivery_frms[0] / framerate),
-                          float(stim_delivery_frms[1] / framerate), facecolor='g',
-                          alpha=0.5)
+        for i in range(0, len(stim_delivery_frms), 2):
+            plt.gca().axvspan(float(stim_delivery_frms[i - 1] / framerate),
+                              float(stim_delivery_frms[i] / framerate), facecolor='g', alpha=0.5)
 
     if ax_params.get(DisplayParams.LEGEND, False): plt.legend(loc="upper left")
 
