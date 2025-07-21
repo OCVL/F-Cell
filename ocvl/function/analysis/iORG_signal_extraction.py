@@ -577,8 +577,9 @@ def _extract_disk(params):
     coord = coords[i, :]
     fullcolumn = video[(coord[1] - seg_radius):(coord[1] + seg_radius + 1),
                        (coord[0] - seg_radius):(coord[0] + seg_radius + 1), :]
-    mask = disk(seg_radius + 1, dtype=fullcolumn.dtype)
-    mask = mask[1:-1, 1:-1]
+
+    mask = disk(seg_radius, strict_radius=False, dtype=fullcolumn.dtype)
+
     mask = np.repeat(mask[:, :, None], fullcolumn.shape[-1], axis=2)
 
     coldims = fullcolumn.shape
