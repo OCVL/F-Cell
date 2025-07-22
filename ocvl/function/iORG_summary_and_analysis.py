@@ -16,7 +16,9 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 from datetime import datetime
 
+from matplotlib.lines import Line2D
 from scipy.ndimage import gaussian_filter
+from scipy.stats import t
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
@@ -802,12 +804,14 @@ if __name__ == "__main__":
                             overlap_label = "Pooled data summarized with " + sum_method + " of " + mode + " iORGs in " + folder.name
                             display_dict[str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pooled_pop_iORG_" + sum_method + "_"+ start_timestamp] = overlap_label
 
-                            display_iORG_pop_summary(finite_iORG_frmstmp, stim_pop_iORG_summary[q], stim_vidnum=query_loc_names[q],
+                            conf_interval = t.ppf(0.95, stim_pop_iORG_summaries.shape[0]-1) * np.nanstd(stim_pop_iORG_summaries,axis=0) / np.sqrt(stim_pop_iORG_summaries.shape[0])
+
+                            display_iORG_pop_summary(finite_iORG_frmstmp, stim_pop_iORG_summary[q], stim_error=conf_interval, stim_vidnum=query_loc_names[q],
                                                      stim_delivery_frms=stimtrain, framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                      figure_label=overlap_label, params=pop_overlap_params)
 
                             if pop_overlap_params.get(DisplayParams.DISP_ANNOTATIONS, True):
-                                linecolor = plt.gca().get_lines()[-1].get_color()
+                                linecolor = plt.gca().findobj(lambda obj: obj.get_label() == query_loc_names[q] and isinstance(obj, Line2D) )[0].get_color()
                                 for metric in metrics_type:
                                     match metric:
                                         case "aur":
@@ -815,12 +819,13 @@ if __name__ == "__main__":
 
                                             plt.gca().fill_between(aurrange, stim_pop_iORG_summary[q][poststim_idx],
                                                                    np.zeros_like(stim_pop_iORG_summary[q][poststim_idx]),
-                                                                   facecolor=linecolor, alpha=0.5)
+                                                                   facecolor=linecolor, alpha=0.5, label=query_loc_names[q])
                                             plt.gca().annotate(f"AUC:\n{aur[0]: .2f}",
                                                                (aurrange[0] + (aurrange[-1] - aurrange[0]) / 2.0, np.nanmax(stim_pop_iORG_summary[q][poststim_idx]) / 2.0),
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.4)),
                                                                color=linecolor,
-                                                               horizontalalignment="center", verticalalignment="center", multialignment="center", weight="bold")
+                                                               horizontalalignment="center", verticalalignment="center",
+                                                               multialignment="center", weight="bold", label=query_loc_names[q])
 
                                         case "amp":
                                             prestim_val = np.nanmedian( stim_pop_iORG_summary[q][prestim_idx])
@@ -834,19 +839,19 @@ if __name__ == "__main__":
                                             plt.gca().hlines(prestim_val,
                                                              prestim_start/ pooled_framerate,
                                                              (stimtrain[0] / pooled_framerate),
-                                                             colors=linecolor, alpha=0.5, capstyle="round")
+                                                             colors=linecolor, alpha=0.5, capstyle="round", label=query_loc_names[q])
                                             plt.gca().vlines(midline,
                                                              prestim_val,
                                                              poststim_val,
-                                                             colors=linecolor, alpha=0.5, capstyle="round")
+                                                             colors=linecolor, alpha=0.5, capstyle="round", label=query_loc_names[q])
                                             plt.gca().hlines(poststim_val,
                                                              midline,
                                                              impl_time,
-                                                             colors=linecolor, alpha=0.5, capstyle="round")
+                                                             colors=linecolor, alpha=0.5, capstyle="round", label=query_loc_names[q])
                                             plt.gca().annotate(f"Amplitude:\n{amplitude[0]: .2f} "+sum_method, xy=(midline, prestim_val+amplitude[0]/2),
                                                                xytext=(prestim_start/ pooled_framerate, prestim_val+amplitude[0]/2),
                                                                horizontalalignment="right", verticalalignment="center", multialignment="center", weight="bold",
-                                                               color=linecolor,
+                                                               color=linecolor, label=query_loc_names[q],
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
                                                                arrowprops=dict(arrowstyle="-",color=linecolor, alpha=0.7))
 
@@ -860,7 +865,8 @@ if __name__ == "__main__":
                                                                horizontalalignment="center", verticalalignment="top", multialignment="center", weight="bold",
                                                                color=linecolor,
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
-                                                               arrowprops=dict(arrowstyle="-", color=linecolor, alpha=0.7))
+                                                               arrowprops=dict(arrowstyle="-", color=linecolor, alpha=0.7),
+                                                               label=query_loc_names[q])
                                         case "halfamp_imp_time":
                                             lims = plt.gca().get_ylim()
                                             ypos = (lims[1] - lims[0]) * 0.8 + lims[0]
@@ -870,7 +876,8 @@ if __name__ == "__main__":
                                                                horizontalalignment="center", verticalalignment="top", multialignment="center", weight="bold",
                                                                color=linecolor,
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
-                                                               arrowprops=dict(arrowstyle="-", color=linecolor, alpha=0.7))
+                                                               arrowprops=dict(arrowstyle="-", color=linecolor, alpha=0.7),
+                                                               label=query_loc_names[q])
 
 
                             plt.show(block=False)
