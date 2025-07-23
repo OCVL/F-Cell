@@ -188,4 +188,5 @@ class DisplayParams(StrEnum):
     CMAP = "cmap"
     CMIN = "cmin"
     CMAX = "cmax"
+    LINEWIDTH = "linewidth"
     LEGEND = "legend"

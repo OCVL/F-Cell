@@ -150,6 +150,7 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
                   isinstance(stim_vidnums, list) and isinstance(control_vidnums, list)
     xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
     ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
+    linethickness = ax_params.get(DisplayParams.LINEWIDTH, 2.5)
     how_many = np.sum([disp_im, disp_stim, disp_cont])
 
     if disp_stim and not isinstance(stim_vidnums, list):
@@ -175,16 +176,28 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         plt.title("Stimulus iORG")
         for r in range(stim_iORGs.shape[0]):
             dispinds = np.isfinite(stim_iORGs[r])
-            plt.plot(stim_framestamps[dispinds] / framerate, stim_iORGs[r, dispinds],label=str(stim_vidnums[r]))
+            plt.plot(stim_framestamps[dispinds] / framerate, stim_iORGs[r, dispinds], linewidth=linethickness,
+                     label=str(stim_vidnums[r]))
         plt.xlabel("Time (s)")
         plt.ylabel("A.U.")
 
         the_lines = plt.gca().get_lines()
-        normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
-        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
-                                       norm=normmap)
-        for l, line in enumerate(the_lines):
-            line.set_color(mapper.to_rgba(l))
+
+        the_color = ax_params.get(DisplayParams.CMAP, "viridis")
+        if the_color in plt.colormaps():
+            normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
+            mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(),
+                                           norm=normmap)
+
+            for l, line in enumerate(the_lines):
+                line.set_color(mapper.to_rgba(l))
+        elif the_color in mpl.colors.CSS4_COLORS() or the_color in mpl.colors.BASE_COLORS:
+            for l, line in enumerate(the_lines):
+                line.set_color(the_color)
+        else:
+            for l, line in enumerate(the_lines):
+                line.set_color(the_color)
+
 
         if stim_delivery_frms is not None and len(the_lines) == 1:
             for i in range(1, len(stim_delivery_frms), 2):
