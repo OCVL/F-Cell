@@ -9,10 +9,11 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from ocvl.function.utility.json_format_constants import DisplayParams, MetricTags
 
 
-def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, stim_error=None, relative_pop_summary=None, rel_error=None, stim_vidnum="",
-                             control_framestamps=None, control_pop_iORG_summary=None, control_error=None, control_vidnums=None,
+def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_summary=None, stim_vidnum="",
+                             control_framestamps=None, control_pop_iORG_summary=None, control_vidnums=None,
                              control_framestamps_pooled=None, control_pop_iORG_summary_pooled=None,
-                             stim_delivery_frms=None,framerate=15.0, sum_method="", sum_control="", figure_label="", params=None):
+                             stim_delivery_frms=None,framerate=15.0, sum_method="", sum_control="", figure_label="", params=None,
+                             stim_error=None, control_error=None, rel_error=None):
 
     if control_vidnums is None:
         control_vidnums = [""]
@@ -125,8 +126,6 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, stim_error=None
         if not None in ylimits: plt.ylim(ylimits)
 
         if ax_params.get(DisplayParams.LEGEND, False): plt.legend(loc="upper left")
-
-    print(plt.gca().get_lines())
 
 
 def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
