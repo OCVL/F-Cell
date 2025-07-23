@@ -191,7 +191,7 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
 
             for l, line in enumerate(the_lines):
                 line.set_color(mapper.to_rgba(l))
-        elif the_color in mpl.colors.CSS4_COLORS() or the_color in mpl.colors.BASE_COLORS:
+        elif the_color in mpl.colors.CSS4_COLORS or the_color in mpl.colors.BASE_COLORS:
             for l, line in enumerate(the_lines):
                 line.set_color(the_color)
         else:
@@ -215,16 +215,26 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         plt.title("Control iORGs")
         for r in range(control_iORGs.shape[0]):
             dispinds = np.isfinite(stim_iORGs[r])
-            plt.plot(control_framestamps[dispinds] / framerate, control_iORGs[r, dispinds], label=str(control_vidnums[r]))
+            plt.plot(control_framestamps[dispinds] / framerate, control_iORGs[r, dispinds], linewidth=linethickness, label=str(control_vidnums[r]))
         plt.xlabel("Time (s)")
         plt.ylabel("A.U.")
 
         the_lines = plt.gca().get_lines()
-        normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
-        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
-                                       norm=normmap)
-        for l, line in enumerate(the_lines):
-            line.set_color(mapper.to_rgba(l))
+
+        the_color = ax_params.get(DisplayParams.CMAP, "viridis")
+        if the_color in plt.colormaps():
+            normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
+            mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(),
+                                           norm=normmap)
+
+            for l, line in enumerate(the_lines):
+                line.set_color(mapper.to_rgba(l))
+        elif the_color in mpl.colors.CSS4_COLORS or the_color in mpl.colors.BASE_COLORS:
+            for l, line in enumerate(the_lines):
+                line.set_color(the_color)
+        else:
+            for l, line in enumerate(the_lines):
+                line.set_color(the_color)
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
