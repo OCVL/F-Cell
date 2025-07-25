@@ -527,7 +527,8 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         poststim_window_idx = np.flatnonzero(np.isin(framestamps, desired_poststim_frms))
 
 
-        if np.all(~finite_data) or len(desired_prestim_frms) == 0 or len(desired_poststim_frms)==0:
+        if np.all(~finite_data) or len(desired_prestim_frms) == 0 or len(desired_poststim_frms)==0 or \
+            len(poststim_window_idx) == 0 or len(prestim_window_idx) == 0:
             return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
                    np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan), \
                    np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
