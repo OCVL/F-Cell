@@ -237,6 +237,45 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
     im_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE]
     query_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC]
 
+    if video_info.shape[0] > 1:
+        warnings.warn(f"WARNING: MULTIPLE VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        database.drop(index=video_info.index[1:], inplace=True)
+
+        if vidID is not None:
+            vidid_filter = database[DataTags.VIDEO_ID] == vidID
+        else:
+            vidid_filter = True
+        slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
+
+        acquisition = database.loc[slice_of_life]
+        video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
+
+    if mask_info.shape[0] > 1:
+        warnings.warn(f"WARNING: MULTIPLE MASK VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        database.drop(index=mask_info.index[1:], inplace=True)
+
+        if vidID is not None:
+            vidid_filter = database[DataTags.VIDEO_ID] == vidID
+        else:
+            vidid_filter = True
+        slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
+
+        acquisition = database.loc[slice_of_life]
+        mask_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK]
+
+    if metadata_info.shape[0] > 1:
+        warnings.warn(f"WARNING: MULTIPLE METADATA FILES WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        database.drop(index=metadata_info.index[1:], inplace=True)
+
+        if vidID is not None:
+            vidid_filter = database[DataTags.VIDEO_ID] == vidID
+        else:
+            vidid_filter = True
+        slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
+
+        acquisition = database.loc[slice_of_life]
+        metadata_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA]
+
     result_path = PurePath()
     if stage == Stages.PREANALYSIS:
         pass
