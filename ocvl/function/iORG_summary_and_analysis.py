@@ -970,7 +970,7 @@ if __name__ == "__main__":
 
                             if indiv_overlap_params:
                                 plt.show(block=False)
-                            indiv_respath = result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name + "_" + mode + "_indiv_summary_metrics_" + query_loc_names[q] + "coords_" +start_timestamp+".csv")
+                            indiv_respath = result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name + "_" + mode + "_indiv_summary_"+ sum_method +"_metrics_" + query_loc_names[q] + "coords_" +start_timestamp+".csv")
 
                             if indiv_summary.get(DisplayParams.HISTOGRAM):
 
@@ -1068,7 +1068,7 @@ if __name__ == "__main__":
 
                     auto_selected_values.to_csv(result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_autodetected_params_" + str(folder.name) +"_"+ start_timestamp + ".csv"))
 
-                    respath = result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pop_summary_metrics_" + start_timestamp +".csv")
+                    respath = result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_pop_summary_"+ sum_method +"_metrics_" + start_timestamp +".csv")
                     tryagain = True
                     while tryagain:
                         try:
