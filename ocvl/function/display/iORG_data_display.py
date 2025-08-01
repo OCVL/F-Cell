@@ -57,12 +57,16 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
             line.set_color(mapper.to_rgba(l))
 
             # Also update everything that is associated with this line, making sure to preserve the alpha.
-            for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label()
-                                                       and obj is not line ):
+            for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label() and obj is not line ):
+
+                if child.get_alpha() is None:
+                    alphy = 0.9
+                else:
+                    alphy = child.get_alpha()
                 if isinstance(child, Line2D):
-                    child.set_color(mapper.to_rgba(l)[0:3] + (child.get_alpha(), ) )
+                    child.set_color(mapper.to_rgba(l)[0:3] + (alphy, ) )
                 elif isinstance(child, FillBetweenPolyCollection):
-                    child.set_facecolor(mapper.to_rgba(l)[0:3] + (child.get_alpha(),))
+                    child.set_facecolor(mapper.to_rgba(l)[0:3] + (alphy,))
 
         if stim_delivery_frms is not None and len(the_lines) == 1:
             for i in range(1, len(stim_delivery_frms), 2):
@@ -92,6 +96,18 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         for l, line in enumerate(the_lines):
             line.set_color(mapper.to_rgba(l))
 
+            # Also update everything that is associated with this line, making sure to preserve the alpha.
+            for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label() and obj is not line ):
+
+                if child.get_alpha() is None:
+                    alphy = 0.9
+                else:
+                    alphy = child.get_alpha()
+                if isinstance(child, Line2D):
+                    child.set_color(mapper.to_rgba(l)[0:3] + (alphy, ) )
+                elif isinstance(child, FillBetweenPolyCollection):
+                    child.set_facecolor(mapper.to_rgba(l)[0:3] + (alphy,))
+
         if np.all(control_pop_iORG_summary_pooled):
             plt.plot(control_framestamps_pooled / framerate, control_pop_iORG_summary_pooled[control_framestamps_pooled], 'k--', linewidth=4)
 
@@ -116,6 +132,18 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
                                        norm=normmap)
         for l, line in enumerate(the_lines):
             line.set_color(mapper.to_rgba(l))
+
+            # Also update everything that is associated with this line, making sure to preserve the alpha.
+            for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label() and obj is not line ):
+
+                if child.get_alpha() is None:
+                    alphy = 0.9
+                else:
+                    alphy = child.get_alpha()
+                if isinstance(child, Line2D):
+                    child.set_color(mapper.to_rgba(l)[0:3] + (alphy, ) )
+                elif isinstance(child, FillBetweenPolyCollection):
+                    child.set_facecolor(mapper.to_rgba(l)[0:3] + (alphy,))
 
         if stim_delivery_frms is not None and len(the_lines) == 1:
             for i in range(1, len(stim_delivery_frms), 2):
