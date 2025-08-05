@@ -1107,6 +1107,8 @@ if __name__ == "__main__":
 
                         plt.close(figname)
 
+                    display_dict = {}
+
                     # Save the json used to analyze this data, for auditing.
                     out_json = Path(json_fName).stem + "_ran_at_" + start_timestamp + ".json"
                     out_json = result_path.joinpath(out_json)
