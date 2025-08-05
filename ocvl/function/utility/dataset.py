@@ -531,7 +531,9 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
         stimulus_sequence = np.cumsum(np.array(metadata.get(MetaTags.STIMULUS_SEQ), dtype="int"))
     elif stage == Stages.ANALYSIS:
         while Dataset.stimseq_fName is None:
-            Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
+            Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.",
+                                                               initialdir=metadata.get(AcquisiTags.BASE_PATH, None),
+                                                               filetypes=[("Stimulus Sequence files", "*.csv")])
             if Dataset.stimseq_fName is None or not Path(Dataset.stimseq_fName).exists():
                 Dataset.stimseq_fName = None
 

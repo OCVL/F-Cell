@@ -65,7 +65,8 @@ if __name__ == "__main__":
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
 
-        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
+        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
+                                                filetypes=[("JSON Configuration Files", "*.json")])
         if not json_fName:
             sys.exit(2)
 
@@ -810,6 +811,7 @@ if __name__ == "__main__":
                                                      stim_delivery_frms=stimtrain, framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                      figure_label=overlap_label, params=pop_overlap_params)
 
+                            ''' *** Annotate the pooled population data *** '''
                             if pop_overlap_params.get(DisplayParams.DISP_ANNOTATIONS, True):
                                 linecolor = plt.gca().findobj(lambda obj: obj.get_label() == query_loc_names[q] and isinstance(obj, Line2D) )[0].get_color()
                                 for metric in metrics_type:
@@ -1104,6 +1106,8 @@ if __name__ == "__main__":
                                         message="The figure file may be open. Close the file, then try to write again?")
 
                         plt.close(figname)
+
+                    display_dict = {}
 
                     # Save the json used to analyze this data, for auditing.
                     out_json = Path(json_fName).stem + "_ran_at_" + start_timestamp + ".json"
