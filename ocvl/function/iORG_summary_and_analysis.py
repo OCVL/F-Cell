@@ -40,6 +40,8 @@ if __name__ == "__main__":
 
 
     mpl.rcParams['lines.linewidth'] = 2.5
+    mpl.rcParams['axes.spines.right'] = False
+    mpl.rcParams['axes.spines.top'] = False
 
     dt = datetime.now()
     start_timestamp = dt.strftime("%Y%m%d_%H%M")
