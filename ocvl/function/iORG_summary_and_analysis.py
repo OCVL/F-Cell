@@ -40,6 +40,8 @@ if __name__ == "__main__":
 
 
     mpl.rcParams['lines.linewidth'] = 2.5
+    mpl.rcParams['axes.spines.right'] = False
+    mpl.rcParams['axes.spines.top'] = False
 
     dt = datetime.now()
     start_timestamp = dt.strftime("%Y%m%d_%H%M")
@@ -149,16 +151,6 @@ if __name__ == "__main__":
 
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
 
-    # Extract all of the unique values that we'll be iterating over for the analyses.
-    if DataTags.DATA_ID in allData:
-        subject_IDs = allData[DataTags.DATA_ID].unique()
-
-        if np.size(subject_IDs) > 1:
-            warnings.warn("MORE THAN 1 SUBJECT ID DETECTED!! Labeling outputs with first ID")
-    else:
-        warnings.warn("NO SUBJECT ID FIELD DETECTED IN allData! Labeling outputs with dummy subject ID")
-        subject_IDs = [''] #Trying empty subject ID
-
 
     metadata_params = None
     if analysis_dat_format.get(MetaTags.METATAG) is not None:
@@ -205,6 +197,16 @@ if __name__ == "__main__":
 
             group_filter = allData[PreAnalysisPipeline.GROUP_BY] == group
 
+            # Extract all of the unique values that we'll be iterating over for the analyses.
+            if DataTags.DATA_ID in allData:
+                subject_IDs = allData.loc[group_filter, DataTags.DATA_ID].unique()
+
+                if np.size(subject_IDs) > 1:
+                    warnings.warn("MORE THAN 1 SUBJECT ID DETECTED IN GROUP " + group + "!! Labeling outputs with first ID")
+            else:
+                warnings.warn("NO SUBJECT ID FIELD DETECTED IN GROUP " + group + " Labeling outputs with dummy subject ID")
+                subject_IDs = ['']  # Trying empty subject ID
+
             allData.loc[group_filter, AcquisiTags.STIM_PRESENT] = True
             allData.loc[group_filter, AcquisiTags.STIM_PRESENT] = allData.loc[group_filter, AcquisiTags.STIM_PRESENT].astype(bool)
 
@@ -213,7 +215,7 @@ if __name__ == "__main__":
             vidtype_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
 
             # While we're going to process by group, respect the folder structure used by the user here, and only group
-            # and analyze things from the same folder
+            # and analyze things from the same group
             folder_groups = pd.unique(allData.loc[group_filter, AcquisiTags.BASE_PATH]).tolist()
 
             # Use a nested dictionary to track the query status of all query locations; these will later be used
@@ -758,10 +760,10 @@ if __name__ == "__main__":
                             result_datafolder = result_path.joinpath("iORG_Data")
                             result_datafolder.mkdir(parents=True, exist_ok=True)
 
-                            pop_iORG_summary = pd.DataFrame(stim_pop_iORG_summaries, index=stim_data_vidnums, columns=finite_iORG_frmstmp/pooled_framerate)
+                            pop_iORG_summary = pd.DataFrame(np.concatenate((stim_pop_iORG_summaries, stim_pop_iORG_summary[q][None,:]), axis=0),
+                                                            index=stim_data_vidnums+["Pooled"], columns=finite_iORG_frmstmp/pooled_framerate)
                             pop_iORG_summary.to_csv(result_datafolder.joinpath(str(subject_IDs[0]) + "_" + folder.name + "_" + mode + "_pop_sum_iORG_" + sum_method + "_"
-                                                                               + start_timestamp + ".csv"),
-                                                    index_label="Video Number")
+                                                                               + start_timestamp + ".csv"), index_label="Video Number")
                             del pop_iORG_summary
 
                         metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))

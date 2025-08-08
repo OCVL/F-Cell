@@ -77,7 +77,8 @@ if __name__ == "__main__":
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
 
-        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
+        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
+                                                filetypes=[("JSON Configuration Files", "*.json")])
         if not json_fName:
             sys.exit(2)
 
@@ -350,6 +351,7 @@ if __name__ == "__main__":
                 stackmeta_for_IJ = {'Labels': data_filenames}
 
                 stackfname = central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] +"_STK.tif"))
+                avg_images = avg_images.astype("float32")
                 with tiff.TiffWriter(stackfname, imagej=True) as tif_writer:
 
                     for f in range(avg_images.shape[-1]):
@@ -363,7 +365,7 @@ if __name__ == "__main__":
                         tif_writer.write(avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3], f], contiguous=True, metadata=stackmeta_for_IJ)
 
                 # Z Project each of our image types
-                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images)
+                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images.astype("uint8"))
 
                 # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
                 # pipeline filename structure.
