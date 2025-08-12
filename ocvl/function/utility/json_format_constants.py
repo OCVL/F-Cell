@@ -190,3 +190,4 @@ class DisplayParams(StrEnum):
     CMAX = "cmax"
     LINEWIDTH = "linewidth"
     LEGEND = "legend"
+    CROSS_GROUP = "cross_group"
