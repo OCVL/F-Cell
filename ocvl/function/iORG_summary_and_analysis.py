@@ -1072,30 +1072,33 @@ if __name__ == "__main__":
                                     tryagain = messagebox.askyesno(title="File: " + str(indiv_respath) + " is unable to be written.",
                                         message="The result file may be open. Close the file, then try to write again?")
 
-                            # figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
-                            # plt.figure(figure_label)
-                            # display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = figure_label
-                            # refim = group_datasets.loc[folder_mask & (this_mode & reference_images), AcquisiTags.DATA_PATH].values[0]
-                            # plt.title(figure_label)
-                            # plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
-                            # viability = all_query_status[mode][folder][q].loc[:, "Viable for single-cell summary?"]
-                            #
-                            # viable = []
-                            # nonviable = []
-                            # for coords, viability in viability.items():
-                            #     if viability:
-                            #         viable.append(coords)
-                            #     else:
-                            #         nonviable.append(coords)
-                            #
-                            # viable = np.array(viable)
-                            # nonviable = np.array(nonviable)
-                            # if viable.size > 0:
-                            #     plt.scatter(viable[:, 0], viable[:, 1], s=7, c="c")
-                            # if nonviable.size >0:
-                            #     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
-                            # plt.show(block=False)
-                            # plt.waitforbuttonpress()
+                            if debug_params.get(DebugParams.PLOT_VALID_QUERY_LOCS):
+                                figure_label = "Debug- Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
+                                plt.figure(figure_label)
+                                folder_display_dict["debug_"+mode + "_inc_cells_"+query_loc_names[q] + "_" +folder.name +"_"+ start_timestamp ] = figure_label
+                                refim = allData.loc[group_filter & folder_filter & mode_filter & refim_filter, AcquisiTags.DATA_PATH].values[0]
+
+                                plt.title(figure_label)
+                                plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
+                                viability = all_query_status[mode][folder][q].loc[:, "Viable for single-cell summary?"]
+
+                                viable = []
+                                nonviable = []
+                                for coords, viability in viability.items():
+                                    if viability:
+                                        viable.append(coords)
+                                    else:
+                                        nonviable.append(coords)
+                                viable = np.array(viable)
+                                nonviable = np.array(nonviable)
+
+                                if viable.size > 0:
+                                    plt.scatter(viable[:, 0], viable[:, 1], s=4, c="c", alpha=0.3)
+                                if nonviable.size >0:
+                                    plt.scatter(nonviable[:, 0], nonviable[:, 1], s=4, c="red", alpha=0.3)
+                                plt.show(block=False)
+
+
 
                         all_query_status[mode][folder][q].sort_index(inplace=True)
                         all_query_status[mode][folder][q].to_csv(result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_query_loc_status_" + str(folder.name) +

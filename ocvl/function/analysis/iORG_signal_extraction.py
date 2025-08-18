@@ -18,7 +18,7 @@ from skimage.morphology import disk
 
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.display.iORG_data_display import display_iORGs
-from ocvl.function.preprocessing.improc import norm_video
+from ocvl.function.preprocessing.improc import norm_video, weighted_z_projection
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
     SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams, Analysis
 from scipy.spatial.distance import pdist, squareform
@@ -442,6 +442,13 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
         cellradius = disk(seg_radius + 2, dtype=coord_mask.dtype)
         coord_mask = cv2.morphologyEx(coord_mask, cv2.MORPH_DILATE, kernel=cellradius,
                                       borderType=cv2.BORDER_CONSTANT, borderValue=0)
+
+        # plt.figure("XOR Mask")
+        # debugim, summap = weighted_z_projection(im_stack)
+        # plt.imshow(debugim, cmap="gray")
+        # plt.imshow(coord_mask == 0, cmap="plasma", alpha=0.3)
+        # plt.show()
+
 
         coordinates = np.fliplr(np.argwhere(coord_mask == 0))
 
