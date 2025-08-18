@@ -608,6 +608,9 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
     image_data = image_data.astype("float32")
     weights = weights.astype("float32")
 
+    maxstart = np.nanmax(image_data.flatten())
+    minstart = np.nanmin(image_data.flatten())
+
     image_projection = image_data * weights
     image_projection = np.nansum(image_projection, axis=projection_axis)
     weight_projection = np.nansum(weights, axis=projection_axis)
@@ -623,7 +626,8 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
         image_projection[image_projection > 255] = 255
         image_projection=image_projection.astype("uint8")
     else:
-        image_projection[image_projection > 1] = 1
+        image_projection[image_projection > maxstart] = maxstart
+        image_projection[image_projection < minstart] = minstart
 
     # pyplot.imshow(image_projection, cmap='gray')
     # pyplot.show()
