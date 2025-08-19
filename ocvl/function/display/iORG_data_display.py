@@ -218,6 +218,9 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
     disp_stim = params.get(DisplayParams.DISP_STIMULUS, False) and stim_iORGs is not None
     disp_cont = params.get(DisplayParams.DISP_CONTROL, False) and control_iORGs is not None
 
+    if cell_loc is not None and len(cell_loc.shape) == 1:
+        cell_loc = cell_loc[None, :]
+
     if disp_stim and stim_framestamps is None:
         stim_framestamps = np.arange(stim_iORGs.shape[1])
     if not disp_stim and disp_cont and stim_framestamps is None:
