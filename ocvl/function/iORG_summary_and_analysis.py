@@ -1053,12 +1053,19 @@ if __name__ == "__main__":
                                 mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),
                                                                norm=normmap)
 
-                                video_profiles = np.reshape(stim_iORG_summary[q], (stim_datasets[0].avg_image_data.shape[0],
-                                                                                         stim_datasets[0].avg_image_data.shape[1],
-                                                                                         -1), copy=True)
+                                video_profiles = np.zeros((stim_datasets[0].avg_image_data.shape[0],
+                                                           stim_datasets[0].avg_image_data.shape[1],
+                                                           len(all_frmstmp)))
+
+                                i=0
+                                for coords, viability in all_query_status[mode][folder][q].loc[:, "Viable for single-cell summary?"].items():
+                                    if viability:
+                                        video_profiles[coords[1], coords[0], :] = stim_iORG_summary[q][i,:]
+                                    i+=1
+
 
                                 video_profiles[np.isnan(video_profiles)] = starting
-                                save_video(result_path.joinpath(str(subject_IDs[0]) + "_" + mode +"_pooled_pixelpop_iORG_" + sum_method + "_" +folder.name +"_"+ start_timestamp + ".avi"),
+                                save_video(result_path.joinpath(str(subject_IDs[0]) + "_" + mode +"_pooled_pixelpop_iORG_" + sum_method + "_" +folder.name +"_"+ start_timestamp +"_"+ query_loc_names[q]+ ".avi"),
                                            video_profiles, pooled_framerate.item(),
                                            scalar_mapper=mapper)
 
