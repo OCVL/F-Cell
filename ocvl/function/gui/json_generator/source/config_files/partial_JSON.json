@@ -1,0 +1,29 @@
+{
+  "version": "0.2",
+  "description": "The pipeline and analysis JSON for the OCVL's MEAOSLO.",
+  "preanalysis": {
+    "image_format": "{Day}{Month}{Year}",
+    "video_format": "{Modality}{LocX}{LocY}",
+    "mask_format": "{IDnum}{FOV_Height}{FOV_Width}",
+    "recursive_search": true,
+    "pipeline_params": {
+      "modalities": [
+        "CT",
+        "X-Ray"
+      ],
+      "alignment_reference_modality": "X-Ray",
+      "group_by": null
+    }
+  },
+  "analysis": {
+    "image_format": "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}",
+    "queryloc_format": "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}",
+    "video_format": "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}",
+    "recursive_search": true,
+    "analysis_params": {
+      "modalities": [
+        "MRI"
+      ]
+    }
+  }
+}
