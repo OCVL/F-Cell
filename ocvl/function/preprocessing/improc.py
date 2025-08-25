@@ -9,7 +9,7 @@ from scipy.fft import next_fast_len, fft2, ifft2
 from scipy.ndimage import binary_erosion
 from scipy.signal import fftconvolve
 from numpy.polynomial import Polynomial
-
+import multiprocessing as mp
 from ocvl.function.utility.resources import save_video, save_tiff_stack
 
 
@@ -276,6 +276,9 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     template = template_im.astype("float32")
     reference = reference_im.astype("float32")
 
+    template[np.isnan(template)] = 0
+    reference[np.isnan(reference)] = 0
+
     # Speed up FFT by padding to optimal size.
     ogrows = temp_size[0] + ref_size[0] - 1
     ogcols = temp_size[1] + ref_size[1] - 1
@@ -330,20 +333,23 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
     xcorr_out = numerator / (denom + 1)
 
     # By default, the images have to overlap by more than 20% of their maximal overlap.
-    if not required_overlap:
-        required_overlap = np.amax(pixelwise_overlap)*.5
+    if required_overlap is None:
+        required_overlap = np.amax(pixelwise_overlap)*0.5
+    else:
+        required_overlap = np.amax(pixelwise_overlap)*required_overlap
+
     xcorr_out[pixelwise_overlap < required_overlap ] = 0
 
     maxval = np.amax(xcorr_out[:])
     maxloc = np.unravel_index(np.argmax(xcorr_out[:]), xcorr_out.shape)
     maxshift = (-float(maxloc[1]-np.floor(ogcols/2.0)), -float(maxloc[0]-np.floor(ogrows/2.0))) #Output as X and Y.
-    # pyplot.imshow(xcorr_out, cmap='gray')
-    # pyplot.show()
+    #pyplot.imshow(xcorr_out, cmap='gray')
+    #pyplot.show()
 
     return maxshift, maxval, xcorr_out
 
 
-def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0):
+def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0, overlap =0.5):
     num_frames = im_stack.shape[-1]
     shifts = [None] * num_frames
     # flattened = flat_field(im_stack)
@@ -353,12 +359,13 @@ def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0):
         for f2 in range(0, num_frames):
             shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx],
                                                       template_mask=mask_stack[..., f2],
-                                                      reference_mask=mask_stack[..., ref_idx])
+                                                      reference_mask=mask_stack[..., ref_idx],
+                                                      required_overlap=overlap)
             #print("Found shift of: " + str(shift) + ", value of " + str(val))
             shifts[f2] = shift
     else:
         for f2 in range(0, num_frames):
-            shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx])
+            shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx], required_overlap=overlap)
             #print("Found shift of: " + str(shift) + ", value of " + str(val))
             shifts[f2] = shift
 
@@ -403,6 +410,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
 
     imreg_method = sitk.ImageRegistrationMethod()
+
     imreg_method.SetMetricAsCorrelation()
     imreg_method.SetOptimizerAsRegularStepGradientDescent(learningRate=0.0625, minStep=1e-5,
                                                           numberOfIterations=500,
@@ -600,6 +608,9 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
     image_data = image_data.astype("float32")
     weights = weights.astype("float32")
 
+    maxstart = np.nanmax(image_data.flatten())
+    minstart = np.nanmin(image_data.flatten())
+
     image_projection = image_data * weights
     image_projection = np.nansum(image_projection, axis=projection_axis)
     weight_projection = np.nansum(weights, axis=projection_axis)
@@ -615,7 +626,8 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
         image_projection[image_projection > 255] = 255
         image_projection=image_projection.astype("uint8")
     else:
-        image_projection[image_projection > 1] = 1
+        image_projection[image_projection > maxstart] = maxstart
+        image_projection[image_projection < minstart] = minstart
 
     # pyplot.imshow(image_projection, cmap='gray')
     # pyplot.show()

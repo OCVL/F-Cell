@@ -16,6 +16,7 @@
 import datetime
 import json
 import os
+import sys
 from itertools import repeat
 from logging import warning
 from pathlib import Path, PurePath
@@ -25,7 +26,7 @@ import numpy as np
 import multiprocessing as mp
 from tkinter import *
 from tkinter import filedialog, ttk, messagebox
-
+import matplotlib as mpl
 from colorama import Fore
 from scipy.ndimage import gaussian_filter
 import pandas as pd
@@ -46,6 +47,9 @@ from ocvl.function.utility.resources import save_video
 # https://mathematica.stackexchange.com/questions/199928/removing-horizontal-noise-artefacts-from-a-sem-image
 
 if __name__ == "__main__":
+    mp.freeze_support()
+    mpl.use('qtagg')
+
 
     dt = datetime.datetime.now()
     now_timestamp = dt.strftime("%Y%m%d_%H")
@@ -68,14 +72,15 @@ if __name__ == "__main__":
     while allData.empty:
         pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
         if not pName:
-            quit()
+            sys.exit(1)
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
 
-        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root)
+        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
+                                                filetypes=[("JSON Configuration Files", "*.json")])
         if not json_fName:
-            quit()
+            sys.exit(2)
 
         # Grab all the folders/data here.
         dat_form, allData = parse_file_metadata(json_fName, pName, PreAnalysisPipeline.NAME)
@@ -83,7 +88,7 @@ if __name__ == "__main__":
         if allData.empty:
             tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
             if not tryagain:
-                quit()
+                sys.exit(3)
 
     with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
 
@@ -194,7 +199,8 @@ if __name__ == "__main__":
 
                 dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                             repeat(None),
-                                                                            np.arange(len(datasets))))
+                                                                            np.arange(len(datasets)),
+                                                                            repeat(0.3)))
                 shift_info = dist_res.get()
 
                 # Determine the average
@@ -245,7 +251,8 @@ if __name__ == "__main__":
 
                     dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                                 repeat(None),
-                                                                                np.arange(len(datasets)) ))
+                                                                                np.arange(len(datasets)),
+                                                                                repeat(0.3)))
                     shift_info = dist_res.get()
 
                     # Determine the average
@@ -296,33 +303,6 @@ if __name__ == "__main__":
                 central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder).mkdir(parents=True,
                                                                                                  exist_ok=True)
 
-                # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack
-                stackmeta_for_IJ = {'Labels': data_filenames}
-
-                stackfname = central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] +"_STK.tif"))
-                with tiff.TiffWriter(stackfname, imagej=True) as tif_writer:
-
-                    for f in range(avg_images.shape[-1]):
-                        if inliers[f]:
-                            avg_images[...,f] = cv2.warpAffine(avg_images[...,f], ref_xforms[f],
-                                                        (avg_images.shape[1], avg_images.shape[0]),
-                                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
-                                                        borderValue=np.nan)
-                        else:
-                            avg_images[..., f] = np.nan
-                        tif_writer.write(avg_images[..., f], contiguous=True, metadata=stackmeta_for_IJ)
-
-                # Z Project each of our image types
-                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images)
-
-                # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
-                # pipeline filename structure.
-                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
-                            avg_avg_images)
-
-                # save_video(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname).with_suffix(".avi")),
-                #            avg_images, 1)
-
                 print("Outputting data...")
                 for dataset, xform in zip(datasets, ref_xforms):
 
@@ -364,8 +344,33 @@ if __name__ == "__main__":
 
                     out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
                     out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
-                    save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
+                    croprect = save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
                                framerate=dataset.framerate)
+
+                # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack
+                stackmeta_for_IJ = {'Labels': data_filenames}
+
+                stackfname = central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] +"_STK.tif"))
+                avg_images = avg_images.astype("float32")
+                with tiff.TiffWriter(stackfname, imagej=True) as tif_writer:
+
+                    for f in range(avg_images.shape[-1]):
+                        if inliers[f]:
+                            avg_images[...,f] = cv2.warpAffine(avg_images[...,f], ref_xforms[f],
+                                                        (avg_images.shape[1], avg_images.shape[0]),
+                                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                                                        borderValue=np.nan)
+                        else:
+                            avg_images[..., f] = np.nan
+                        tif_writer.write(avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3], f], contiguous=True, metadata=stackmeta_for_IJ)
+
+                # Z Project each of our image types
+                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images.astype("uint8"))
+
+                # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
+                # pipeline filename structure.
+                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
+                            avg_avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3]])
 
             # Outputs the metadata for the group to the group folder
             group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, group+"_group_info.csv"), index=False)

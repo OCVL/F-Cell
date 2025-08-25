@@ -237,6 +237,45 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
     im_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE]
     query_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC]
 
+    if video_info.shape[0] > 1:
+        warnings.warn(f"WARNING: MULTIPLE VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        database.drop(index=video_info.index[1:], inplace=True)
+
+        if vidID is not None:
+            vidid_filter = database[DataTags.VIDEO_ID] == vidID
+        else:
+            vidid_filter = True
+        slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
+
+        acquisition = database.loc[slice_of_life]
+        video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
+
+    if mask_info.shape[0] > 1:
+        warnings.warn(f"WARNING: MULTIPLE MASK VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        database.drop(index=mask_info.index[1:], inplace=True)
+
+        if vidID is not None:
+            vidid_filter = database[DataTags.VIDEO_ID] == vidID
+        else:
+            vidid_filter = True
+        slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
+
+        acquisition = database.loc[slice_of_life]
+        mask_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK]
+
+    if metadata_info.shape[0] > 1:
+        warnings.warn(f"WARNING: MULTIPLE METADATA FILES WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        database.drop(index=metadata_info.index[1:], inplace=True)
+
+        if vidID is not None:
+            vidid_filter = database[DataTags.VIDEO_ID] == vidID
+        else:
+            vidid_filter = True
+        slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
+
+        acquisition = database.loc[slice_of_life]
+        metadata_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA]
+
     result_path = PurePath()
     if stage == Stages.PREANALYSIS:
         pass
@@ -492,7 +531,9 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
         stimulus_sequence = np.cumsum(np.array(metadata.get(MetaTags.STIMULUS_SEQ), dtype="int"))
     elif stage == Stages.ANALYSIS:
         while Dataset.stimseq_fName is None:
-            Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.", initialdir=metadata.get(AcquisiTags.BASE_PATH, None))
+            Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.",
+                                                               initialdir=metadata.get(AcquisiTags.BASE_PATH, None),
+                                                               filetypes=[("Stimulus Sequence files", "*.csv")])
             if Dataset.stimseq_fName is None or not Path(Dataset.stimseq_fName).exists():
                 Dataset.stimseq_fName = None
 
@@ -617,7 +658,9 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
     if correct_torsion is not None and correct_torsion:
         align_dat, xforms, inliers, mask_dat = optimizer_stack_align(align_dat, mask_dat,
                                                                      reference_idx=dataset.reference_frame_idx,
-                                                                     dropthresh=0, justalign=True, transformtype=params.get(PreAnalysisPipeline.INTRA_STACK_XFORM, "rigid"))
+                                                                     determine_initial_shifts=False,
+                                                                     dropthresh=0, justalign=True,
+                                                                     transformtype=params.get(PreAnalysisPipeline.INTRA_STACK_XFORM, "rigid"))
 
         # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset
         og_dtype = dataset.video_data.dtype
@@ -647,8 +690,8 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
     norm_params = analysis_params.get(NormParams.NAME, dict())
     norm_method = norm_params.get(NormParams.NORM_METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
     rescale_norm = norm_params.get(NormParams.NORM_RESCALE, True)  # Default: Rescales the data back into AU to make results easier to interpret
-    res_mean = norm_params.get(NormParams.NORM_MEAN, 70)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
-    res_stddev = norm_params.get(NormParams.NORM_STD, 35)  # Default: Rescales to a std dev of 35
+    res_mean = norm_params.get(NormParams.NORM_MEAN, 70.0)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.NORM_STD, 35.0)  # Default: Rescales to a std dev of 35
 
     # Flat field the video for analysis if desired.
     if analysis_params.get(Analysis.FLAT_FIELD, False):

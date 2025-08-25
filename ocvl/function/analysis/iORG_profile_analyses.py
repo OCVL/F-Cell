@@ -64,23 +64,23 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
     if window_radius != 0:
         if len(temporal_signals.shape) == 2:
             temporal_data= np.full((num_signals, 1, framestamps[-1]+1), np.nan)
-            temporal_data[:, 0, framestamps] = temporal_signals.copy()
+            temporal_data[:, 0, framestamps] = temporal_signals
 
         if len(temporal_signals.shape) == 3:
             temporal_data = np.full((num_signals, temporal_signals.shape[1], framestamps[-1]+1), np.nan)
-            temporal_data[:, :, framestamps] = temporal_signals.copy()
+            temporal_data[:, :, framestamps] = temporal_signals
 
         temporal_data = np.pad(temporal_data, ((0, 0), (0, 0), (window_radius, window_radius)), "symmetric")
 
     else:
-        temporal_data = temporal_signals.copy()
+        temporal_data = temporal_signals
 
     if len(temporal_signals.shape) == 2:
-        num_incl = np.zeros((1, num_samples))
-        summary = np.full((1, num_samples), np.nan)
+        num_incl = np.zeros((1, num_samples), dtype=np.uint32)
+        summary = np.full((1, num_samples), np.nan, dtype=np.float32)
     if len(temporal_signals.shape) == 3:
-        num_incl = np.zeros((temporal_signals.shape[1], num_samples))
-        summary = np.full((temporal_signals.shape[1], num_samples), np.nan)
+        num_incl = np.zeros((temporal_signals.shape[1], num_samples), dtype=np.uint32)
+        summary = np.full((temporal_signals.shape[1], num_samples), np.nan, dtype=np.float32)
 
     shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_data.nbytes)
     np_temporal = np.ndarray(temporal_data.shape, dtype=temporal_data.dtype, buffer=shared_block.buf)
@@ -157,8 +157,8 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                 num_incl[c] = num_inc
 
 
-        shared_block.close()
-        shared_block.unlink()
+    shared_block.close()
+    shared_block.unlink()
 
 
     return summary, num_incl
@@ -526,9 +526,12 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         prestim_window_idx = np.flatnonzero(np.isin(framestamps, desired_prestim_frms))
         poststim_window_idx = np.flatnonzero(np.isin(framestamps, desired_poststim_frms))
 
-        if np.all(~finite_data) or len(desired_prestim_frms) == 0 or len(desired_poststim_frms)==0:
+
+        if np.all(~finite_data) or len(desired_prestim_frms) == 0 or len(desired_poststim_frms)==0 or \
+            len(poststim_window_idx) == 0 or len(prestim_window_idx) == 0:
             return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
-                   np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
+                   np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan), \
+                   np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
 
         if prestim_window_idx is None:
             prestim_window_idx = np.zeros((1,))
@@ -568,7 +571,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
         # ** Recovery percentage **
         final_val = np.nanmean(temporal_signals[:, -5:], axis=1)
-        recovery = 1 - ((final_val-prestim_val)/amplitude)
+        recovery =  ((final_val-prestim_val)-amplitude)/(framestamps[-1]-poststim_frms[0]) #np.abs(((final_val-prestim_val)-amplitude)/amplitude)
 
         # ** Area Under the Response (est. by trapezoidal rule) **
         auc = np.full((temporal_signals.shape[0],), np.nan)
@@ -590,14 +593,14 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
                                        chunksize=chunk_size)
 
         for i, amp_imp, halfamp_imp, au in res:
-            amp_implicit_time[i] = (amp_imp- prestim_frms[-1]) / framerate
-            halfamp_implicit_time[i] = (halfamp_imp - prestim_frms[-1]) / framerate
+            amp_implicit_time[i] = (amp_imp- desired_poststim_frms[0]) / framerate
+            halfamp_implicit_time[i] = (halfamp_imp - desired_poststim_frms[0]) / framerate
             auc[i] = au
 
         shared_block.close()
         shared_block.unlink()
 
-    return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery
+    return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery, prestim_frms, poststim_frms
 
 def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
 

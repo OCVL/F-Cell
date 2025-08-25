@@ -6,6 +6,7 @@ from multiprocessing import RawArray, shared_memory, get_context
 import cv2
 
 import numpy as np
+import pandas as pd
 from colorama import Fore
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
@@ -17,10 +18,13 @@ from skimage.morphology import disk
 
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.display.iORG_data_display import display_iORGs
-from ocvl.function.preprocessing.improc import norm_video
+from ocvl.function.preprocessing.improc import norm_video, weighted_z_projection
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
     SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams, Analysis
 from scipy.spatial.distance import pdist, squareform
+
+from ocvl.function.utility.resources import save_tiff_stack
+
 
 def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
                                   thread_pool=None):
@@ -42,11 +46,12 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     query_status = np.full(query_loc.shape[0], "Included", dtype=object)
     valid_signals = np.full((query_loc.shape[0]), True)
+    auto_detect_vals = {} # Automatically detected values
 
     # Round the query locations
     query_loc = np.round(query_loc.copy())
 
-    analysis_params = analysis_dat_format.get(Analysis.PARAMS)
+    analysis_params = analysis_dat_format.get(Analysis.PARAMS, dict())
 
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
     display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
@@ -149,10 +154,11 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
             coorddist[coorddist == 0] = np.amax(coorddist.flatten())
             mindist[i] = np.amin(coorddist.flatten())
 
+        print(f"Detected segmentation radius: {(np.nanmean(mindist) / 4): 0.2f} (Rounded to: "+ str(int(np.round(np.nanmean(mindist) / 4))) +")")
         segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
 
         segmentation_radius = int(segmentation_radius)
-        print("Detected segmentation radius: " + str(segmentation_radius))
+
     elif segmentation_radius != "auto":
         segmentation_radius = int(segmentation_radius)
         print("Chosen segmentation radius: " + str(segmentation_radius))
@@ -160,6 +166,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
         segmentation_radius = 1
         print("Pixelwise segmentation radius: " + str(segmentation_radius))
 
+    auto_detect_vals[SegmentParams.RADIUS] = segmentation_radius
 
     # Extract the signals
     iORG_signals, excl_reason, coordinates = extract_signals(dataset.video_data, query_loc.copy(),
@@ -294,7 +301,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
                                                                      window_size=sum_window,
                                                                      pool=thread_pool)
 
-    return iORG_signals, summarized_iORG, query_status, query_loc
+    return iORG_signals, summarized_iORG, query_status, query_loc, auto_detect_vals
 
 
 def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
@@ -436,6 +443,13 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
         coord_mask = cv2.morphologyEx(coord_mask, cv2.MORPH_DILATE, kernel=cellradius,
                                       borderType=cv2.BORDER_CONSTANT, borderValue=0)
 
+        # plt.figure("XOR Mask")
+        # debugim, summap = weighted_z_projection(im_stack)
+        # plt.imshow(debugim, cmap="gray")
+        # plt.imshow(coord_mask == 0, cmap="plasma", alpha=0.3)
+        # plt.show()
+
+
         coordinates = np.fliplr(np.argwhere(coord_mask == 0))
 
         coord_mask = np.repeat(coord_mask[:, :, None], image_stack.shape[-1], axis=2)
@@ -517,7 +531,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 def _extract_box(params):
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
-    signal_data = np.full((vid_shape[-1], ), np.nan)
+    signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
 
     shared_vid_block = shared_memory.SharedMemory(name=vid_name)
     video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_vid_block.buf)
@@ -543,7 +557,7 @@ def _extract_box(params):
 
     if summary == "mean":
         signal_data[nani] = np.nan
-        signal_data[np.invert(nani)] = np.mean(coordcolumn[:, np.invert(nani)], axis=0)
+        signal_data[np.invert(nani)] = np.nanmean(coordcolumn[:, np.invert(nani)], axis=0)
     elif summary == "median":
         signal_data[nani] = np.nan
         signal_data[np.invert(nani)] = np.nanmedian(coordcolumn[:, np.invert(nani)], axis=0)
@@ -559,7 +573,7 @@ def _extract_box(params):
 def _extract_disk(params):
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
-    signal_data = np.full((vid_shape[-1], ), np.nan)
+    signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
 
     shared_vid_block = shared_memory.SharedMemory(name=vid_name)
     video = np.ndarray(vid_shape, dtype=np.float32, buffer=shared_vid_block.buf)
@@ -570,8 +584,9 @@ def _extract_disk(params):
     coord = coords[i, :]
     fullcolumn = video[(coord[1] - seg_radius):(coord[1] + seg_radius + 1),
                        (coord[0] - seg_radius):(coord[0] + seg_radius + 1), :]
-    mask = disk(seg_radius + 1, dtype=fullcolumn.dtype)
-    mask = mask[1:-1, 1:-1]
+
+    mask = disk(seg_radius, strict_radius=False, dtype=fullcolumn.dtype)
+
     mask = np.repeat(mask[:, :, None], fullcolumn.shape[-1], axis=2)
 
     coldims = fullcolumn.shape
@@ -586,7 +601,7 @@ def _extract_disk(params):
     # Make our mask 0s into nans
     mask[mask == 0] = np.nan
     coordcolumn = coordcolumn * mask
-    coordcolumn[:, nani] = np.nan
+    # coordcolumn[:, nani] = np.nan
 
     if np.all(np.isnan(coordcolumn.flatten())):
         query_status = "Missing Data at Query Location"
