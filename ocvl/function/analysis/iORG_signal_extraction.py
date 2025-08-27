@@ -80,6 +80,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     std_units = std_params.get(STDParams.UNITS, "time")
     std_start = std_params.get(STDParams.START, -1)
     std_stop = std_params.get(STDParams.STOP, 0)
+    std_cutoff_fraction = excl_params.get(STDParams.FRACTION, 0.3)
 
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
@@ -238,6 +239,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 
     iORG_signals, valid, excl_reason = standardize_signals(iORG_signals.copy(), dataset.framestamps, std_indices=std_ind,
+                                                           critical_fraction=std_cutoff_fraction,
                                                            method=std_meth, pool=thread_pool)
 
     # Update our audit path.

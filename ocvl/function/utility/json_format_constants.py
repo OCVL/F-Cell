@@ -127,6 +127,7 @@ class ExclusionParams(StrEnum):
 
 class STDParams(StrEnum):
     NAME = "standardization"
+    FRACTION = "fraction"
     METHOD = "method"
     TYPE = "type"
     UNITS = "units"
