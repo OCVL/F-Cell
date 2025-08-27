@@ -1057,10 +1057,10 @@ if __name__ == "__main__":
                                                            stim_datasets[0].avg_image_data.shape[1],
                                                            len(all_frmstmp)))
 
-                                i=0
+                                i=0 
                                 for coords, viability in all_query_status[mode][folder][q].loc[:, "Viable for single-cell summary?"].items():
                                     if viability:
-                                        video_profiles[coords[1], coords[0], :] = stim_iORG_summary[q][i,:]
+                                        video_profiles[int(coords[1]), int(coords[0]), :] = stim_iORG_summary[q][i,:]
                                     i+=1
 
 
