@@ -73,7 +73,7 @@
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
       "output_indiv_stdize_orgs": false,
-      "output_sum_pop_orgs": false,
+      "output_sum_pop_orgs": true,
       "output_sum_indiv_orgs": false,
       "normalization": {
         "method": "mean"

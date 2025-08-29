@@ -72,7 +72,7 @@
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
       "output_indiv_stdize_orgs": false,
-      "output_sum_pop_orgs": false,
+      "output_sum_pop_orgs": true,
       "output_sum_indiv_orgs": false,
       "normalization": {
         "method": "score",
@@ -129,7 +129,6 @@
         "plot_pop_extracted_orgs": false,
         "plot_pop_stdize_orgs": false,
         "plot_indiv_stdize_orgs": false,
-        "output_indiv_stdize_orgs": false,
         "plot_valid_cells": false,
         "stimulus": true,
         "control": true,
