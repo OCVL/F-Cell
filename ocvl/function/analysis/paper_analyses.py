@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-mpl.rcParams['axes.spines.right'] = False
-mpl.rcParams['axes.spines.top'] = False
+# mpl.rcParams['axes.spines.right'] = False
+# mpl.rcParams['axes.spines.top'] = False
 
 root = Tk()
 root.lift()
@@ -113,12 +113,10 @@ else:
 
     axcolor = "tab:blue"
     figgy, ax1 = plt.subplots()
-    ax1.set_ylabel("Gaffney et. al (2024)", color=axcolor)
-    ax1.tick_params(axis="y", labelcolor=axcolor)
     for i in range(rmsdata.shape[0]):
         ax1.plot(timestamps, rmsdata[i, :], color=axcolor)
-
-
+    ax1.set_ylabel("Gaffney et. al (2024)", color=axcolor)
+    ax1.tick_params(axis="y", labelcolor=axcolor)
 
     pName = filedialog.askdirectory(title="Select the folder containing STDDEV data.", initialdir=None, parent=root)
 
@@ -142,10 +140,11 @@ else:
 
     axcolor = "tab:orange"
     ax2 = ax1.twinx()
-    ax2.set_ylabel("Cooper et. al (2017)", color=axcolor)
-    ax2.tick_params(axis="y", labelcolor=axcolor)
     for i in range(stddata.shape[0]):
         ax2.plot(timestamps, stddata[i, :], color=axcolor)
+
+    ax2.set_ylabel("Cooper et. al (2017)", color=axcolor)
+    ax2.tick_params(axis="y", labelcolor=axcolor)
 
     mpl_axes_aligner.align.yaxes(ax1, 0, ax2, 0, 0.1)
     plt.show()
