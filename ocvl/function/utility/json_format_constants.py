@@ -99,7 +99,7 @@ class DebugParams(StrEnum):
     PLOT_POP_EXTRACTED_ORGS = "plot_pop_extracted_orgs"
     PLOT_POP_STANDARDIZED_ORGS = "plot_pop_stdize_orgs"
     PLOT_INDIV_STANDARDIZED_ORGS = "plot_indiv_stdize_orgs"
-    CELL_VIABILITY = "cell_viability"
+    PLOT_VALID_QUERY_LOCS = "plot_valid_query_locs"
 
 class NormParams(StrEnum):
     NAME = "normalization"
@@ -127,6 +127,7 @@ class ExclusionParams(StrEnum):
 
 class STDParams(StrEnum):
     NAME = "standardization"
+    FRACTION = "fraction"
     METHOD = "method"
     TYPE = "type"
     UNITS = "units"
@@ -190,3 +191,4 @@ class DisplayParams(StrEnum):
     CMAX = "cmax"
     LINEWIDTH = "linewidth"
     LEGEND = "legend"
+    CROSS_GROUP = "cross_group"

@@ -18,7 +18,7 @@ from skimage.morphology import disk
 
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.display.iORG_data_display import display_iORGs
-from ocvl.function.preprocessing.improc import norm_video
+from ocvl.function.preprocessing.improc import norm_video, weighted_z_projection
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
     SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams, Analysis
 from scipy.spatial.distance import pdist, squareform
@@ -80,6 +80,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     std_units = std_params.get(STDParams.UNITS, "time")
     std_start = std_params.get(STDParams.START, -1)
     std_stop = std_params.get(STDParams.STOP, 0)
+    std_cutoff_fraction = excl_params.get(STDParams.FRACTION, 0.3)
 
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
@@ -238,6 +239,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 
     iORG_signals, valid, excl_reason = standardize_signals(iORG_signals.copy(), dataset.framestamps, std_indices=std_ind,
+                                                           critical_fraction=std_cutoff_fraction,
                                                            method=std_meth, pool=thread_pool)
 
     # Update our audit path.
@@ -442,6 +444,13 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
         cellradius = disk(seg_radius + 2, dtype=coord_mask.dtype)
         coord_mask = cv2.morphologyEx(coord_mask, cv2.MORPH_DILATE, kernel=cellradius,
                                       borderType=cv2.BORDER_CONSTANT, borderValue=0)
+
+        # plt.figure("XOR Mask")
+        # debugim, summap = weighted_z_projection(im_stack)
+        # plt.imshow(debugim, cmap="gray")
+        # plt.imshow(coord_mask == 0, cmap="plasma", alpha=0.3)
+        # plt.show()
+
 
         coordinates = np.fliplr(np.argwhere(coord_mask == 0))
 
