@@ -1,0 +1,26 @@
+{
+  "version": "1.1",
+  "description": "Unique JSON to test import values. with test edits",
+  "preanalysis": {
+    "image_format": "",
+    "video_format": "{FOV_Height}{FOV_Width}",
+    "mask_format": "{VidNum}{Modality}",
+    "recursive_search": false,
+    "pipeline_params": {
+      "modalities": [
+        "123456789"
+      ],
+      "alignment_reference_modality": "123456789",
+      "group_by": "{FOV_Width}"
+    }
+  },
+  "analysis": {
+    "image_format": "{Day}{Month}{Year}",
+    "queryloc_format": "{FOV_Height}{FOV_Width}",
+    "video_format": "{VidNum}{Modality}",
+    "recursive_search": false,
+    "analysis_params": {
+      "modalities": null
+    }
+  }
+}

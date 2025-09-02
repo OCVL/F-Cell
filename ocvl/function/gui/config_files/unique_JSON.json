@@ -1,0 +1,31 @@
+{
+  "version": "1",
+  "description": "Unique JSON to test import values.",
+  "preanalysis": {
+    "image_format": "{Day}{Month}{Year}",
+    "video_format": "{FOV_Height}{FOV_Width}",
+    "mask_format": "{VidNum}{Modality}",
+    "recursive_search": true,
+    "pipeline_params": {
+      "modalities": [
+        "CT",
+        "PET",
+        "X-Ray"
+      ],
+      "alignment_reference_modality": "PET",
+      "group_by": "{FOV_Height}{FOV_Width}"
+    }
+  },
+  "analysis": {
+    "image_format": "{Day}{Month}{Year}",
+    "queryloc_format": "{FOV_Height}{FOV_Width}",
+    "video_format": "{VidNum}{Modality}",
+    "recursive_search": false,
+    "analysis_params": {
+      "modalities": [
+        "MRI",
+        "Mod2"
+      ]
+    }
+  }
+}
