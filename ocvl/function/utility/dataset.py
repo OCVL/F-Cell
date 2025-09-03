@@ -739,7 +739,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
 
                         # Determine the residual error in our dewarping, and obtain the maps
                         dataset.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(dataset.video_data,
-                                                                                    all_rowshifts, all_colshifts)
+                                                                                    -all_rowshifts, -all_colshifts)
 
                         # Dewarp our mask too.
                         with warnings.catch_warnings():
