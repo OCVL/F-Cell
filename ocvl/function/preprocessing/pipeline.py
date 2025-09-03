@@ -195,7 +195,11 @@ if __name__ == "__main__":
                 datasets = ref_modes[AcquisiTags.DATASET].to_list()
                 if not datasets:
                     continue
-                avg_images = np.dstack([data.avg_image_data for data in datasets])
+                max_image_size = np.max(np.vstack([data.avg_image_data.shape for data in datasets]), axis=0)
+                avg_images = np.zeros(np.hstack((max_image_size, len(datasets))))
+                for d, data in enumerate(datasets):
+                    datsize = data.avg_image_data.shape
+                    avg_images[0:datsize[0], 0:datsize[1], d] = data.avg_image_data
 
                 dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                             repeat(None),
@@ -243,7 +247,12 @@ if __name__ == "__main__":
                 datasets = modevids[AcquisiTags.DATASET].to_list()
                 if not datasets:
                     continue
-                avg_images = np.dstack([data.avg_image_data for data in datasets])
+                max_image_size = np.max(np.vstack([data.avg_image_data.shape for data in datasets]), axis=0)
+                avg_images = np.zeros( np.hstack( (max_image_size, len(datasets)) ) )
+                for d, data in enumerate(datasets):
+                    datsize = data.avg_image_data.shape
+                    avg_images[0:datsize[0], 0:datsize[1],  d] = data.avg_image_data
+
                 data_filenames = [data.video_path.stem for data in datasets]
 
                 if alignment_ref_mode is None:
@@ -327,24 +336,30 @@ if __name__ == "__main__":
 
 
                     og_dtype = dataset.video_data.dtype
+                    vid_data = np.zeros( np.hstack( (max_image_size, dataset.num_frames) ), dtype=og_dtype )
+                    mask_dat = np.zeros( np.hstack( (max_image_size, dataset.num_frames) ), dtype=og_dtype)
+
+
                     for i in range(dataset.num_frames):  # Make all of the data in our dataset relative as well.
-                        tmp = dataset.video_data[..., i].astype("float32")
+                        tmp = np.zeros(max_image_size)
+                        tmp[0:rows, 0:cols] = dataset.video_data[..., i].astype("float32")
                         tmp[np.round(tmp) == 0] = np.nan
-                        tmp = cv2.warpAffine(tmp, xform,(cols, rows),
+                        tmp = cv2.warpAffine(tmp, xform,(max_image_size[1], max_image_size[0]),
                                              flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
                         tmp[np.isnan(tmp)] = 0
-                        dataset.video_data[..., i] = tmp.astype(og_dtype)
+                        vid_data[..., i] = tmp.astype(og_dtype)
 
-                        tmp = dataset.mask_data[..., i].astype("float32")
+                        tmp = np.zeros(max_image_size)
+                        tmp[0:rows, 0:cols] = dataset.mask_data[..., i].astype("float32")
                         tmp[np.round(tmp) == 0] = np.nan
-                        tmp = cv2.warpAffine(tmp, xform,(cols, rows),
+                        tmp = cv2.warpAffine(tmp, xform,(max_image_size[1], max_image_size[0]),
                                              flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
                         tmp[np.isnan(tmp)] = 0
-                        dataset.mask_data[..., i] = tmp.astype(og_dtype)
+                        mask_dat[..., i] = tmp.astype(og_dtype)
 
                     out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
                     out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
-                    croprect = save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
+                    croprect = save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), vid_data,
                                framerate=dataset.framerate)
 
                 # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack

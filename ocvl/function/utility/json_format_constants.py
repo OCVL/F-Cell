@@ -38,6 +38,7 @@ class MetaTags(StrEnum):
     METATAG = "metadata"
     TYPE = "type"
     FIELDS_OF_INTEREST = "fields_to_load"
+    HEADERS = "headers"
     TIMESTAMPS = "timestamps"
     FRAMESTAMPS = "framestamps"
     STIMULUS_SEQ = "stimulus_sequence"

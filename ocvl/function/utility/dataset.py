@@ -46,14 +46,17 @@ def load_metadata(metadata_params, ext_metadata):
             metatype = metadata_params.get(MetaTags.TYPE)
             loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
 
+            headher = metadata_params.get(MetaTags.HEADERS, 0)
             if metatype == "text_file":
                 dat_metadata = pd.read_csv(ext_metadata.at[ext_metadata.index[0], AcquisiTags.DATA_PATH],
-                                           encoding="utf-8-sig", skipinitialspace=True)
+                                           encoding="utf-8-sig", skipinitialspace=True, header=headher)
 
                 for field, column in loadfields.items():
                     met_dat = dat_metadata.get(column, pd.Series())
                     if not met_dat.empty:
                         meta_fields[field] = met_dat.to_numpy()
+                    if field == MetaTags.FRAMESTAMPS:
+                        meta_fields[field].sort()
             elif metatype == "database":
                 pass
             elif metatype == "mat_file":
@@ -778,7 +781,7 @@ class Dataset:
                     for filename in self.base_path.glob("*_ALL_ACQ_AVG.tif"):
                         imname = filename
 
-                if not imname and stage is Stages.ANALYSIS:
+                if not imname: # and stage is Stages.ANALYSIS:
                     warnings.warn("Unable to detect viable average image file; generating one from video. Dataset functionality may be limited.")
                     self.image_path = None
                     self.avg_image_data, _ = weighted_z_projection(self.video_data, self.mask_data)
