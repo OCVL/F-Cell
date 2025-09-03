@@ -180,12 +180,13 @@ def norm_video(video_data, norm_method="mean", rescaled=False, rescale_mean=None
 
 
 
-def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
+def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median", fitshifts = False):
     '''
     # Where the image data is N rows x M cols and F frames
     # and the row_shifts and col_shifts are F x N.
     # Assumes a row-wise distortion/a row-wise fast scan ("distortionless" along each row)
     # Returns a float image (spans from 0-1).
+    :param fitshifts:
     :param image_data:
     :param row_shifts:
     :param col_shifts:
@@ -200,18 +201,23 @@ def dewarp_2D_data(image_data, row_shifts, col_shifts, method="median"):
     allrows = np.linspace(0, numstrips - 1, num=height)  # Make a linspace for all of our images' rows.
     substrip = np.linspace(0, numstrips - 1, num=numstrips)
 
+
     indiv_colshift = np.zeros([num_frames, height])
     indiv_rowshift = np.zeros([num_frames, height])
 
-    for f in range(num_frames):
-        # Fit across rows, in order to capture all strips for a given dataset
-        finite = np.isfinite(col_shifts[f, :])
-        col_strip_fit = Polynomial.fit(substrip[finite], col_shifts[f, finite], deg=12)
-        indiv_colshift[f, :] = col_strip_fit(allrows)
-        # Fit across rows, in order to capture all strips for a given dataset
-        finite = np.isfinite(row_shifts[f, :])
-        row_strip_fit = Polynomial.fit(substrip[finite], row_shifts[f, finite], deg=12)
-        indiv_rowshift[f, :] = row_strip_fit(allrows)
+    if fitshifts:
+        for f in range(num_frames):
+            # Fit across rows, in order to capture all strips for a given dataset
+            finite = np.isfinite(col_shifts[f, :])
+            col_strip_fit = Polynomial.fit(substrip[finite], col_shifts[f, finite], deg=12)
+            indiv_colshift[f, :] = col_strip_fit(allrows)
+            # Fit across rows, in order to capture all strips for a given dataset
+            finite = np.isfinite(row_shifts[f, :])
+            row_strip_fit = Polynomial.fit(substrip[finite], row_shifts[f, finite], deg=12)
+            indiv_rowshift[f, :] = row_strip_fit(allrows)
+    else:
+        indiv_colshift = col_shifts
+        indiv_rowshift = row_shifts
 
     if method == "median":
         centered_col_shifts = -np.nanmedian(indiv_colshift, axis=0)

@@ -2,21 +2,20 @@
   "version": "0.1",
   "description": "The pipeline and analysis JSON for the data collected in 2016 as part of Cooper et. al 2017",
   "preanalysis": {
-    "video_format": "{}_{IDnum}_{Modality}_{Eye}_{Year:.4}{Month:.2}{Day:.2}_{VidNum}_ref_{}_lps_{}_lbss_{}_sr_n_{}_cropped_100.avi",
+    "video_format": "{}_{IDnum}_{Modality}_{Eye}_{Year:.4}{Month:.2}{Day:.2}_{VidNum}_ref_{}_lps_{}_lbss_{}_sr_n_{}_cropped_{}.avi",
     "metadata": {
-      "type": "text_file",
-      "metadata_format": "{}_{IDnum}_{Modality}_{Eye}_{Year:.4}{Month:.2}{Day:.2}_{VidNum}_ref_{}_lps_{}_lbss_{}_acceptable_frames.csv",
-      "headers": null,
-      "fields_to_load": {
-        "framestamps": 0
-      }
+      "type": "pickle_file",
+      "metadata_format": "{}_{IDnum}_{Modality}_{Eye}_{Year:.4}{Month:.2}{Day:.2}_{VidNum}_ref_{}_lps_{}_lbss_{}.dmp"
     },
     "pipeline_params": {
       "modalities": ["confocal"],
       "output_folder": "Functional Pipeline",
       "group_by": "{Year}{Month}{Day}",
       "correct_torsion": true,
-      "flat_field": false
+      "flat_field": false,
+      "custom": {
+        "dewarp": "demotion"
+      }
     }
   },
   "analysis": {

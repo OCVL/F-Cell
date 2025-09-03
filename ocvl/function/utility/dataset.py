@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import pickle
 import warnings
 from enum import Enum, StrEnum
 from logging import warning
@@ -60,6 +61,8 @@ def load_metadata(metadata_params, ext_metadata):
             elif metatype == "database":
                 pass
             elif metatype == "mat_file":
+                pass
+            elif metatype == "pickle_file":
                 pass
 
         else:
@@ -592,7 +595,8 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
 
                     # Determine the residual error in our dewarping, and obtain the maps
                     dataset.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(dataset.video_data,
-                                                                                yshifts, xshifts)
+                                                                                yshifts, xshifts,
+                                                                                fitshifts=True)
 
                     # Dewarp our mask too.
                     with warnings.catch_warnings():
@@ -605,6 +609,150 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                             dataset.mask_data[..., f] = cv2.remap(norm_frame,
                                                                   map_mesh_x, map_mesh_y,
                                                                   interpolation=cv2.INTER_NEAREST)
+            case "demotion":
+                if dataset.metadata[AcquisiTags.META_PATH] is not None:
+                    # Temp until a better way of finding dmp files is found.
+                    #dumpfile = dataset.metadata[AcquisiTags.META_PATH].stem[0:-len("_acceptable_frames")]+".dmp"
+                    with open(dataset.metadata[AcquisiTags.META_PATH], "rb") as file:
+                        pick = pickle.load(file, encoding='latin1')
+
+                        ff_translation_info_rowshift = pick['full_frame_ncc']['row_shifts']
+                        ff_translation_info_colshift = pick['full_frame_ncc']['column_shifts']
+                        strip_translation_info = pick['sequence_interval_data_list']
+
+                        minmaxpix = np.empty([1, 2])
+
+                        for frame in strip_translation_info:
+                            for frame_contents in frame:
+                                ref_pixels = frame_contents['slow_axis_pixels_in_current_frame_interpolated']
+                                minmaxpix = np.append(minmaxpix, [[ref_pixels[0], ref_pixels[-1]]], axis=0)
+
+                        minmaxpix = minmaxpix[1:, :]
+                        topmostrow = minmaxpix[:, 0].max()
+                        bottommostrow = minmaxpix[:, 1].min()
+
+                        # print np.array([pick['strip_cropping_ROI_2'][-1]])
+                        # The first row is the crop ROI.
+
+                        slow_axis_array = np.zeros([len(strip_translation_info), 1000], dtype=int)
+                        unaligned_col_shifts = np.zeros([len(strip_translation_info), 1000])
+                        unaligned_row_shifts = np.zeros([len(strip_translation_info), 1000])
+                        frame_inds = np.zeros( [len(strip_translation_info)], dtype=int)
+
+                        for i, frame in enumerate(strip_translation_info):
+                            if len(frame) > 0:
+                                #print("************************ Frame " + str(frame[0]['frame_index']) + "************************")
+                                # print "Adjusting the rows...."
+                                frame_inds[i] = frame[0]['frame_index']
+                                slow_axis_pixels = np.zeros([1])
+                                frame_col_shifts = np.zeros([1])
+                                frame_row_shifts = np.zeros([1])
+
+                                for frame_contents in frame:
+                                    slow_axis_pixels = np.append(slow_axis_pixels,
+                                                                 frame_contents['slow_axis_pixels_in_reference_frame'])
+
+                                    ff_row_shift = ff_translation_info_rowshift[frame_inds[i]]
+                                    ff_col_shift = ff_translation_info_colshift[frame_inds[i]]
+
+                                    # First set the relative shifts
+                                    row_shift = (np.subtract(frame_contents['slow_axis_pixels_in_reference_frame'],
+                                                             frame_contents['slow_axis_pixels_in_current_frame_interpolated']))
+                                    col_shift = (frame_contents['fast_axis_pixels_in_reference_frame_interpolated'])
+
+                                    # These will contain all of the motion, not the relative motion between the aligned frames-
+                                    # So then subtract the full frame row shift
+                                    row_shift = np.add(row_shift, ff_row_shift)
+                                    col_shift = np.add(col_shift, ff_col_shift)
+                                    frame_col_shifts = np.append(frame_col_shifts, col_shift)
+                                    frame_row_shifts = np.append(frame_row_shifts, row_shift)
+
+                                slow_axis_pixels = slow_axis_pixels[1:]
+                                frame_col_shifts = frame_col_shifts[1:]
+                                frame_row_shifts = frame_row_shifts[1:]
+
+                                slow_axis_array[i, 0:len(slow_axis_pixels)] = slow_axis_pixels.astype(int)
+                                unaligned_col_shifts[i, 0:len(frame_col_shifts)] = frame_col_shifts
+                                unaligned_row_shifts[i, 0:len(frame_row_shifts)] = frame_row_shifts
+
+                        # Reshuffle the above so its actually in the order that they appear in the video. Wild, I know.
+                        resort_args = np.argsort(frame_inds)
+                        frame_inds = frame_inds[resort_args]
+                        slow_axis_array = slow_axis_array[resort_args, :]
+                        unaligned_col_shifts = unaligned_col_shifts[resort_args, :]
+                        unaligned_row_shifts = unaligned_row_shifts[resort_args, :]
+
+
+                        # Find the ROI associated with this particular dataset.
+                        roi = np.array([])
+                        height = 0
+                        for i in range(len(pick['strip_cropping_ROI_2'])):
+                            roi = pick['strip_cropping_ROI_2'][i]
+                            if np.all( dataset.avg_image_data.shape == np.array([roi[1]-roi[0], roi[3]-roi[2]]) ):
+                                height = roi[1]-roi[0]
+                                break
+
+                        ref_max_slow_axis = np.nanmax(slow_axis_array[0,:])
+                        ref_min_slow_axis = np.nanmin(slow_axis_array[0, :])
+
+                        max_slow_axis = np.amax(slow_axis_array)
+                        min_slow_axis = np.amin(slow_axis_array)
+
+                        slow_axis_size = max_slow_axis - min_slow_axis + 1
+                        slow_axis_array -= min_slow_axis
+
+                        colshifts = dict()
+                        rowshifts = dict()
+                        longest_colshifts = 0
+                        longest_rowshifts = 0
+                        # Each row in these arrays are a frame
+                        for frame_ind in range(slow_axis_array.shape[0]):
+
+                            # Find the last element index (will be the max)
+                            maxind = np.argmax(slow_axis_array[frame_ind, :])
+
+                            # Append the shift values for that particular location to the shift
+                            for i in range(maxind):
+                                if slow_axis_array[frame_ind, i] not in colshifts:
+                                    colshifts[slow_axis_array[frame_ind, i]] = np.array([])
+                                    rowshifts[slow_axis_array[frame_ind, i]] = np.array([])
+
+                                colshifts[slow_axis_array[frame_ind, i]] = np.hstack((colshifts[slow_axis_array[frame_ind, i]],
+                                                                                        unaligned_col_shifts[frame_ind, i]))
+
+                                rowshifts[slow_axis_array[frame_ind, i]] = np.hstack((rowshifts[slow_axis_array[frame_ind, i]],
+                                                                                        unaligned_row_shifts[frame_ind, i]))
+
+
+                        all_colshifts = np.full((np.amax(slow_axis_array), slow_axis_array.shape[0]), np.nan)
+                        all_rowshifts = np.full((np.amax(slow_axis_array), slow_axis_array.shape[0]), np.nan)
+
+                        for row, shifts in colshifts.items():
+                            all_colshifts[row, 0:len(shifts)] = shifts
+                        for row, shifts in rowshifts.items():
+                            all_rowshifts[row, 0:len(shifts)] = shifts
+
+                        del colshifts, rowshifts
+
+                        all_colshifts = all_colshifts[roi[0]:roi[1], :].T
+                        all_rowshifts = all_rowshifts[roi[0]:roi[1], :].T
+
+                        # Determine the residual error in our dewarping, and obtain the maps
+                        dataset.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(dataset.video_data,
+                                                                                    all_rowshifts, all_colshifts)
+
+                        # Dewarp our mask too.
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
+
+                            for f in range(dataset.num_frames):
+                                norm_frame = dataset.mask_data[..., f].astype("float32")
+                                norm_frame[norm_frame == 0] = np.nan
+
+                                dataset.mask_data[..., f] = cv2.remap(norm_frame,
+                                                                      map_mesh_x, map_mesh_y,
+                                                                      interpolation=cv2.INTER_NEAREST)
+
 
     # Trim the video down to a smaller/different size, if desired.
     trim = params.get(PreAnalysisPipeline.TRIM)
