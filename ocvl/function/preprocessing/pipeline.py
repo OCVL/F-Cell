@@ -95,8 +95,17 @@ if __name__ == "__main__":
         preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME)
         pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
         modes_of_interest = pipeline_params.get(PreAnalysisPipeline.MODALITIES)
+        # If we didn't pick a modality that's of interest, then pick them all.
+        if AcquisiTags.MODALITY in allData.columns:
+            if modes_of_interest is None:
+                modes_of_interest = allData[AcquisiTags.MODALITY].unique().tolist()
+                print("NO MODALITIES SELECTED! Processing all....")
+        else:
+            modes_of_interest = [""]
+
         alignment_ref_mode = pipeline_params.get(PreAnalysisPipeline.ALIGNMENT_REF_MODE)
-        if alignment_ref_mode not in modes_of_interest:
+
+        if alignment_ref_mode is not None and alignment_ref_mode not in modes_of_interest:
             modes_of_interest.append(alignment_ref_mode)
 
         output_folder = pipeline_params.get(PreAnalysisPipeline.OUTPUT_FOLDER)
@@ -113,11 +122,6 @@ if __name__ == "__main__":
         acquisition = dict()
 
         # Group files together based on location, modality, and video number
-        # If we've selected modalities of interest, only process those; otherwise, process them all.
-        if modes_of_interest is None:
-            modes_of_interest = allData.loc[DataTags.MODALITY].unique().tolist()
-            print("NO MODALITIES SELECTED! Processing all....")
-
         for mode in modes_of_interest:
             modevids = allData.loc[allData[DataTags.MODALITY] == mode]
             ref_modevids = allData.loc[allData[DataTags.MODALITY] == alignment_ref_mode]
@@ -333,6 +337,8 @@ if __name__ == "__main__":
                             pipe_meta_form = pipe_meta_form.get(DataFormatType.METADATA)
                             if pipe_meta_form is not None:
                                 pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
+                            else:
+                                pipe_meta_fname = Path(pipe_vid_form).with_suffix(".csv")
 
 
                     og_dtype = dataset.video_data.dtype
