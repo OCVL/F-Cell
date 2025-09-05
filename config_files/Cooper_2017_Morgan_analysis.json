@@ -27,7 +27,9 @@
       "metadata_format": "{IDnum}_{Modality}_{Eye}_{Year:.4}{Month:.2}{Day:.2}_{VidNum}_piped.csv",
       "fields_to_load": {
         "framestamps": "FrameStamps"
-      }
+      },
+      "framerate": 16.6,
+      "stimulus_sequence": [66, 32, 151]
     },
     "recursive_search": false,
     "control": {
@@ -35,7 +37,7 @@
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": ["760nm"],
+      "modalities": ["confocal"],
       "output_folder": "Results",
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
@@ -46,7 +48,7 @@
       "segmentation": {
         "refine_to_ref": false,
         "refine_to_vid": false,
-        "radius": "auto",
+        "radius": 1,
         "shape": "box",
         "summary": "mean",
         "pixelwise": false
@@ -54,34 +56,27 @@
       "exclusion_criteria": {
         "type": "stim-relative",
         "units": "time",
-        "start": -0.2,
-        "stop": 0.2,
-        "fraction": 0.5
+        "start": -1,
+        "stop": 1,
+        "fraction": 0.1
       },
       "standardization": {
         "method": "stddev",
         "type": "stim-relative",
         "units": "time",
-        "start": -2
+        "start": -4
       },
       "summary": {
         "method": "stddev",
         "control": "subtraction",
         "metrics": {
-          "type": ["amp", "logamp", "amp_imp_time", "halfamp_imp_time"],
+          "type": ["amp"],
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],
           "poststim": [0, 1]
         },
         "indiv_cutoff": 5
-      },
-      "gaus_blur": 0.0,
-      "mask_roi": {
-        "r": -1,
-        "c": -1,
-        "width": -1,
-        "height": -1
       }
     },
     "display_params": {
@@ -97,7 +92,7 @@
         "control": true,
         "axes": {
           "xmin": 0,
-          "xmax": 6,
+          "xmax": 15,
           "ymin": -255,
           "ymax": 255,
           "cmap": "viridis",
@@ -111,9 +106,9 @@
         "pooled": true,
         "axes": {
           "xmin": 0,
-          "xmax": 4,
-          "ymin": -2,
-          "ymax": 10,
+          "xmax": 16,
+          "ymin": -0.5,
+          "ymax": 2,
           "cmap": "plasma",
           "legend": true
         }
@@ -124,7 +119,7 @@
         "num_in_seq": 8,
         "axes": {
           "xmin": 0,
-          "xmax": 4,
+          "xmax": 15,
           "ymin": 0,
           "ymax": 10,
           "cmap": "plasma",
@@ -144,8 +139,8 @@
         }
       },
       "indiv_summary": {
-        "histogram": true,
-        "cumulative_histogram": true,
+        "histogram": false,
+        "cumulative_histogram": false,
         "map_overlay": true,
         "axes": {
           "xmin": null,

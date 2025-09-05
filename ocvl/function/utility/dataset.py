@@ -637,7 +637,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                         slow_axis_array = np.zeros([len(strip_translation_info), 1000], dtype=int)
                         unaligned_col_shifts = np.zeros([len(strip_translation_info), 1000])
                         unaligned_row_shifts = np.zeros([len(strip_translation_info), 1000])
-                        frame_inds = np.zeros( [len(strip_translation_info)], dtype=int)
+                        frame_inds = np.full( [len(strip_translation_info)], -1, dtype=int)
 
                         for i, frame in enumerate(strip_translation_info):
                             if len(frame) > 0:
@@ -682,6 +682,15 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                         unaligned_col_shifts = unaligned_col_shifts[resort_args, :]
                         unaligned_row_shifts = unaligned_row_shifts[resort_args, :]
 
+                        # Then, remove frame inds that weren't filled do to a variety of reasons.
+                        slow_axis_array = slow_axis_array[frame_inds >= 0, :]
+                        unaligned_col_shifts = unaligned_col_shifts[frame_inds >= 0, :]
+                        unaligned_row_shifts = unaligned_row_shifts[frame_inds >= 0, :]
+                        frame_inds = frame_inds[frame_inds >= 0]
+
+
+                        # Update our framestamps with the sorted indexes
+                        dataset.framestamps = frame_inds
 
                         # Find the ROI associated with this particular dataset.
                         roi = np.array([])

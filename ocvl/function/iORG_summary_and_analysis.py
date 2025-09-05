@@ -524,7 +524,7 @@ if __name__ == "__main__":
                                                                                                     thread_pool=the_pool)
 
                                         control_query_status[q].loc[:, cd] = control_query_stat
-                                        control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
+                                        control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]), axis=0)
                                         control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
                                         control_pop_iORG_summaries[cd, control_data.framestamps] = control_data.summarized_iORGs[q]
 
@@ -546,7 +546,10 @@ if __name__ == "__main__":
                                         warnings.filterwarnings(action="ignore", message="invalid value encountered in divide")
                                         control_pop_iORG_summary_pooled[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
                                                                                        axis=0) / np.nansum(control_pop_iORG_N, axis=0)
+                                        control_pop_iORG_summary_pooled[q][control_pop_iORG_summary_pooled[q] == 0] = np.nan  # If we don't have a value (e.g. its 0) then make it nan so it doesn't influence.
+
                                     control_framestamps_pooled[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary_pooled[q]))
+
 
 
                                     # First write the control data to a file.

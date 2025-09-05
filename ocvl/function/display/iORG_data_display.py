@@ -174,7 +174,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
 
         _update_plot_colors(data_color)
 
-        if np.all(control_pop_iORG_summary_pooled):
+        if control_pop_iORG_summary_pooled is not None:
             plt.plot(control_framestamps_pooled / framerate, control_pop_iORG_summary_pooled[control_framestamps_pooled], 'k--', linewidth=4)
 
         if not None in xlimits: plt.xlim(xlimits)
