@@ -86,6 +86,14 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     sum_method = sum_params.get(SummaryParams.METHOD, "rms")
     sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
 
+    # Normalization - only used here if it is equal to "signals"
+    norm_params = analysis_params.get(NormParams.NAME, dict())
+    norm_scope = norm_params.get(NormParams.SCOPE, "frame") # Default: Standardizes the video to each frame's mean and stddev
+    norm_method = norm_params.get(NormParams.METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
+    rescale_norm = norm_params.get(NormParams.RESCALED, True)  # Default: Rescales the data back into AU to make results easier to interpret
+    res_mean = norm_params.get(NormParams.MEAN, 70.0)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.STD, 35.0)  # Default: Rescales to a std dev of 35
+
 
     # If the refine to ref parameter is set to true, and these query points aren't pixelwise or xor.
     if seg_params.get(SegmentParams.REFINE_TO_REF, True) and query_loc_name != "All Pixels" and seg_shape != "xor":
@@ -194,6 +202,10 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
         plt.show(block=False)
         plt.waitforbuttonpress()
         plt.close()
+
+
+    if norm_scope == "signals":
+        iORG_signals = normalize_signals(iORG_signals, norm_method, rescale_norm, res_mean, res_stddev)
 
     # Should only do the below if we're in a stimulus trial- otherwise, we can't know what the control data
     # will be used for, or what critical region/standardization indicies it'll need.
@@ -669,7 +681,7 @@ def exclude_signals(temporal_signals, framestamps,
 
     return temporal_signals, good_profiles, query_status
 
-def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, video_ref=None):
+def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, rescale_mean=None, rescale_std=None):
     """
     This function normalizes the columns of the data (a single sample of all cells) using a method supplied by the user.
 
@@ -677,61 +689,48 @@ def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, vide
     :param norm_method: The normalization method chosen by the user. Default is "mean". Options: "mean", "median"
     :param rescaled: Whether or not to keep the data at the original scale (only modulate the numbers in place). Useful
                      if you want the data to stay in the same units. Default: False. Options: True/False
-    :param video_ref: A video reference (WxHxM) that can be used for normalization instead of the profile values.
-
+    :param rescale_mean: The mean scaling target for rescaling- if None, will use the mean of all data (excluding 0s)
+    :param rescale_std:  The std dev scaling target for rescaling- if None, will use the std dev of all data (excluding 0s).
+                        ignored in all scaling methods except "score"
     :return: a NxM numpy matrix of normalized temporal profiles.
     """
 
+    if rescale_mean is None:
+        rescale_mean = np.nanmean(temporal_signals.flatten())
+    if rescale_std is None:
+        rescale_std = np.nanstd(temporal_signals.flatten())
+
     if norm_method == "mean":
-        all_norm = np.nanmean(temporal_signals[:])
-        # plt.figure()
-        # tmp = np.nanmean(temporal_data, axis=0)
-        # plt.plot(tmp/np.amax(tmp))
-        if video_ref is None:
-            framewise_norm = np.nanmean(temporal_signals, axis=0)
-        else:
-            # Determine each frame's mean.
-            framewise_norm = np.empty([video_ref.shape[-1]])
-            for f in range(video_ref.shape[-1]):
-                frm = video_ref[:, :, f].flatten().astype("float32")
-                frm[frm == 0] = np.nan
-                framewise_norm[f] = np.nanmean(frm)
-
-            all_norm = np.nanmean(framewise_norm)
-            #plt.plot(framewise_norm/np.amax(framewise_norm))
-           # plt.show()
+        framewise_norm = np.nanmean(temporal_signals, axis=0)
     elif norm_method == "median":
-        all_norm = np.nanmedian(temporal_signals[:])
-        if video_ref is None:
-            framewise_norm = np.nanmedian(temporal_signals, axis=0)
-        else:
-            # Determine each frame's mean.
-            framewise_norm = np.empty([video_ref.shape[-1]])
-            for f in range(video_ref.shape[-1]):
-                frm = video_ref[:, :, f].flatten().astype("float32")
-                frm[frm == 0] = np.nan
-                framewise_norm[f] = np.nanmedian(frm)
-            all_norm = np.nanmean(framewise_norm)
+        framewise_norm = np.nanmedian(temporal_signals, axis=0)
+    elif norm_method == "score":
+        framewise_norm = np.nanmean(temporal_signals, axis=0)
+        framewise_std = np.nanstd(temporal_signals, axis=0)
 
+        temporal_signals = np.subtract(temporal_signals, framewise_norm[None, :])
+        temporal_signals = np.divide(temporal_signals, framewise_std[None, :])
     else:
         all_norm = np.nanmean(temporal_signals[:])
-        if video_ref is None:
-            framewise_norm = np.nanmean(temporal_signals, axis=0)
-        else:
-            # Determine each frame's mean.
-            framewise_norm = np.empty([video_ref.shape[-1]])
-            for f in range(video_ref.shape[-1]):
-                frm = video_ref[:, :, f].flatten().astype("float32")
-                frm[frm == 0] = np.nan
-                framewise_norm[f] = np.nanmean(frm)
-            all_norm = np.nanmean(framewise_norm)
+
+        framewise_norm = np.nanmean(temporal_signals, axis=0)
+
         warnings.warn("The \"" + norm_method + "\" normalization type is not recognized. Defaulting to mean.")
 
     if rescaled: # Provide the option to simply scale the data, instead of keeping it in relative terms
-        ratio = framewise_norm / all_norm
-        return np.divide(temporal_signals, ratio[None, :])
+        if norm_method != "score":
+            ratio = framewise_norm / rescale_mean
+            temporal_signals = temporal_signals / ratio
+        else:
+            temporal_signals = (temporal_signals * rescale_std) + rescale_mean
+
     else:
-        return np.divide(temporal_signals, framewise_norm[None, :])
+        if norm_method != "score":
+            temporal_signals= temporal_signals / framewise_norm
+        else:
+            temporal_signals = (temporal_signals * framewise_std) + framewise_norm
+
+    return temporal_signals
 
 
 def standardize_signals(temporal_signals, framestamps, std_indices, method="mean_sub", critical_fraction=0.3, pool=None):

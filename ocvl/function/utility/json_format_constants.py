@@ -104,10 +104,11 @@ class DebugParams(StrEnum):
 
 class NormParams(StrEnum):
     NAME = "normalization"
-    NORM_METHOD = "method"
-    NORM_RESCALE = "rescaled"
-    NORM_MEAN = "rescale_mean"
-    NORM_STD = "rescale_std"
+    METHOD = "method"
+    RESCALED = "rescaled"
+    SCOPE = "scope"
+    MEAN = "mean"
+    STD = "std"
 
 class SegmentParams(StrEnum):
     NAME = "segmentation"

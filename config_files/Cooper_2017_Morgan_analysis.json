@@ -42,6 +42,7 @@
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
       "normalization": {
+        "scope": "signals",
         "method": "mean",
         "rescaled": false
       },
@@ -108,7 +109,7 @@
           "xmin": 0,
           "xmax": 16,
           "ymin": -0.5,
-          "ymax": 2,
+          "ymax": 3,
           "cmap": "plasma",
           "legend": true
         }

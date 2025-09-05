@@ -848,10 +848,11 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
 def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
 
     norm_params = analysis_params.get(NormParams.NAME, dict())
-    norm_method = norm_params.get(NormParams.NORM_METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
-    rescale_norm = norm_params.get(NormParams.NORM_RESCALE, True)  # Default: Rescales the data back into AU to make results easier to interpret
-    res_mean = norm_params.get(NormParams.NORM_MEAN, 70.0)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
-    res_stddev = norm_params.get(NormParams.NORM_STD, 35.0)  # Default: Rescales to a std dev of 35
+    norm_scope = norm_params.get(NormParams.SCOPE, "frame") # Default: Standardizes the video to each frame's mean and stddev
+    norm_method = norm_params.get(NormParams.METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
+    rescale_norm = norm_params.get(NormParams.RESCALED, True)  # Default: Rescales the data back into AU to make results easier to interpret
+    res_mean = norm_params.get(NormParams.MEAN, 70.0)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.STD, 35.0)  # Default: Rescales to a std dev of 35
 
     # Flat field the video for analysis if desired.
     if analysis_params.get(Analysis.FLAT_FIELD, False):
@@ -865,9 +866,10 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
         dataset.video_data *= dataset.mask_data
 
     # Normalize the video to reduce the influence of framewide intensity changes
-    dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
-                                    rescaled=rescale_norm,
-                                    rescale_mean=res_mean, rescale_std=res_stddev)
+    if norm_scope == "frame":
+        dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
+                                        rescaled=rescale_norm,
+                                        rescale_mean=res_mean, rescale_std=res_stddev)
 
     if debug_params.get(DebugParams.OUTPUT_NORM_VIDEO, False):
         save_tiff_stack(result_folder.joinpath(dataset.video_path.stem + "_" + norm_method + "_norm.tif"),
