@@ -101,8 +101,8 @@ if __name__ == "__main__":
     analysis_dat_format = dat_form.get(Analysis.NAME)
     preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME, dict())
     pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS, dict())
-    analysis_params = analysis_dat_format.get(Analysis.PARAMS)
-    display_params = analysis_dat_format.get(DisplayParams.NAME)
+    analysis_params = analysis_dat_format.get(Analysis.PARAMS, dict())
+    display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
     modes_of_interest = analysis_params.get(Analysis.MODALITIES)
 
     seg_params = analysis_params.get(SegmentParams.NAME, dict())

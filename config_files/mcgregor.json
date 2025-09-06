@@ -7,14 +7,15 @@
     "pipeline_params": {
       "gaus_blur": 1.0,
       "correct_torsion": true,
-      "output_folder": "Functional Pipeline"
+      "output_folder": "Functional Pipeline",
+      "intra_stack_xform": "affine"
     }
   },
   "analysis": {
     "image_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}_ALL_ACQ_AVG.tif",
     "video_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}.avi",
     "metadata": {
-      "stimulus_sequence": [490, 5, 485,5, 485,5, 485,5, 485,5, 485,5, 485,5, 485]
+      "stimulus_sequence": [490, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485]
     }
   }
 }

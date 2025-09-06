@@ -338,7 +338,7 @@ if __name__ == "__main__":
                             if pipe_meta_form is not None:
                                 pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
                             else:
-                                pipe_meta_fname = Path(pipe_vid_form).with_suffix(".csv")
+                                pipe_meta_fname = Path(pipe_vid_form.format_map(dataset.metadata)).with_suffix(".csv")
 
 
                     og_dtype = dataset.video_data.dtype

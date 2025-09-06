@@ -299,7 +299,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
                     and thetag is not MetaTags.TYPE:
                 meta_fields[metatag] = metadata_params.get(metatag)
 
-    # Load our externally sourced metadata
+    # Load our externally sourced, organic, no-gmo metadata
     meta_fields, metadata_path = load_metadata(metadata_params, metadata_info)
 
     # Take metadata gleaned from our filename, as well as our metadata files,
@@ -337,15 +337,17 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         pass
 
     elif stage == Stages.ANALYSIS and dataset is not None:
-        database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = postprocess_dataset(dataset, analysis_params,
-                                                                                                result_path,
-                                                                                                debug_params)
+        # We could have multiple sub_datasets if the user input multiple stimulus sequences.
+        for sub_dataset in dataset:
+            postprocess_dataset(sub_dataset, analysis_params, result_path, debug_params)
+
+        database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = dataset
 
         new_entries = pd.DataFrame()
 
         # If we didn't find an average image in our database, but were able to automagically detect or make one,
         # Then add the automagically detected one to our database.
-        if database.loc[slice_of_life & refim_filter].empty and dataset.avg_image_data is not None:
+        if database.loc[slice_of_life & refim_filter].empty and dataset[0].avg_image_data is not None:
             base_entry = database[slice_of_life & vidtype_filter].copy()
             base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.IMAGE
             base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.image_path
@@ -356,41 +358,43 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
 
         # Check to see if our dataset's number of query locations matches the ones we thought we found
         # (can happen if the query location format doesn't match, but dataset was able to find a candidate)
-        if len(query_info) < len(dataset.query_loc):
+        if len(query_info) < len(dataset[0].query_loc):
             # If we have too few, then tack on some extra dataframes so we can track these found query locations, and add them to our database, using the dataset as a basis.
             base_entry = database[slice_of_life & vidtype_filter].copy()
             base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
             base_entry.loc[0, AcquisiTags.DATASET] = None
 
-            for i in range(len(dataset.query_loc) - len(query_info)):
-                base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.query_coord_paths[i]
+            for i in range(len(dataset[0].query_loc) - len(query_info)):
+                base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].query_coord_paths[i]
                 base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
 
                 # Update the database, and update all of our logical indices
                 new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
 
         # If we can't find any query locations, or if we just want it, default to querying all pixels.
-        if (len(dataset.query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset.query_coord_paths:
+        if (len(dataset[0].query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset[0].query_coord_paths:
             seg_pixelwise = True  # Set this to true, if we find that query loc for this dataset is 0
 
-            xm, ym = np.meshgrid(np.arange(dataset.video_data.shape[1]),
-                                 np.arange(dataset.video_data.shape[0]))
+            xm, ym = np.meshgrid(np.arange(dataset[0].video_data.shape[1]),
+                                 np.arange(dataset[0].video_data.shape[0]))
 
             xm = np.reshape(xm, (xm.size, 1))
             ym = np.reshape(ym, (ym.size, 1))
 
             allcoord_data = np.hstack((xm, ym))
 
-            dataset.query_loc.append(allcoord_data)
-            dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
-            dataset.query_coord_paths.append(Path("All Pixels"))
-            dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
-            dataset.iORG_signals = [None] * len(dataset.query_loc)
-            dataset.summarized_iORGs = [None] * len(dataset.query_loc)
+            # If one dataset needs this, then all sub datasets do too.
+            for sub_dataset in dataset:
+                sub_dataset.query_loc.append(allcoord_data)
+                sub_dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in sub_dataset.query_loc]
+                sub_dataset.query_coord_paths.append(Path("All Pixels"))
+                sub_dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
+                sub_dataset.iORG_signals = [None] * len(sub_dataset.query_loc)
+                sub_dataset.summarized_iORGs = [None] * len(sub_dataset.query_loc)
 
             base_entry = database[slice_of_life & vidtype_filter].copy()
             base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
-            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].query_coord_paths[-1]
             base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "All Pixels"
             base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
@@ -545,8 +549,42 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
         stimulus_sequence = np.cumsum(pd.read_csv(Dataset.stimseq_fName, header=None,encoding="utf-8-sig").to_numpy())
 
+    dataset = None
+    # Stimulus sequences should be arranged in 3s- that is, pre-stimulus, during-stimulus, and post-stimulus.
+    # In a case where there is more than that, then cut up the video data into multiple sub-datasets for future processing.
+    if len(stimulus_sequence) == 3:
+        dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
+    elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 == 0:
+        print(Fore.YELLOW + "Detected multiple stimuli in this dataset. Breaking into subdatasets for analysis...")
+        dataset = []
+        for i in range(0, len(stimulus_sequence)-2, 2):
 
-    return Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)
+            sub_seq = stimulus_sequence[i:i+3].copy()
+            # Subtract the preceding sequence value from this sub-dataset, if available.
+            if i!=0:
+                seq_ind = np.arange(stimulus_sequence[i - 1], sub_seq[2])
+                sub_seq -= stimulus_sequence[i - 1]
+            else:
+                seq_ind = np.arange(0, sub_seq[2])
+
+            subset_stamps, _, std_indices = np.intersect1d(seq_ind, stamps, return_indices=True)
+            # Subtract the first framestamp from this sub-dataset, its now frame 0.
+            subset_stamps -= subset_stamps[0]
+
+            print(len(std_indices))
+            dataset.append(Dataset(video_data[..., std_indices],
+                                   mask_data[..., std_indices],
+                                   avg_image_data, metadata, queryloc_data, subset_stamps, sub_seq, stage))
+
+    elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 != 0:
+        warnings.warn("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Only using first 3 values.")
+        stimulus_sequence = stimulus_sequence[0:2]
+        dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
+    elif len(stimulus_sequence) < 3:
+        warnings.warn("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Unable to analyze dataset.")
+        return None
+
+    return dataset
 
 
 def preprocess_dataset(dataset, params, reference_dataset=None):
