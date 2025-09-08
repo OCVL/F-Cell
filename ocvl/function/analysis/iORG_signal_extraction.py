@@ -78,7 +78,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     std_meth = std_params.get(STDParams.METHOD, "mean_sub") # Default: Subtracts the mean from each iORG signal
     std_type = std_params.get(STDParams.TYPE, "stim-relative") # Default: Relative to the stimulus delivery location
     std_units = std_params.get(STDParams.UNITS, "time")
-    std_start = std_params.get(STDParams.START, -1)
+    std_start = std_params.get(STDParams.START, -2)
     std_stop = std_params.get(STDParams.STOP, 0)
     std_cutoff_fraction = excl_params.get(STDParams.FRACTION, 0.3)
 
@@ -443,8 +443,9 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     coordinates = np.round(coordinates.copy()).astype("int")
 
     im_stack_mask = image_stack == 0
-    im_stack_mask = cv2.morphologyEx(im_stack_mask.astype("uint8"), cv2.MORPH_OPEN, np.ones((3, 3)),
-                                     borderType=cv2.BORDER_CONSTANT, borderValue=1)
+    for f in range(im_stack_mask.shape[-1]):
+        im_stack_mask[..., f] = cv2.morphologyEx(im_stack_mask[..., f].astype("uint8"), cv2.MORPH_OPEN, np.ones((3, 3)),
+                                         borderType=cv2.BORDER_CONSTANT, borderValue=1)
 
     im_stack = image_stack.astype("float32")
     im_stack[im_stack_mask.astype("bool")] = np.nan  # Anything that is outside our main image area should be made a nan.

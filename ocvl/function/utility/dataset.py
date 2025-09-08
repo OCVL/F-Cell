@@ -341,8 +341,6 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         for sub_dataset in dataset:
             postprocess_dataset(sub_dataset, analysis_params, result_path, debug_params)
 
-        database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = dataset
-
         new_entries = pd.DataFrame()
 
         # If we didn't find an average image in our database, but were able to automagically detect or make one,
@@ -353,7 +351,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
             base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.image_path
             base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
-            # Update the database, and update all of our logical indices
+            # Update the database
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
 
         # Check to see if our dataset's number of query locations matches the ones we thought we found
@@ -368,7 +366,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
                 base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].query_coord_paths[i]
                 base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
 
-                # Update the database, and update all of our logical indices
+                # Update the database
                 new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
 
         # If we can't find any query locations, or if we just want it, default to querying all pixels.
@@ -398,8 +396,25 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
             base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "All Pixels"
             base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
-            # Update the database, and update all of our logical indices
+            # Update the database
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
+
+        if len(dataset) == 1:
+            database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = dataset[0]
+        elif len(dataset) > 1:
+            # If we have subdatasets (from multiple stimuli in one video),
+            # then we need to make new entries for each of them so that they're processed correctly.
+
+            for i, sub_dataset in enumerate(dataset):
+                base_entry = database[slice_of_life & vidtype_filter].copy()
+                base_entry.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = sub_dataset
+                base_entry.loc[slice_of_life & vidtype_filter, DataTags.VIDEO_ID] = base_entry.loc[slice_of_life & vidtype_filter, DataTags.VIDEO_ID].values[0] + "_stim_" + str(i)
+
+                # Update the database with the new entry.
+                new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
+
+            # Once we've completed this, drop the original row so we don't confuse things in the future.
+            database.drop(database[slice_of_life & vidtype_filter].index, inplace=True)
 
 
     return dataset, new_entries

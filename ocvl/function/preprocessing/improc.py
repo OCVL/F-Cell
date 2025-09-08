@@ -120,7 +120,7 @@ def norm_video(video_data, norm_method="mean", rescaled=False, rescale_mean=None
             framewise_std[f] = np.nanstd(frm)
 
         # Standardizes the data into a zscore- then rescales it to a common std dev and mean
-        rescaled_vid = np.zeros(video_data.shape)
+        rescaled_vid = np.zeros(video_data.shape, dtype=np.float32)
         for f in range(video_data.shape[-1]):
             frm = video_data[:, :, f].astype("float32")
             frm[frm == 0] = np.nan # This is to prevent bad behavior when we do subtraction of the mean- e.g:
@@ -156,13 +156,13 @@ def norm_video(video_data, norm_method="mean", rescaled=False, rescale_mean=None
     if rescaled: # Provide the option to simply scale the data, instead of keeping it in relative terms
         if norm_method != "score":
             ratio = framewise_norm / rescale_mean
-            rescaled_vid = np.empty(video_data.shape)
+            rescaled_vid = np.empty(video_data.shape, dtype=np.float32)
             for f in range(video_data.shape[-1]):
                 rescaled_vid[:, :, f] = video_data[:, :, f].astype("float32") / ratio[f]
         else:
-            rescaled_vid = (rescaled_vid * rescale_std) + rescale_mean
+            rescaled_vid = ((rescaled_vid * rescale_std) + rescale_mean).astype("float32")
     else:
-        rescaled_vid = np.zeros(video_data.shape)
+        rescaled_vid = np.zeros(video_data.shape, dtype=np.float32)
         for f in range(video_data.shape[-1]):
             rescaled_vid[:, :, f] = video_data[:, :, f].astype("float32") / framewise_norm[f]
 
