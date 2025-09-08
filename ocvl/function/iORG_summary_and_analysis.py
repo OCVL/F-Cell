@@ -120,7 +120,7 @@ if __name__ == "__main__":
     sum_control = sum_params.get(SummaryParams.CONTROL, "none")
 
     metrics = sum_params.get(SummaryParams.METRICS, dict())
-    metrics_type = metrics.get(SummaryParams.TYPE, ["amplitude", "imp_time"])
+    metrics_type = metrics.get(SummaryParams.TYPE, ["amp", "amp_imp_time"])
     metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
     metrics_units = metrics.get(SummaryParams.UNITS, "time")
     metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))

@@ -16,7 +16,23 @@
     "video_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}.avi",
     "queryloc_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}_ALL_ACQ_AVG_coords.csv",
     "metadata": {
-      "stimulus_sequence": [490, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485]
+      "stimulus_sequence": [500, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485, 5, 485]
+    },
+    "analysis_params": {
+      "summary": {
+        "metrics": {
+          "measured": "stim-relative",
+          "units": "time",
+          "prestim": [
+            -2,
+            0
+          ],
+          "poststim": [
+            0,
+            3
+          ]
+        }
+      }
     },
     "display_params": {
       "pop_summary_overlap": {
@@ -25,8 +41,8 @@
         "pooled": true,
         "annotations": true,
         "axes": {
-          "xmin": 18,
-          "xmax": 40,
+          "xmin": 15,
+          "xmax": 25,
           "cmap": "plasma",
           "legend": true
         }
