@@ -144,6 +144,8 @@ if __name__ == "__main__":
                     dataset, _ = initialize_and_load_dataset(folder=allData.loc[video_info.index, AcquisiTags.BASE_PATH].values[0],
                                                           vidID=num, prefilter=pre_filter, database=allData, params=preanalysis_dat_format)
 
+                    dataset = dataset[0]
+
                     if dataset is not None:
                         # Run the preprocessing pipeline on this dataset, with params specified by the json.
                         # When done, put it into the database.

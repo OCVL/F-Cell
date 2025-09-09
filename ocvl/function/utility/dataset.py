@@ -348,7 +348,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         if database.loc[slice_of_life & refim_filter].empty and dataset[0].avg_image_data is not None:
             base_entry = database[slice_of_life & vidtype_filter].copy()
             base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.IMAGE
-            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.image_path
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].image_path
             base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
             # Update the database
@@ -567,7 +567,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     dataset = None
     # Stimulus sequences should be arranged in 3s- that is, pre-stimulus, during-stimulus, and post-stimulus.
     # In a case where there is more than that, then cut up the video data into multiple sub-datasets for future processing.
-    if len(stimulus_sequence) == 3:
+    if stimulus_sequence is None or len(stimulus_sequence) == 3:
         dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
     elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 == 0:
         print(Fore.YELLOW + "Detected multiple stimuli in this dataset. Breaking into subdatasets for analysis...")
