@@ -35,9 +35,8 @@ from ocvl.function.utility.resources import save_tiff_stack, save_video
 
 mpl.use('qtagg')
 
-if __name__ == "__main__":
-    mp.freeze_support()
 
+def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     mpl.rcParams['lines.linewidth'] = 2.5
     mpl.rcParams['axes.spines.right'] = False
@@ -54,26 +53,23 @@ if __name__ == "__main__":
     y = root.winfo_screenheight() / 4
     root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-    pName = None
-    json_fName = Path()
-    dat_form = dict()
-    allData = pd.DataFrame()
 
+    # Grab all the folders/data here.
+    dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
+
+    # If loading the file fails, prompt the user.
     while allData.empty:
-        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
-        if not pName:
+        analysis_path = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=analysis_path, parent=root)
+        if not analysis_path:
             sys.exit(1)
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
 
-        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
-                                                filetypes=[("JSON Configuration Files", "*.json")])
-        if not json_fName:
+        config_path = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
+                                                 filetypes=[("JSON Configuration Files", "*.json")])
+        if not config_path:
             sys.exit(2)
-
-        # Grab all the folders/data here.
-        dat_form, allData = parse_file_metadata(json_fName, pName, Analysis.NAME)
 
         if allData.empty:
             tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
@@ -1165,7 +1161,7 @@ if __name__ == "__main__":
                     folder_display_dict = {}
 
                     # Save the json used to analyze this data, for auditing.
-                    out_json = Path(json_fName).stem + "_ran_at_" + start_timestamp + ".json"
+                    out_json = Path(config_path).stem + "_ran_at_" + start_timestamp + ".json"
                     out_json = result_path.joinpath(out_json)
 
                     audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
@@ -1175,6 +1171,8 @@ if __name__ == "__main__":
 
                     with open(out_json, 'w') as f:
                         json.dump(audit_json_dict, f, indent=2)
+
+
 
         # Save the group-comparison figures to the result folder, if requested.
         plt.show(block=False)
@@ -1200,35 +1198,33 @@ if __name__ == "__main__":
                 tryagain = True
                 while tryagain:
                     try:
-                        plt.savefig(Path(pName).joinpath(fname + "." + ext), dpi=300)
+                        plt.savefig(Path(analysis_path).joinpath(fname + "." + ext), dpi=300)
                         tryagain = False
                     except PermissionError:
                         tryagain = messagebox.askyesno(
                             title="Figure " + str(fname + "." + ext) + " is unable to be saved.",
                             message="The figure file may be open. Close the file, then try to write again?")
 
+    print("Say WHAT")
 
-# figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
-# plt.figure(figure_label)
-# display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = figure_label
-#
-# plt.title(figure_label)
-# plt.imshow(dataset.avg_image_data, cmap='gray')
-# viability = all_query_status[mode][folder][q].loc[:, "Viable for single-cell summary?"]
-#
-# viable = []
-# nonviable = []
-# for coords, viability in viability.items():
-#     if viability:
-#         viable.append(coords)
-#     else:
-#         nonviable.append(coords)
-#
-# viable = np.array(viable)
-# nonviable = np.array(nonviable)
-# if viable.size > 0:
-#     plt.scatter(viable[:, 0], viable[:, 1], s=7, c="c")
-# if nonviable.size >0:
-#     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
-# plt.show(block=False)
-# plt.waitforbuttonpress()
+if __name__ == "__main__":
+    mp.freeze_support()
+
+    pName = None
+    json_fName = Path()
+    dat_form = dict()
+    allData = pd.DataFrame()
+
+    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
+    if not pName:
+        sys.exit(1)
+
+    # We should be 3 levels up from here. Kinda jank, will need to change eventually
+    conf_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+
+    json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=conf_path,
+                                            filetypes=[("JSON Configuration Files", "*.json")])
+    if not json_fName:
+        sys.exit(2)
+
+    iORG_summary_and_analysis(pName, Path(json_fName))

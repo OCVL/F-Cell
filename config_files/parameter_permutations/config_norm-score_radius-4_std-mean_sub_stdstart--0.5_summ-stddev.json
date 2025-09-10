@@ -1,0 +1,218 @@
+{
+  "version": "0.2",
+  "description": "The pipeline and analysis JSON for the OCVL's MEAOSLO, for pipelines that were run",
+  "raw": {
+    "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi",
+    "metadata": {
+      "type": "text_file",
+      "metadata_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.csv",
+      "fields_to_load": {
+        "timestamps": "Timestamp_us",
+        "stimulus_train": "StimulusOn"
+      }
+    }
+  },
+  "preanalysis": {
+    "image_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_avg.tif",
+    "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped.avi",
+    "mask_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_mask.avi",
+    "metadata": {
+      "type": "text_file",
+      "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped.csv",
+      "fields_to_load": {
+        "framestamps": "OriginalFrameNumber"
+      }
+    },
+    "recursive_search": false,
+    "pipeline_params": {
+      "gaus_blur": 0.0,
+      "mask_roi": {
+        "r": 0,
+        "c": 0,
+        "width": -1,
+        "height": -1
+      },
+      "modalities": [
+        "760nm"
+      ],
+      "output_folder": "Functional Pipeline",
+      "group_by": "({LocX},{LocY})",
+      "correct_torsion": true,
+      "flat_field": false,
+      "custom": {
+        "dewarp": "ocvl"
+      }
+    }
+  },
+  "analysis": {
+    "image_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_ALL_ACQ_AVG.tif",
+    "queryloc_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_ALL_ACQ_AVG_{QueryLoc:s?}coords.csv",
+    "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_piped.avi",
+    "metadata": {
+      "type": "text_file",
+      "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_piped.csv",
+      "fields_to_load": {
+        "framestamps": "FrameStamps"
+      },
+      "stimulus_sequence": [
+        58,
+        2,
+        116
+      ]
+    },
+    "recursive_search": false,
+    "control": {
+      "location": "folder",
+      "folder_name": "control"
+    },
+    "analysis_params": {
+      "modalities": [
+        "760nm"
+      ],
+      "output_folder": "Results",
+      "output_subfolder": true,
+      "output_subfolder_method": "DateTime",
+      "output_indiv_stdize_orgs": false,
+      "output_sum_pop_orgs": true,
+      "output_sum_indiv_orgs": false,
+      "normalization": {
+        "method": "score",
+        "rescaled": true,
+        "rescale_mean": 70,
+        "rescale_std": 35
+      },
+      "segmentation": {
+        "refine_to_ref": true,
+        "refine_to_vid": false,
+        "radius": 4,
+        "shape": "disk",
+        "summary": "mean",
+        "pixelwise": false
+      },
+      "exclusion_criteria": {
+        "type": "stim-relative",
+        "units": "time",
+        "start": -0.2,
+        "stop": 0.2,
+        "fraction": 0.5
+      },
+      "standardization": {
+        "method": "mean_sub",
+        "type": "stim-relative",
+        "units": "time",
+        "start": -0.5
+      },
+      "summary": {
+        "method": "stddev",
+        "control": "subtraction",
+        "metrics": {
+          "type": [
+            "aur",
+            "amp",
+            "logamp",
+            "amp_imp_time",
+            "halfamp_imp_time",
+            "rec_amp"
+          ],
+          "measured": "stim-relative",
+          "units": "time",
+          "prestim": [
+            -1,
+            0
+          ],
+          "poststim": [
+            0,
+            1
+          ]
+        },
+        "indiv_cutoff": 5
+      },
+      "flat_field": false,
+      "gaus_blur": 0.0,
+      "mask_roi": {
+        "r": -1,
+        "c": -1,
+        "width": -1,
+        "height": -1
+      }
+    },
+    "display_params": {
+      "debug": {
+        "output_norm_video": false,
+        "plot_refine_to_ref": false,
+        "plot_refine_to_vid": false,
+        "plot_pop_extracted_orgs": false,
+        "plot_pop_stdize_orgs": false,
+        "plot_indiv_stdize_orgs": false,
+        "stimulus": true,
+        "control": true,
+        "axes": {
+          "xmin": 0,
+          "xmax": 6,
+          "ymin": -255,
+          "ymax": 255,
+          "cmap": "viridis",
+          "legend": true
+        }
+      },
+      "pop_summary_overlap": {
+        "stimulus": true,
+        "control": true,
+        "relative": true,
+        "pooled": true,
+        "annotations": true,
+        "axes": {
+          "xmin": 0,
+          "xmax": 4,
+          "ymin": -5,
+          "ymax": 60,
+          "cmap": "plasma",
+          "legend": true
+        }
+      },
+      "pop_summary_seq": {
+        "stimulus": false,
+        "relative": false,
+        "num_in_seq": 10,
+        "axes": {
+          "xmin": 0,
+          "xmax": 4,
+          "ymin": -5,
+          "ymax": 60,
+          "cmap": "plasma",
+          "legend": true
+        }
+      },
+      "indiv_summary_overlap": {
+        "stimulus": false,
+        "control": false,
+        "relative": false,
+        "axes": {
+          "xmin": null,
+          "xmax": null,
+          "ymin": null,
+          "ymax": null,
+          "cmap": "plasma"
+        }
+      },
+      "indiv_summary": {
+        "histogram": true,
+        "cumulative_histogram": true,
+        "map_overlay": true,
+        "org_video": false,
+        "axes": {
+          "xmin": null,
+          "xstep": null,
+          "xmax": null,
+          "cmap": "plasma",
+          "legend": true
+        }
+      },
+      "saveas": [
+        "png",
+        "svg"
+      ],
+      "pause_per_folder": false
+    }
+  }
+}
