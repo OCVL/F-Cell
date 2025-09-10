@@ -1207,6 +1207,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     print("Say WHAT")
     root.destroy()
+    del root
+    gc.collect()
 
 if __name__ == "__main__":
     mp.freeze_support()

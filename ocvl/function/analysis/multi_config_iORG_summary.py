@@ -1,8 +1,9 @@
+import gc
 import os
 import sys
 from pathlib import Path
 from tkinter import filedialog
-
+from tkinter import Tk
 import pandas as pd
 from colorama import Fore
 
@@ -29,3 +30,5 @@ if __name__ == "__main__":
     for the_path in Path(json_path).glob("*.json"):
         print(Fore.RED + "\n************ "+str(the_path.name)+" ************\n")
         iORG_summary_and_analysis(pName, the_path)
+
+        gc.collect()
