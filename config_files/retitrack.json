@@ -82,7 +82,7 @@
         "method": "mean_sub",
         "type": "stim-relative",
         "units": "time",
-        "start": -1
+        "start": -2
       },
       "summary": {
         "method": "rms",
@@ -91,7 +91,7 @@
           "type": ["amp", "logamp", "halfamp_imp_time"],
           "measured": "stim-relative",
           "units": "time",
-          "prestim": [-1, 0],
+          "prestim": [-2, 0],
           "poststim": [0, 2]
         },
         "indiv_cutoff": 2
@@ -106,8 +106,8 @@
       }
     },
     "display_params": {
-        "debug":{
-        "output_norm_video": false
+      "debug":{
+        "output_norm_video": true
       },
       "pop_summary_overlap": {
         "stimulus": true,

@@ -32,9 +32,7 @@
         "width": -1,
         "height": -1
       },
-      "modalities": [
-        "760nm"
-      ],
+      "modalities": ["760nm"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
@@ -54,11 +52,7 @@
       "fields_to_load": {
         "framestamps": "FrameStamps"
       },
-      "stimulus_sequence": [
-        58,
-        2,
-        116
-      ]
+      "stimulus_sequence": [58, 2, 116]
     },
     "recursive_search": false,
     "control": {
@@ -66,9 +60,7 @@
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": [
-        "760nm"
-      ],
+      "modalities": ["760nm"],
       "output_folder": "Results",
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
@@ -76,7 +68,7 @@
       "output_sum_pop_orgs": true,
       "output_sum_indiv_orgs": false,
       "normalization": {
-        "method": "mean",
+        "method": "score",
         "rescaled": true,
         "rescale_mean": 70,
         "rescale_std": 35
@@ -84,7 +76,7 @@
       "segmentation": {
         "refine_to_ref": true,
         "refine_to_vid": false,
-        "radius": 4,
+        "radius": "auto",
         "shape": "disk",
         "summary": "mean",
         "pixelwise": false
@@ -100,30 +92,17 @@
         "method": "mean_sub",
         "type": "stim-relative",
         "units": "time",
-        "start": -0.5
+        "start": -1
       },
       "summary": {
-        "method": "variance",
+        "method": "rms",
         "control": "subtraction",
         "metrics": {
-          "type": [
-            "aur",
-            "amp",
-            "logamp",
-            "amp_imp_time",
-            "halfamp_imp_time",
-            "rec_amp"
-          ],
+          "type": ["aur","amp","logamp","amp_imp_time", "halfamp_imp_time", "rec_amp"],
           "measured": "stim-relative",
           "units": "time",
-          "prestim": [
-            -1,
-            0
-          ],
-          "poststim": [
-            0,
-            1
-          ]
+          "prestim": [-1, 0],
+          "poststim": [0, 1]
         },
         "indiv_cutoff": 5
       },
@@ -137,7 +116,7 @@
       }
     },
     "display_params": {
-      "debug": {
+      "debug":{
         "output_norm_video": false,
         "plot_refine_to_ref": false,
         "plot_refine_to_vid": false,
@@ -208,11 +187,9 @@
           "legend": true
         }
       },
-      "saveas": [
-        "png",
-        "svg"
-      ],
+      "saveas": ["png", "svg"],
       "pause_per_folder": false
     }
   }
+
 }

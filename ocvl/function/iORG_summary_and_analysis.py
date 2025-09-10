@@ -43,7 +43,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     mpl.rcParams['axes.spines.top'] = False
 
     dt = datetime.now()
-    start_timestamp = dt.strftime("%Y%m%d_%H%M")
+    start_timestamp = dt.strftime("%Y%m%d_%H%M%S")
 
     root = Tk()
     root.lift()
@@ -1206,6 +1206,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             message="The figure file may be open. Close the file, then try to write again?")
 
     print("Say WHAT")
+    root.destroy()
 
 if __name__ == "__main__":
     mp.freeze_support()

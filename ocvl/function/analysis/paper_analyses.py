@@ -1,4 +1,5 @@
 import itertools
+import json
 import sys
 from pathlib import Path
 from tkinter import filedialog, Tk
@@ -6,6 +7,7 @@ import matplotlib as mpl
 import mpl_axes_aligner
 import numpy as np
 import pandas as pd
+from colorama import Fore
 from matplotlib import pyplot as plt
 
 # mpl.rcParams['axes.spines.right'] = False
@@ -20,7 +22,7 @@ y = root.winfo_screenheight() / 4
 root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
 
-inny = input("Metrics (1) or Signals (2)?")
+inny = input("Metrics (1), Signals (2), or whole folder summary (purmutations; 3)?")
 
 
 if inny == "1":
@@ -88,7 +90,7 @@ if inny == "1":
 
 
     plt.show()
-else:
+elif inny == "2":
     pName = None
 
     pName = filedialog.askdirectory(title="Select the folder containing RMS data.", initialdir=None, parent=root)
@@ -150,3 +152,39 @@ else:
     plt.show()
 
     print("huh")
+
+if inny == "3":
+
+    pName = filedialog.askdirectory(title="Select the folder containing all data of interest.")
+    if not pName:
+        sys.exit(1)
+
+    database = pd.DataFrame(columns=["norm_method", "seg_radius", "stdization", "stdization_start", "sum_method", "amplitude"])
+    ind = 0
+
+    for the_path in Path(pName).rglob("*.json"):
+        print(Fore.RED + "\n************ "+str(the_path.name)+" ************")
+
+
+        with open(the_path, 'r') as json_path:
+            dat_form = json.load(json_path)
+
+            summed_data=None
+            for datpath in the_path.parent.glob("*pop_summary*"):
+                print(Fore.RED + "************ " + str(datpath.name) + " ************\n")
+                summed_data = pd.read_csv(datpath, index_col=0, header=1)
+
+            for index, row in summed_data.iterrows():
+                if index != "Pooled" and row.loc["Amplitude"] is not None and not np.isnan(row["Amplitude"]):
+                    # Grab the values of the things that were permuted.
+                    database.loc[ind, "norm_method"] = dat_form["analysis"]["analysis_params"]["normalization"]["method"]
+                    database.loc[ind, "seg_radius"]  = dat_form["analysis"]["analysis_params"]["segmentation"]["radius"]
+                    database.loc[ind, "stdization"]  = dat_form["analysis"]["analysis_params"]["standardization"]["method"]
+                    database.loc[ind, "stdization_start"]  = dat_form["analysis"]["analysis_params"]["standardization"]["start"]
+                    database.loc[ind, "sum_method"]  = dat_form["analysis"]["analysis_params"]["summary"]["method"]
+
+                    database.loc[ind, "amplitude"] = row.loc["Amplitude"]
+                    ind += 1
+
+    print(database)
+    database.to_csv(Path(pName).joinpath("donedonedone.csv"))
