@@ -1,15 +1,17 @@
 import gc
 import os
 import sys
+import tracemalloc
+from multiprocessing import Process
 from pathlib import Path
 from tkinter import filedialog
-from tkinter import Tk
 import pandas as pd
 from colorama import Fore
-
+import multiprocessing as mp
 from ocvl.function.iORG_summary_and_analysis import iORG_summary_and_analysis
 
 if __name__ == "__main__":
+
     pName = None
     json_fName = Path()
     dat_form = dict()
@@ -27,8 +29,12 @@ if __name__ == "__main__":
         sys.exit(2)
 
 
+
     for the_path in Path(json_path).glob("*.json"):
+
         print(Fore.RED + "\n************ "+str(the_path.name)+" ************\n")
-        iORG_summary_and_analysis(pName, the_path)
+        p = Process(target=iORG_summary_and_analysis, args=(pName, the_path))
+        p.start()
+        p.join()
 
         gc.collect()

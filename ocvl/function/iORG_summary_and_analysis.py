@@ -6,7 +6,7 @@ import sys
 import warnings
 from itertools import repeat
 from pathlib import Path, PurePath
-from tkinter import Tk, filedialog, ttk, HORIZONTAL, messagebox
+from tkinter import filedialog,  messagebox
 
 import cv2
 import numpy as np
@@ -17,14 +17,14 @@ import matplotlib as mpl
 from datetime import datetime
 
 from matplotlib.lines import Line2D
-from scipy.ndimage import gaussian_filter
+
 from scipy.stats import t
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
-from ocvl.function.preprocessing.improc import norm_video, flat_field
+
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages, postprocess_dataset, \
     obtain_analysis_output_path
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
@@ -33,11 +33,8 @@ from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, Met
     MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
 from ocvl.function.utility.resources import save_tiff_stack, save_video
 
-mpl.use('qtagg')
-
-
 def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
-
+    mpl.use('qtagg')
     mpl.rcParams['lines.linewidth'] = 2.5
     mpl.rcParams['axes.spines.right'] = False
     mpl.rcParams['axes.spines.top'] = False
@@ -45,13 +42,13 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     dt = datetime.now()
     start_timestamp = dt.strftime("%Y%m%d_%H%M%S")
 
-    root = Tk()
-    root.lift()
-    w = 1
-    h = 1
-    x = root.winfo_screenwidth() / 4
-    y = root.winfo_screenheight() / 4
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
+    # root = Tk()
+    # root.lift()
+    # w = 1
+    # h = 1
+    # x = root.winfo_screenwidth() / 4
+    # y = root.winfo_screenheight() / 4
+    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
 
     # Grab all the folders/data here.
@@ -59,14 +56,14 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     # If loading the file fails, prompt the user.
     while allData.empty:
-        analysis_path = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=analysis_path, parent=root)
+        analysis_path = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=analysis_path)
         if not analysis_path:
             sys.exit(1)
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
 
-        config_path = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
+        config_path = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path,
                                                  filetypes=[("JSON Configuration Files", "*.json")])
         if not config_path:
             sys.exit(2)
@@ -76,23 +73,23 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
             if not tryagain:
                 sys.exit(3)
 
-    x = root.winfo_screenwidth() / 2 - 128
-    y = root.winfo_screenheight() / 2 - 128
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
-    root.update()
+    # x = root.winfo_screenwidth() / 2 - 128
+    # y = root.winfo_screenheight() / 2 - 128
+    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
+    # root.update()
 
-    pb = ttk.Progressbar(root, orient=HORIZONTAL, length=1024)
-    pb.grid(column=0, row=0, columnspan=3, padx=3, pady=5)
-    pb_label = ttk.Label(root, text="Initializing setup...")
-    pb_label.grid(column=0, row=1, columnspan=3)
-    pb.start()
-    # Resize our root to show our progress bar.
-    w = 1024
-    h = 64
-    x = root.winfo_screenwidth() / 2 - 256
-    y = root.winfo_screenheight() / 2 - 64
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
-    root.update()
+    # pb = ttk.Progressbar(root, orient=HORIZONTAL, length=1024)
+    # pb.grid(column=0, row=0, columnspan=3, padx=3, pady=5)
+    # pb_label = ttk.Label(root, text="Initializing setup...")
+    # pb_label.grid(column=0, row=1, columnspan=3)
+    # pb.start()
+    # # Resize our root to show our progress bar.
+    # w = 1024
+    # h = 64
+    # x = root.winfo_screenwidth() / 2 - 256
+    # y = root.winfo_screenheight() / 2 - 64
+    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+    # root.update()
 
     analysis_dat_format = dat_form.get(Analysis.NAME)
     preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME, dict())
@@ -237,12 +234,12 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                     data_vidnums = np.sort(allData.loc[cntl_slice_of_life & vidtype_filter, DataTags.VIDEO_ID].unique()).tolist()
 
-                    pb["maximum"] = len(data_vidnums)+1
+                    # pb["maximum"] = len(data_vidnums)+1
                     for v, vidnum in enumerate(data_vidnums):
-                        pb["value"] = v
-                        pb_label["text"] = "Loading control dataset "+str(vidnum)+"... ("+str(v)+" of "+str(len(data_vidnums))+")"
-                        pb.update()
-                        pb_label.update()
+                        # pb["value"] = v
+                        # pb_label["text"] = "Loading control dataset "+str(vidnum)+"... ("+str(v)+" of "+str(len(data_vidnums))+")"
+                        # pb.update()
+                        # pb_label.update()
 
                         vidid_filter = allData[DataTags.VIDEO_ID] == vidnum
 
@@ -258,10 +255,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         if dataset is not None:
                             pass # Do something with control data? Nah, not yet probably...
 
-                    pb["value"] = len(data_vidnums)
-                    pb_label["text"] = "Loading control dataset " + str(vidnum) + "... Done!"
-                    pb.update()
-                    pb_label.update()
+                    # pb["value"] = len(data_vidnums)
+                    # pb_label["text"] = "Loading control dataset " + str(vidnum) + "... Done!"
+                    # pb.update()
+                    # pb_label.update()
 
                 # Respect the users' folder structure. If things are in different folders, analyze them separately.
                 for folder in folder_groups:
@@ -303,11 +300,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     all_query_status[mode][folder] = [pd.DataFrame() for i in range((slice_of_life & qloc_filter).sum())]
                     auto_selected_values = pd.DataFrame(columns=query_loc_names)
 
-                    pb["maximum"] = len(data_vidnums)+1
+                    # pb["maximum"] = len(data_vidnums)+1
                     # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
                     for v, vidnum in enumerate(data_vidnums):
 
-                        pb["value"] = v
+                        # pb["value"] = v
                         # Actually load the dataset, and all its metadata.
                         pre_filter = (allData[PreAnalysisPipeline.GROUP_BY] == group) & \
                                      (allData[DataTags.MODALITY] == mode)
@@ -345,10 +342,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         # Perform analyses on each query location set for each stimulus dataset.
                         for sub_dataset in dataset:
                             for q in range(len(sub_dataset.query_loc)):
-                                pb_label["text"] = "Processing query locs \"" + query_loc_names[q] + "\" in dataset #" + str(vidnum) + " from the " + str(
-                                                    mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
-                                pb.update()
-                                pb_label.update()
+                                # pb_label["text"] = "Processing query locs \"" + query_loc_names[q] + "\" in dataset #" + str(vidnum) + " from the " + str(
+                                #                     mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
+                                # pb.update()
+                                # pb_label.update()
                                 print(Fore.WHITE +"Processing query locs \"" + str(sub_dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,[Path()])[q].name) +
                                       "\" in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
                                       + str(group) + " and folder " + folder.name + "...")
@@ -381,10 +378,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             # Once we've extracted the iORG signals, remove the video and mask data as it's likely to have a large memory footprint.
                             sub_dataset.clear_video_data()
 
-                    pb["value"] = len(data_vidnums)
-                    pb_label["text"] = "Processing query locs ... Done!"
-                    pb.update()
-                    pb_label.update()
+                    # pb["value"] = len(data_vidnums)
+                    # pb_label["text"] = "Processing query locs ... Done!"
+                    # pb.update()
+                    # pb_label.update()
 
                     has_stim = allData.loc[:, AcquisiTags.STIM_PRESENT].astype(bool)
                     slice_of_life = group_filter & folder_filter & mode_filter
@@ -400,7 +397,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                     pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
-                    pb["maximum"] = len(stim_data_vidnums)+1
+                    # pb["maximum"] = len(stim_data_vidnums)+1
 
                     # Determine if all stimulus data in this folder and mode has the same form and contents;
                     # if so, we can just process the control data *one* time, saving a lot of time.
@@ -487,11 +484,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             first_run = False
                             # Only do the below if we have actual control datasets.
                             if control_datasets:
-                                pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
-                                    stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
-                                    group) + " and folder " + folder.name + "..."
-                                pb.update()
-                                pb_label.update()
+                                # pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
+                                #     stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
+                                #     group) + " and folder " + folder.name + "..."
+                                # pb.update()
+                                # pb_label.update()
                                 print(Fore.GREEN+"Processing query files in control datasets for stim video " + str(
                                     stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
                                     group) + " and folder " + folder.name + "...")
@@ -1156,6 +1153,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                         title="Figure " + str(fname+"."+ext) + " is unable to be saved.",
                                         message="The figure file may be open. Close the file, then try to write again?")
 
+
+                        plt.clf()
                         plt.close(figname)
 
                     folder_display_dict = {}
@@ -1171,8 +1170,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                     with open(out_json, 'w') as f:
                         json.dump(audit_json_dict, f, indent=2)
-
-
 
         # Save the group-comparison figures to the result folder, if requested.
         plt.show(block=False)
@@ -1204,10 +1201,12 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         tryagain = messagebox.askyesno(
                             title="Figure " + str(fname + "." + ext) + " is unable to be saved.",
                             message="The figure file may be open. Close the file, then try to write again?")
+            plt.clf()
+            plt.close(figname)
 
     print("Say WHAT")
-    root.destroy()
-    del root
+
+    plt.close('all')
     gc.collect()
 
 if __name__ == "__main__":
