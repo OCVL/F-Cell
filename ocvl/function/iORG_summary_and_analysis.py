@@ -53,32 +53,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     # Grab all the folders/data here.
     dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
 
-    # If loading the file fails, prompt the user.
-    while allData.empty:
-        analysis_path = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=analysis_path)
-        if not analysis_path:
-            sys.exit(1)
-
-        # We should be 3 levels up from here. Kinda jank, will need to change eventually
-        config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
-
-        config_path = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path,
-                                                 filetypes=[("JSON Configuration Files", "*.json")])
-        if not config_path:
-            sys.exit(2)
-
-        # Grab all the folders/data here.
-        dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
-
-        if allData.empty:
-            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
-            if not tryagain:
-                sys.exit(3)
-
-        if allData.loc[:, allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
-            tryagain= messagebox.askretrycancel("No videos detected.", "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
-            if not tryagain:
-                sys.exit(3)
+    # If loading the file fails, tell the user, and return what data we could parse.
+    if allData.empty or allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+        warnings.warn("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
+        return allData
 
     # x = root.winfo_screenwidth() / 2 - 128
     # y = root.winfo_screenheight() / 2 - 128
@@ -1216,6 +1194,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     plt.close('all')
     gc.collect()
 
+    return allData
+
 if __name__ == "__main__":
     mp.freeze_support()
 
@@ -1236,4 +1216,31 @@ if __name__ == "__main__":
     if not json_fName:
         sys.exit(2)
 
-    iORG_summary_and_analysis(pName, Path(json_fName))
+    allData = iORG_summary_and_analysis(pName, Path(json_fName))
+
+    while allData is None or allData.empty or allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+        if allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+            tryagain = messagebox.askretrycancel("No videos detected.",
+                                                 "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if not tryagain:
+                sys.exit(3)
+
+        if allData.empty:
+            tryagain = messagebox.askretrycancel("No data detected.",
+                                                 "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if tryagain:
+                sys.exit(3)
+
+        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
+        if not pName:
+            sys.exit(1)
+
+        # We should be 3 levels up from here. Kinda jank, will need to change eventually
+        conf_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+
+        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=conf_path,
+                                                filetypes=[("JSON Configuration Files", "*.json")])
+        if not json_fName:
+            sys.exit(2)
+
+        allData = iORG_summary_and_analysis(pName, Path(json_fName))
