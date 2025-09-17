@@ -83,6 +83,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
     modes_of_interest = analysis_params.get(Analysis.MODALITIES)
 
+    # If we don't have any modalities that we're interested amongst our videos
+    if not allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO][DataTags.MODALITY].isin(modes_of_interest).any():
+        warnings.warn("None of the datasets detected match the modalities selected. Please review your dataset format.")
+        return allData
+
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
     seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.
 
