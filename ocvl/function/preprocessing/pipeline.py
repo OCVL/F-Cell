@@ -17,6 +17,7 @@ import datetime
 import json
 import os
 import sys
+import warnings
 from itertools import repeat
 from logging import warning
 from pathlib import Path, PurePath
@@ -62,33 +63,11 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
     # Grab all the folders/data here.
     dat_form, allData = parse_file_metadata(config_path, preanalysis_path, PreAnalysisPipeline.NAME)
 
-    while allData.empty:
-        preanalysis_path = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=preanalysis_path, parent=root)
-        if not preanalysis_path:
-            sys.exit(1)
+    # If loading the file fails, tell the user, and return what data we could parse.
+    if allData.empty or allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+        warnings.warn("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
+        return allData
 
-        # We should be 3 levels up from here. Kinda jank, will need to change eventually
-        config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
-
-        config_path = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
-                                                filetypes=[("JSON Configuration Files", "*.json")])
-        if not config_path:
-            sys.exit(2)
-
-        # Grab all the folders/data here.
-        dat_form, allData = parse_file_metadata(config_path, preanalysis_path, PreAnalysisPipeline.NAME)
-
-        if allData.empty:
-            tryagain = messagebox.askretrycancel("No data detected.",
-                                                 "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
-            if not tryagain:
-                sys.exit(3)
-
-        if allData.loc[:, allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
-            tryagain = messagebox.askretrycancel("No videos detected.",
-                                                 "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
-            if not tryagain:
-                sys.exit(3)
 
     with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
 
@@ -411,6 +390,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
 
     print("PK FIRE")
+    return allData
 
 if __name__ == "__main__":
     mp.freeze_support()
@@ -432,4 +412,31 @@ if __name__ == "__main__":
     if not json_fName:
         sys.exit(2)
 
-    preanalysis_pipeline(pName, Path(json_fName))
+    allData = preanalysis_pipeline(pName, Path(json_fName))
+
+    while allData is None or allData.empty or allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+        if allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+            tryagain = messagebox.askretrycancel("No videos detected.",
+                                                 "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if not tryagain:
+                sys.exit(3)
+
+        if allData.empty:
+            tryagain = messagebox.askretrycancel("No data detected.",
+                                                 "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if tryagain:
+                sys.exit(3)
+
+        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
+        if not pName:
+            sys.exit(1)
+
+        # We should be 3 levels up from here. Kinda jank, will need to change eventually
+        conf_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+
+        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=conf_path,
+                                                filetypes=[("JSON Configuration Files", "*.json")])
+        if not json_fName:
+            sys.exit(2)
+
+        allData = preanalysis_pipeline(pName, Path(json_fName))
