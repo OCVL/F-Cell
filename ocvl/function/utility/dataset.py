@@ -72,25 +72,36 @@ def load_metadata(metadata_params, ext_metadata):
 
     return meta_fields, metadata_path
 
-def parse_file_metadata(config_json_path, pName, group=PreAnalysisPipeline.NAME):
+
+
+def parse_file_metadata(config_json_path, parse_path, group=PreAnalysisPipeline.NAME):
+
     with open(config_json_path, 'r') as config_json_path:
-        dat_form = json.load(config_json_path)
+        json_dict = json.load(config_json_path)
+
+        return parse_metadata(json_dict, parse_path, root_group=group)
+
+
+def parse_metadata(json_dict=None, parse_path=None, root_group=None):
 
         allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, DataFormatType.FORMAT_TYPE]
         allFilesColumns.extend([d.value for d in DataTags])
 
-        dat_format = dat_form.get(group)
-        if dat_format is not None:
+        if root_group is not None:
+            json_dict = json_dict.get(root_group)
+        else:
+            json_dict = json_dict
 
-            im_form = dat_format.get(DataFormatType.IMAGE)
-            vid_form = dat_format.get(DataFormatType.VIDEO)
-            mask_form = dat_format.get(DataFormatType.MASK)
-            query_form = dat_format.get(DataFormatType.QUERYLOC)
+        if json_dict is not None and parse_path is not None:
+            im_form = json_dict.get(DataFormatType.IMAGE)
+            vid_form = json_dict.get(DataFormatType.VIDEO)
+            mask_form = json_dict.get(DataFormatType.MASK)
+            query_form = json_dict.get(DataFormatType.QUERYLOC)
 
             metadata_form = None
             metadata_params = None
-            if dat_format.get(MetaTags.METATAG) is not None:
-                metadata_params = dat_format.get(MetaTags.METATAG)
+            if json_dict.get(MetaTags.METATAG) is not None:
+                metadata_params = json_dict.get(MetaTags.METATAG)
                 metadata_form = metadata_params.get(DataFormatType.METADATA)
 
             all_ext = ()
@@ -114,7 +125,7 @@ def parse_file_metadata(config_json_path, pName, group=PreAnalysisPipeline.NAME)
             parser = FormatParser(vid_form, mask_form, im_form, metadata_form, query_form)
 
             # If our control data comes from the file structure, then prep to check for it in case its in the config.
-            control_params = dat_format.get(ControlParams.NAME, None)
+            control_params = json_dict.get(ControlParams.NAME, None)
             if control_params is not None:
                 control_loc = control_params.get(ControlParams.LOCATION, "folder")
                 if control_loc == "folder":
@@ -122,9 +133,9 @@ def parse_file_metadata(config_json_path, pName, group=PreAnalysisPipeline.NAME)
 
 
             # Parse out the locations and filenames, store them in a hash table by location.
-            searchpath = Path(pName)
+            searchpath = Path(parse_path)
             allFiles = list()
-            recurse_me = dat_format.get(DataFormatType.RECURSIVE, True)
+            recurse_me = json_dict.get(DataFormatType.RECURSIVE, True)
             if recurse_me:
                 for ext in all_ext:
                     for path in searchpath.rglob("*" + ext):
@@ -162,7 +173,7 @@ def parse_file_metadata(config_json_path, pName, group=PreAnalysisPipeline.NAME)
 
                                 allFiles.append(entry)
             if allFiles:
-                return dat_form, pd.concat(allFiles, ignore_index=True)
+                return json_dict, pd.concat(allFiles, ignore_index=True)
             else:
                 return dict(), pd.DataFrame()
         else:
