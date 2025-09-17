@@ -15,31 +15,36 @@ def extract_widget_type(field_def):
         return field_def.get("type")
     return field_def
 
+def create_format_editor_widget(config_dict):
+    """Create FormatEditorWidget with appropriate type based on config"""
+    format_type = config_dict.get("format_type", "Format")
+    return FormatEditorWidget(format_type)
+
 WIDGET_FACTORY = {
-    "freeText": lambda: FreetextBox(),
-    "freeNumber": lambda: freeNumber(),  # or use a QSpinBox/DoubleSpinBox if you make one
-    "trueFalse": lambda: TrueFalseSelector(),
-    "comboBox": lambda: DropdownMenu(default="null"),
-    "outputSubfolderMethodComboBox": lambda: DropdownMenu(options=["DateTime", "Date", "Sequential"]),
-    "shapeComboBox": lambda: DropdownMenu(default="null", options=["disk", "box"]),
-    "summaryComboBox": lambda: DropdownMenu(default="null", options=["mean", "median"]),
-    "typeComboBox": lambda: DropdownMenu(default="null", options=["stim-relative", "absolute"]),
-    "unitsComboBox": lambda: DropdownMenu(default="null", options=["time", "frames"]),
-    "standardizationMethodComboBox": lambda: DropdownMenu(default="null",
+    "freeText": lambda config=None: FreetextBox(),
+    "freeFloat": lambda config=None: freeFloat(),  # or use a QSpinBox/DoubleSpinBox if you make one
+    "freeInt": lambda config=None: freeInt(),
+    "trueFalse": lambda config=None: TrueFalseSelector(),
+    "comboBox": lambda config=None: DropdownMenu(default="null"),
+    "outputSubfolderMethodComboBox": lambda config=None: DropdownMenu(options=["DateTime", "Date", "Sequential"]),
+    "shapeComboBox": lambda config=None: DropdownMenu(default="null", options=["disk", "box"]),
+    "summaryComboBox": lambda config=None: DropdownMenu(default="null", options=["mean", "median"]),
+    "typeComboBox": lambda config=None: DropdownMenu(default="null", options=["stim-relative", "absolute"]),
+    "unitsComboBox": lambda config=None: DropdownMenu(default="null", options=["time", "frames"]),
+    "standardizationMethodComboBox": lambda config=None: DropdownMenu(default="null",
                                                           options=["mean_stddev", "stddev", "linear_stddev",
                                                                    "linear_vast", "relative_change", "none"]),
-    "summaryMethodComboBox": lambda: DropdownMenu(default="null", options=["rms", "stddev", "var", "avg"]),
-    "controlComboBox": lambda: DropdownMenu(default="null", options=["none", "subtraction", "division"]),
-    "listEditor": lambda: ListEditorWidget(),
-    "openFolder": lambda: OpenFolder(),
-    "formatEditor": lambda: FormatEditorWidget("Format"),
-    "groupbyEditor": lambda: GroupByFormatEditorWidget(None, None, None, "Group By"),
-    "formatEditorQueryloc": lambda: FormatEditorWidget("Format", queryloc=True),
-    "cmapSelector": lambda: ColorMapSelector(),
-    "affineRigidSelector": lambda: AffineRigidSelector(),
-    "saveasSelector": lambda: SaveasExtensionsEditorWidget("Save as"),
-    "rangeSelector": lambda: rangeSelector(),
-    "null": lambda: QLabel("null"),
+    "summaryMethodComboBox": lambda config=None: DropdownMenu(default="null", options=["rms", "stddev", "var", "avg"]),
+    "controlComboBox": lambda config=None: DropdownMenu(default="null", options=["none", "subtraction", "division"]),
+    "listEditor": lambda config=None: ListEditorWidget(),
+    "openFolder": lambda config=None: OpenFolder(),
+    "formatEditor": lambda config=None: create_format_editor_widget(config or {}),
+    "groupbyEditor": lambda config=None: GroupByFormatEditorWidget(None, None, None, "Group By"),
+    "cmapSelector": lambda config=None: ColorMapSelector(),
+    "affineRigidSelector": lambda config=None: AffineRigidSelector(),
+    "saveasSelector": lambda config=None: SaveasExtensionsEditorWidget("Save as"),
+    "rangeSelector": lambda config=None: rangeSelector(),
+    "null": lambda config=None: QLabel("null"),
 }
 
 def build_form_from_template(template: dict, data: dict, adv=False, parent_name="", saved_widgets=None) -> QWidget:
@@ -328,14 +333,10 @@ def generate_json(form_container, template):
 
             # Convert string values to appropriate types if needed
             if value is not None:
-                if widget_type in ["freeNumber"]:
-                    try:
-                        if '.' in str(value):
-                            value = float(value)
-                        else:
-                            value = int(value)
-                    except ValueError:
-                        pass  # Keep as string if conversion fails
+                if widget_type in ["freeInt"]:
+                    value = int(value)
+                elif widget_type in ["freeFloat"]:
+                    value = float(value)
                 elif widget_type == "trueFalse":
                     value = bool(value)
                 elif widget_type == "null":

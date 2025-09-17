@@ -102,8 +102,8 @@ class MainWizard(QWizard):
 class IntroPage(QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setTitle("Welcome to the MEAO Configuration JSON Generator!")
-        self.setSubTitle('To begin, choose if you wish to import an existing config JSON, or create a new one\n'
+        self.setTitle("Welcome to the MEAO Configuration File Generator!")
+        self.setSubTitle('To begin, choose if you wish to import an existing config file, or create a new one\n'
                          '• Note: Importing an existing config file will bring you to "advanced" setup')
 
         self.imported_config = None  # To store the imported config
@@ -126,12 +126,39 @@ class IntroPage(QWizardPage):
 
         # Label
         label = QLabel("Select an option:")
-        label.setToolTip("Test1")
         center_layout.addWidget(label)
 
-        # Radio buttons
-        self.create_button = QRadioButton("Create New Configuration JSON")
-        self.import_button = QRadioButton("Import Existing Configuration JSON")
+        self.create_button = QRadioButton("Create New Configuration")
+        self.import_button = QRadioButton("Import Existing Configuration")
+
+        # Style to make buttons bigger
+        radio_style = """
+            QRadioButton {
+                min-width: 350px;
+                min-height: 45px;
+                font-size: 20px;
+                padding: 5px;
+                spacing: 5px;
+            }
+            QRadioButton::indicator {
+                width: 20px;
+                height: 20px;
+            }
+        """
+        label_style = """
+            QLabel {
+                min-width: 350px;
+                min-height: 30px;
+                font-size: 20px;
+                font-weight: bold;
+                padding: 5px;
+                qproperty-alignment: AlignCenter;
+            }
+        """
+
+        label.setStyleSheet(label_style)
+        self.create_button.setStyleSheet(radio_style)
+        self.import_button.setStyleSheet(radio_style)
 
         self.button_group = QButtonGroup()
         self.button_group.addButton(self.create_button, 0)
@@ -183,8 +210,8 @@ class SelectionPage(QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTitle('Choose your desired type of setup and click "Next"')
-        self.setSubTitle("• Simple generation: Step-by-step process to create configuration JSON\n"
-                         "• Advanced generation: In-depth menu with access to change any and all fields in the configuration JSON in one step")
+        self.setSubTitle("• Simple generation: Step-by-step process to create configuration file\n"
+                         "• Advanced generation: In-depth menu with access to change any and all fields in the configuration file in one step")
 
         # Create scrollable area
         scroll = QScrollArea()
@@ -198,17 +225,73 @@ class SelectionPage(QWizardPage):
         outer_layout = QVBoxLayout(container)
         outer_layout.setAlignment(Qt.AlignCenter)  # Center everything
 
-        # Inner layout: label and buttons side by side
         center_layout = QHBoxLayout()
         center_layout.setAlignment(Qt.AlignCenter)
+
+        placeholder = "Hover over an option to see details"
+
+        # Tooltip label
+        self.tooltip_label = QLabel(placeholder)
+        self.tooltip_label.setWordWrap(True)
+        self.tooltip_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.tooltip_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.tooltip_label.setStyleSheet("""
+            QLabel {
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                background-color: #f0f0f0;
+                padding: 6px 12px;
+                font-style: italic;
+                color: #333;
+                min-height: 40px;
+            }
+        """)
+
+        def create_hover_widget(layout, tooltip_text):
+            wrapper = QFrame()
+            wrapper.setLayout(layout)
+            wrapper.setMouseTracking(True)
+            wrapper.setStyleSheet("QFrame { background: transparent; }")
+            wrapper.enterEvent = lambda event: self.tooltip_label.setText(tooltip_text)
+            wrapper.leaveEvent = lambda event: self.tooltip_label.setText(placeholder)
+            return wrapper
+
 
         # Label
         label = QLabel("Choose type of generation:")
         center_layout.addWidget(label)
 
         # Radio buttons
-        self.simple_button = QRadioButton("Simple")
-        self.adv_button = QRadioButton("Advanced")
+        self.simple_button = QRadioButton("Simple Generation")
+        self.adv_button = QRadioButton("Advanced Generation")
+
+        radio_style = """
+            QRadioButton {
+                min-width: 350px;
+                min-height: 45px;
+                font-size: 20px;
+                padding: 5px;
+                spacing: 5px;
+            }
+            QRadioButton::indicator {
+                width: 20px;
+                height: 20px;
+            }
+        """
+        label_style = """
+            QLabel {
+                min-width: 350px;
+                min-height: 30px;
+                font-size: 20px;
+                font-weight: bold;
+                padding: 5px;
+                qproperty-alignment: AlignCenter;
+            }
+        """
+
+        self.simple_button.setStyleSheet(radio_style)
+        self.adv_button.setStyleSheet(radio_style)
+        label.setStyleSheet(label_style)
 
         self.button_group = QButtonGroup()
         self.button_group.addButton(self.simple_button, 0)
@@ -222,6 +305,7 @@ class SelectionPage(QWizardPage):
         button_layout.setAlignment(Qt.AlignCenter)
 
         center_layout.addLayout(button_layout)
+
 
         # Add to outer layout
         outer_layout.addLayout(center_layout)
@@ -370,7 +454,7 @@ class PreanalysisPage(QWizardPage):
         image_layout = QHBoxLayout()
         image_layout.setAlignment(Qt.AlignLeft)
         image_label = QLabel("Image Format:")
-        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.tif", type='image')
         image_layout.addWidget(image_label)
         image_layout.addWidget(self.image_format_value)
         image_widget = create_hover_widget(image_layout, "Image Format: Format string for image filenames.")
@@ -379,7 +463,7 @@ class PreanalysisPage(QWizardPage):
         video_layout = QHBoxLayout()
         video_layout.setAlignment(Qt.AlignLeft)
         video_label = QLabel("Video Format:")
-        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='video')
         video_layout.addWidget(video_label)
         video_layout.addWidget(self.video_format_value)
         video_widget = create_hover_widget(video_layout, "Video Format: Format string for video filenames.")
@@ -388,7 +472,7 @@ class PreanalysisPage(QWizardPage):
         mask_layout = QHBoxLayout()
         mask_layout.setAlignment(Qt.AlignLeft)
         mask_label = QLabel("Mask Format:")
-        self.mask_format_value = constructors.FormatEditorWidget("Mask Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.mask_format_value = constructors.FormatEditorWidget("Mask Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='mask')
         mask_layout.addWidget(mask_label)
         mask_layout.addWidget(self.mask_format_value)
         mask_widget = create_hover_widget(mask_layout, "Mask Format: Format string for mask filenames.")
@@ -560,7 +644,7 @@ class AnalysisPage(QWizardPage):
         image_layout = QHBoxLayout()
         image_layout.setAlignment(Qt.AlignLeft)
         image_label = QLabel("Image Format:")
-        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.tif", type='image')
         image_layout.addWidget(image_label)
         image_layout.addWidget(self.image_format_value)
         image_widget = create_hover_widget(image_layout, "Image Format: Format string for image filenames.")
@@ -568,7 +652,7 @@ class AnalysisPage(QWizardPage):
         queryloc_layout = QHBoxLayout()
         queryloc_layout.setAlignment(Qt.AlignLeft)
         queryloc_label = QLabel("Query Loc Format:")
-        self.queryloc_format_value = constructors.FormatEditorWidget("Queryloc Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}", queryloc=True)
+        self.queryloc_format_value = constructors.FormatEditorWidget("Queryloc Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.csv", type='queryloc')
         queryloc_layout.addWidget(queryloc_label)
         queryloc_layout.addWidget(self.queryloc_format_value)
         queryloc_widget = create_hover_widget(queryloc_layout, "Query Loc Format: Filename format used to locate the reference location (query).")
@@ -576,7 +660,7 @@ class AnalysisPage(QWizardPage):
         video_layout = QHBoxLayout()
         video_layout.setAlignment(Qt.AlignLeft)
         video_label = QLabel("Video Format:")
-        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='video')
         video_layout.addWidget(video_label)
         video_layout.addWidget(self.video_format_value)
         video_widget = create_hover_widget(video_layout, "Video Format: Format string for video filenames.")
@@ -657,9 +741,9 @@ class AdvancedSetupPage(QWizardPage):
             'You can edit any configuration field from here. For a more simple setup, go back and select "Simple Setup"\n'
             'Tip: Expand window for better visibility')
 
-        with open("config_files/advanced_config_JSON.json", "r") as f:
+        with open("master_config_files/advanced_config_JSON.json", "r") as f:
             advanced_config_json = json.load(f)
-        with open("config_files/master_JSON.json", "r") as f:
+        with open("master_config_files/master_JSON.json", "r") as f:
             self.master_json = json.load(f)
 
         scroll_area = QScrollArea()
