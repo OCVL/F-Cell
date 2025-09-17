@@ -1,45 +1,53 @@
 {
   "version": "0.1",
 
-  "processed": {
-    "video_format": "{Modality}_{VidNum}_{Year:.4}{Month:.2}{Day:.2}_strip_ref{}_{}.avi",
-    "metadata": {
-      "framerate": 25.0
-    },
+  "preanalysis": {
+    "video_format": "reg_{Modality}_{VidNum}_registered_{Year:.4}-{Month:.2}-{Day:.2}{}.{}.avi",
+    "recursive_search": false,
     "pipeline_params": {
-      "gaus_blur": 0.0,
-      "mask_roi": {
-        "r": 83,
-        "c": 83,
-        "width": 330,
-        "height": 330
-      },
-      "trim": {
-        "start_idx": 0,
-        "end_idx": 250
-      },
+      "gaus_blur": 1.0,
       "correct_torsion": true,
-      "output_folder": "Functional Pipeline"
+      "output_folder": "Functional Pipeline",
+      "intra_stack_xform": "affine"
     }
   },
-
-  "pipelined": {
-    "image_format": "{Modality}_{VidNum}_{Year:.4}{Month:.2}{Day:.2}_strip_ref_ALL_ACQ_AVG.tif",
-    "video_format": "{Modality}_{VidNum}_{Year:.4}{Month:.2}{Day:.2}_strip_ref_piped.avi",
+  "analysis": {
+    "image_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}_ALL_ACQ_AVG.tif",
+    "video_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}.avi",
+    "queryloc_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}_ALL_ACQ_AVG_coords.csv",
     "metadata": {
-      "type": "text_file",
-      "metadata_format": "{Modality}_{VidNum}_{Year:.4}{Month:.2}{Day:.2}_strip_ref_piped.csv",
-      "framerate": 25.0
+      "stimulus_sequence": [490, 17, 468, 17, 468, 17, 468, 17, 468, 17, 468, 17, 468, 17, 468]
     },
     "analysis_params": {
-      "gaus_blur": 0.0,
-      "mask_roi": {
-        "r": 0,
-        "c": 0,
-        "width": -1,
-        "height": -1
+      "summary": {
+        "metrics": {
+          "measured": "stim-relative",
+          "units": "time",
+          "prestim": [
+            -2,
+            0
+          ],
+          "poststim": [
+            0,
+            3
+          ]
+        }
       }
+    },
+    "display_params": {
+      "pop_summary_overlap": {
+        "stimulus": true,
+        "relative": true,
+        "pooled": true,
+        "annotations": true,
+        "axes": {
+          "xmin": 15,
+          "xmax": 25,
+          "cmap": "plasma",
+          "legend": true
+        }
+      },
+      "saveas": ["png", "svg"]
     }
   }
-
 }

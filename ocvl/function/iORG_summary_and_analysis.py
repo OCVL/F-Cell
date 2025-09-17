@@ -6,7 +6,7 @@ import sys
 import warnings
 from itertools import repeat
 from pathlib import Path, PurePath
-from tkinter import Tk, filedialog, ttk, HORIZONTAL, messagebox
+from tkinter import filedialog,  messagebox
 
 import cv2
 import numpy as np
@@ -17,14 +17,14 @@ import matplotlib as mpl
 from datetime import datetime
 
 from matplotlib.lines import Line2D
-from scipy.ndimage import gaussian_filter
+
 from scipy.stats import t
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
-from ocvl.function.preprocessing.improc import norm_video, flat_field
+
 from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages, postprocess_dataset, \
     obtain_analysis_output_path
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
@@ -33,76 +33,76 @@ from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, Met
     MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
 from ocvl.function.utility.resources import save_tiff_stack, save_video
 
-mpl.use('qtagg')
-
-if __name__ == "__main__":
-    mp.freeze_support()
-
-
+def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
+    mpl.use('qtagg')
     mpl.rcParams['lines.linewidth'] = 2.5
     mpl.rcParams['axes.spines.right'] = False
     mpl.rcParams['axes.spines.top'] = False
 
     dt = datetime.now()
-    start_timestamp = dt.strftime("%Y%m%d_%H%M")
+    start_timestamp = dt.strftime("%Y%m%d_%H%M%S")
 
-    root = Tk()
-    root.lift()
-    w = 1
-    h = 1
-    x = root.winfo_screenwidth() / 4
-    y = root.winfo_screenheight() / 4
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
+    # root = Tk()
+    # root.lift()
+    # w = 1
+    # h = 1
+    # x = root.winfo_screenwidth() / 4
+    # y = root.winfo_screenheight() / 4
+    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-    pName = None
-    json_fName = Path()
-    dat_form = dict()
-    allData = pd.DataFrame()
+    # Grab all the folders/data here.
+    dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
 
+    # If loading the file fails, prompt the user.
     while allData.empty:
-        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
-        if not pName:
+        analysis_path = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=analysis_path)
+        if not analysis_path:
             sys.exit(1)
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
 
-        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
-                                                filetypes=[("JSON Configuration Files", "*.json")])
-        if not json_fName:
+        config_path = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path,
+                                                 filetypes=[("JSON Configuration Files", "*.json")])
+        if not config_path:
             sys.exit(2)
 
         # Grab all the folders/data here.
-        dat_form, allData = parse_file_metadata(json_fName, pName, Analysis.NAME)
+        dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
 
         if allData.empty:
-            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
+            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if not tryagain:
                 sys.exit(3)
 
-    x = root.winfo_screenwidth() / 2 - 128
-    y = root.winfo_screenheight() / 2 - 128
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
-    root.update()
+        if allData.loc[:, allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+            tryagain= messagebox.askretrycancel("No videos detected.", "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if not tryagain:
+                sys.exit(3)
 
-    pb = ttk.Progressbar(root, orient=HORIZONTAL, length=1024)
-    pb.grid(column=0, row=0, columnspan=3, padx=3, pady=5)
-    pb_label = ttk.Label(root, text="Initializing setup...")
-    pb_label.grid(column=0, row=1, columnspan=3)
-    pb.start()
-    # Resize our root to show our progress bar.
-    w = 1024
-    h = 64
-    x = root.winfo_screenwidth() / 2 - 256
-    y = root.winfo_screenheight() / 2 - 64
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
-    root.update()
+    # x = root.winfo_screenwidth() / 2 - 128
+    # y = root.winfo_screenheight() / 2 - 128
+    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
+    # root.update()
+
+    # pb = ttk.Progressbar(root, orient=HORIZONTAL, length=1024)
+    # pb.grid(column=0, row=0, columnspan=3, padx=3, pady=5)
+    # pb_label = ttk.Label(root, text="Initializing setup...")
+    # pb_label.grid(column=0, row=1, columnspan=3)
+    # pb.start()
+    # # Resize our root to show our progress bar.
+    # w = 1024
+    # h = 64
+    # x = root.winfo_screenwidth() / 2 - 256
+    # y = root.winfo_screenheight() / 2 - 64
+    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+    # root.update()
 
     analysis_dat_format = dat_form.get(Analysis.NAME)
     preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME, dict())
     pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS, dict())
-    analysis_params = analysis_dat_format.get(Analysis.PARAMS)
-    display_params = analysis_dat_format.get(DisplayParams.NAME)
+    analysis_params = analysis_dat_format.get(Analysis.PARAMS, dict())
+    display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
     modes_of_interest = analysis_params.get(Analysis.MODALITIES)
 
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     sum_control = sum_params.get(SummaryParams.CONTROL, "none")
 
     metrics = sum_params.get(SummaryParams.METRICS, dict())
-    metrics_type = metrics.get(SummaryParams.TYPE, ["amplitude", "imp_time"])
+    metrics_type = metrics.get(SummaryParams.TYPE, ["amp", "amp_imp_time"])
     metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
     metrics_units = metrics.get(SummaryParams.UNITS, "time")
     metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     pop_seq_params = display_params.get(DisplayParams.POP_SUMMARY_SEQ, dict())
     indiv_overlap_params = display_params.get(DisplayParams.INDIV_SUMMARY_OVERLAP, dict())
     indiv_summary = display_params.get(DisplayParams.INDIV_SUMMARY, dict())
-    saveas_ext = display_params.get(DisplayParams.SAVEAS, "png")
+    saveas_ext = display_params.get(DisplayParams.SAVEAS, ["png"])
 
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
 
@@ -241,12 +241,12 @@ if __name__ == "__main__":
 
                     data_vidnums = np.sort(allData.loc[cntl_slice_of_life & vidtype_filter, DataTags.VIDEO_ID].unique()).tolist()
 
-                    pb["maximum"] = len(data_vidnums)+1
+                    # pb["maximum"] = len(data_vidnums)+1
                     for v, vidnum in enumerate(data_vidnums):
-                        pb["value"] = v
-                        pb_label["text"] = "Loading control dataset "+str(vidnum)+"... ("+str(v)+" of "+str(len(data_vidnums))+")"
-                        pb.update()
-                        pb_label.update()
+                        # pb["value"] = v
+                        # pb_label["text"] = "Loading control dataset "+str(vidnum)+"... ("+str(v)+" of "+str(len(data_vidnums))+")"
+                        # pb.update()
+                        # pb_label.update()
 
                         vidid_filter = allData[DataTags.VIDEO_ID] == vidnum
 
@@ -262,10 +262,10 @@ if __name__ == "__main__":
                         if dataset is not None:
                             pass # Do something with control data? Nah, not yet probably...
 
-                    pb["value"] = len(data_vidnums)
-                    pb_label["text"] = "Loading control dataset " + str(vidnum) + "... Done!"
-                    pb.update()
-                    pb_label.update()
+                    # pb["value"] = len(data_vidnums)
+                    # pb_label["text"] = "Loading control dataset " + str(vidnum) + "... Done!"
+                    # pb.update()
+                    # pb_label.update()
 
                 # Respect the users' folder structure. If things are in different folders, analyze them separately.
                 for folder in folder_groups:
@@ -304,14 +304,14 @@ if __name__ == "__main__":
 
                     first = True
                     # If we detected query locations, then initialize this folder and mode with their metadata.
-                    all_query_status[mode][folder] = [pd.DataFrame(columns=data_vidnums) for i in range((slice_of_life & qloc_filter).sum())]
+                    all_query_status[mode][folder] = [pd.DataFrame() for i in range((slice_of_life & qloc_filter).sum())]
                     auto_selected_values = pd.DataFrame(columns=query_loc_names)
 
-                    pb["maximum"] = len(data_vidnums)+1
+                    # pb["maximum"] = len(data_vidnums)+1
                     # Load each dataset (delineated by different video numbers), normalize it, standardize it, etc.
                     for v, vidnum in enumerate(data_vidnums):
 
-                        pb["value"] = v
+                        # pb["value"] = v
                         # Actually load the dataset, and all its metadata.
                         pre_filter = (allData[PreAnalysisPipeline.GROUP_BY] == group) & \
                                      (allData[DataTags.MODALITY] == mode)
@@ -319,14 +319,16 @@ if __name__ == "__main__":
                                                                                          analysis_dat_format, stage=Stages.ANALYSIS)
 
                         if dataset is not None:
-                            # If we have new entries, and any of them are query locations, add them to our database.
-                            # For now, we won't add new items to that database that are not query locations.
-                            if len(new_entries) > 0 and \
-                                    not new_entries[new_entries[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC].empty:
+                            # If we have new entries, and any of them are query locations, add them to our list of query locations.
+                            # If the new entries include datasets, then add those to the database too.
+                            if len(new_entries) > 0:
 
                                 for ind, newbie in new_entries[new_entries[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC].iterrows():
                                     query_loc_names.append(newbie[AcquisiTags.DATA_PATH].name)
-                                    all_query_status[mode][folder].append(pd.DataFrame(columns=data_vidnums))
+                                    all_query_status[mode][folder].append(pd.DataFrame())
+
+                                # Add query status entries for each of the new subdatasets
+
 
                                 # Update the database.
                                 allData = pd.concat([allData, new_entries], ignore_index=True)
@@ -339,54 +341,54 @@ if __name__ == "__main__":
                                 qloc_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
                                 vidtype_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
 
-
                         else:
                             for q in range(len(all_query_status[mode][folder])):
                                 all_query_status[mode][folder][q].loc[:, vidnum] = "Dataset Failed To Load"
                             warnings.warn("Video number " + str(vidnum) + ": Dataset Failed To Load")
 
                         # Perform analyses on each query location set for each stimulus dataset.
-                        for q in range(len(dataset.query_loc)):
-                            pb_label["text"] = "Processing query locs \"" + query_loc_names[q] + "\" in dataset #" + str(vidnum) + " from the " + str(
-                                                mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
-                            pb.update()
-                            pb_label.update()
-                            print(Fore.WHITE +"Processing query locs \"" + str(dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,[Path()])[q].name) +
-                                  "\" in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
-                                  + str(group) + " and folder " + folder.name + "...")
+                        for sub_dataset in dataset:
+                            for q in range(len(sub_dataset.query_loc)):
+                                # pb_label["text"] = "Processing query locs \"" + query_loc_names[q] + "\" in dataset #" + str(vidnum) + " from the " + str(
+                                #                     mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
+                                # pb.update()
+                                # pb_label.update()
+                                print(Fore.WHITE +"Processing query locs \"" + str(sub_dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,[Path()])[q].name) +
+                                      "\" in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
+                                      + str(group) + " and folder " + folder.name + "...")
 
-                            '''
-                            *** This section is where we do dataset summary. ***
-                            '''
-                            (dataset.iORG_signals[q],
-                             dataset.summarized_iORGs[q],
-                             dataset.query_status[q],
-                             dataset.query_loc[q],
-                             auto_detect_vals) = extract_n_refine_iorg_signals(dataset, analysis_dat_format,#
-                                                                                   query_loc=dataset.query_loc[q],
-                                                                                   query_loc_name=query_loc_names[q],
-                                                                                   thread_pool=the_pool)
+                                '''
+                                *** This section is where we do dataset summary. ***
+                                '''
+                                (sub_dataset.iORG_signals[q],
+                                 sub_dataset.summarized_iORGs[q],
+                                 sub_dataset.query_status[q],
+                                 sub_dataset.query_loc[q],
+                                 auto_detect_vals) = extract_n_refine_iorg_signals(sub_dataset, analysis_dat_format,#
+                                                                                       query_loc=sub_dataset.query_loc[q],
+                                                                                       query_loc_name=query_loc_names[q],
+                                                                                       thread_pool=the_pool)
 
 
-                            # If this is the first time a video of this mode and this folder is loaded, then initialize the query status dataframe
-                            # Such that each row corresponds to the original coordinate locations based on the reference image.
-                            # Also add to our auto-detection tracking dataframe.
-                            if first:
-                                # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
-                                all_query_status[mode][folder][q] = all_query_status[mode][folder][q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, dataset.query_loc[q]))), fill_value="Included")
+                                # If this is the first time a video of this mode and this folder is loaded, then initialize the query status dataframe
+                                # Such that each row corresponds to the original coordinate locations based on the reference image.
+                                # Also add to our auto-detection tracking dataframe.
+                                if first:
+                                    # The below maps each query loc (some coordinates) to a tuple, then forms those tuples into a list.
+                                    all_query_status[mode][folder][q] = all_query_status[mode][folder][q].reindex(pd.MultiIndex.from_tuples(list(map(tuple, sub_dataset.query_loc[q]))), fill_value="Included")
 
-                                auto_detect_vals = pd.DataFrame.from_dict(auto_detect_vals, orient="index", columns=[query_loc_names[q]])
-                                auto_selected_values = auto_selected_values.combine_first(auto_detect_vals)
+                                    auto_detect_vals = pd.DataFrame.from_dict(auto_detect_vals, orient="index", columns=[query_loc_names[q]])
+                                    auto_selected_values = auto_selected_values.combine_first(auto_detect_vals)
 
-                        first = False
+                            first = False
 
-                        # Once we've extracted the iORG signals, remove the video and mask data as it's likely to have a large memory footprint.
-                        dataset.clear_video_data()
+                            # Once we've extracted the iORG signals, remove the video and mask data as it's likely to have a large memory footprint.
+                            sub_dataset.clear_video_data()
 
-                    pb["value"] = len(data_vidnums)
-                    pb_label["text"] = "Processing query locs ... Done!"
-                    pb.update()
-                    pb_label.update()
+                    # pb["value"] = len(data_vidnums)
+                    # pb_label["text"] = "Processing query locs ... Done!"
+                    # pb.update()
+                    # pb_label.update()
 
                     has_stim = allData.loc[:, AcquisiTags.STIM_PRESENT].astype(bool)
                     slice_of_life = group_filter & folder_filter & mode_filter
@@ -402,7 +404,7 @@ if __name__ == "__main__":
                     result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                     pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
-                    pb["maximum"] = len(stim_data_vidnums)+1
+                    # pb["maximum"] = len(stim_data_vidnums)+1
 
                     # Determine if all stimulus data in this folder and mode has the same form and contents;
                     # if so, we can just process the control data *one* time, saving a lot of time.
@@ -472,7 +474,7 @@ if __name__ == "__main__":
                             # For example, when using xor segmentation, we want to use the exact same area as the stimulus query points
                             # without doing xor again. So, we adjust them for control analysis.
                             control_dat_format_params = analysis_dat_format.copy()
-                            if control_dat_format_params.get(Analysis.PARAMS).get(SegmentParams.NAME, dict()):
+                            if control_dat_format_params.get(Analysis.PARAMS, dict()).get(SegmentParams.NAME, dict()):
                                 if control_dat_format_params.get(Analysis.PARAMS)[SegmentParams.NAME].get(SegmentParams.SHAPE) == "xor":
                                     control_dat_format_params.get(Analysis.PARAMS)[SegmentParams.NAME][SegmentParams.SHAPE] = "disk"
                                     control_dat_format_params.get(Analysis.PARAMS)[SegmentParams.NAME][SegmentParams.RADIUS] = 1
@@ -489,11 +491,11 @@ if __name__ == "__main__":
                             first_run = False
                             # Only do the below if we have actual control datasets.
                             if control_datasets:
-                                pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
-                                    stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
-                                    group) + " and folder " + folder.name + "..."
-                                pb.update()
-                                pb_label.update()
+                                # pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
+                                #     stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
+                                #     group) + " and folder " + folder.name + "..."
+                                # pb.update()
+                                # pb_label.update()
                                 print(Fore.GREEN+"Processing query files in control datasets for stim video " + str(
                                     stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
                                     group) + " and folder " + folder.name + "...")
@@ -524,7 +526,7 @@ if __name__ == "__main__":
                                                                                                     thread_pool=the_pool)
 
                                         control_query_status[q].loc[:, cd] = control_query_stat
-                                        control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]))
+                                        control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]), axis=0)
                                         control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
                                         control_pop_iORG_summaries[cd, control_data.framestamps] = control_data.summarized_iORGs[q]
 
@@ -546,7 +548,10 @@ if __name__ == "__main__":
                                         warnings.filterwarnings(action="ignore", message="invalid value encountered in divide")
                                         control_pop_iORG_summary_pooled[q] = np.nansum(control_pop_iORG_N * control_pop_iORG_summaries,
                                                                                        axis=0) / np.nansum(control_pop_iORG_N, axis=0)
+                                        control_pop_iORG_summary_pooled[q][control_pop_iORG_summary_pooled[q] == 0] = np.nan  # If we don't have a value (e.g. its 0) then make it nan so it doesn't influence.
+
                                     control_framestamps_pooled[q] = np.flatnonzero(np.isfinite(control_pop_iORG_summary_pooled[q]))
+
 
 
                                     # First write the control data to a file.
@@ -1155,12 +1160,14 @@ if __name__ == "__main__":
                                         title="Figure " + str(fname+"."+ext) + " is unable to be saved.",
                                         message="The figure file may be open. Close the file, then try to write again?")
 
+
+                        plt.clf()
                         plt.close(figname)
 
                     folder_display_dict = {}
 
                     # Save the json used to analyze this data, for auditing.
-                    out_json = Path(json_fName).stem + "_ran_at_" + start_timestamp + ".json"
+                    out_json = Path(config_path).stem + "_ran_at_" + start_timestamp + ".json"
                     out_json = result_path.joinpath(out_json)
 
                     audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
@@ -1195,35 +1202,38 @@ if __name__ == "__main__":
                 tryagain = True
                 while tryagain:
                     try:
-                        plt.savefig(Path(pName).joinpath(fname + "." + ext), dpi=300)
+                        plt.savefig(Path(analysis_path).joinpath(fname + "." + ext), dpi=300)
                         tryagain = False
                     except PermissionError:
                         tryagain = messagebox.askyesno(
                             title="Figure " + str(fname + "." + ext) + " is unable to be saved.",
                             message="The figure file may be open. Close the file, then try to write again?")
+            plt.clf()
+            plt.close(figname)
 
+    print("Say WHAT")
 
-# figure_label = "Debug: Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
-# plt.figure(figure_label)
-# display_dict["Debug_"+mode + "_inc_cells_"+query_loc_names[q] ] = figure_label
-#
-# plt.title(figure_label)
-# plt.imshow(dataset.avg_image_data, cmap='gray')
-# viability = all_query_status[mode][folder][q].loc[:, "Viable for single-cell summary?"]
-#
-# viable = []
-# nonviable = []
-# for coords, viability in viability.items():
-#     if viability:
-#         viable.append(coords)
-#     else:
-#         nonviable.append(coords)
-#
-# viable = np.array(viable)
-# nonviable = np.array(nonviable)
-# if viable.size > 0:
-#     plt.scatter(viable[:, 0], viable[:, 1], s=7, c="c")
-# if nonviable.size >0:
-#     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=7, c="red")
-# plt.show(block=False)
-# plt.waitforbuttonpress()
+    plt.close('all')
+    gc.collect()
+
+if __name__ == "__main__":
+    mp.freeze_support()
+
+    pName = None
+    json_fName = Path()
+    dat_form = dict()
+    allData = pd.DataFrame()
+
+    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
+    if not pName:
+        sys.exit(1)
+
+    # We should be 3 levels up from here. Kinda jank, will need to change eventually
+    conf_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+
+    json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=conf_path,
+                                            filetypes=[("JSON Configuration Files", "*.json")])
+    if not json_fName:
+        sys.exit(2)
+
+    iORG_summary_and_analysis(pName, Path(json_fName))

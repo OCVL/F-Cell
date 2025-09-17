@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import pickle
 import warnings
 from enum import Enum, StrEnum
 from logging import warning
@@ -46,17 +47,22 @@ def load_metadata(metadata_params, ext_metadata):
             metatype = metadata_params.get(MetaTags.TYPE)
             loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
 
+            headher = metadata_params.get(MetaTags.HEADERS, 0)
             if metatype == "text_file":
                 dat_metadata = pd.read_csv(ext_metadata.at[ext_metadata.index[0], AcquisiTags.DATA_PATH],
-                                           encoding="utf-8-sig", skipinitialspace=True)
+                                           encoding="utf-8-sig", skipinitialspace=True, header=headher)
 
                 for field, column in loadfields.items():
                     met_dat = dat_metadata.get(column, pd.Series())
                     if not met_dat.empty:
                         meta_fields[field] = met_dat.to_numpy()
+                    if field == MetaTags.FRAMESTAMPS:
+                        meta_fields[field].sort()
             elif metatype == "database":
                 pass
             elif metatype == "mat_file":
+                pass
+            elif metatype == "pickle_file":
                 pass
 
         else:
@@ -293,7 +299,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
                     and thetag is not MetaTags.TYPE:
                 meta_fields[metatag] = metadata_params.get(metatag)
 
-    # Load our externally sourced metadata
+    # Load our externally sourced, organic, no-gmo metadata
     meta_fields, metadata_path = load_metadata(metadata_params, metadata_info)
 
     # Take metadata gleaned from our filename, as well as our metadata files,
@@ -331,65 +337,84 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         pass
 
     elif stage == Stages.ANALYSIS and dataset is not None:
-        database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = postprocess_dataset(dataset, analysis_params,
-                                                                                                result_path,
-                                                                                                debug_params)
+        # We could have multiple sub_datasets if the user input multiple stimulus sequences.
+        for sub_dataset in dataset:
+            postprocess_dataset(sub_dataset, analysis_params, result_path, debug_params)
 
         new_entries = pd.DataFrame()
 
         # If we didn't find an average image in our database, but were able to automagically detect or make one,
         # Then add the automagically detected one to our database.
-        if database.loc[slice_of_life & refim_filter].empty and dataset.avg_image_data is not None:
+        if database.loc[slice_of_life & refim_filter].empty and dataset[0].avg_image_data is not None:
             base_entry = database[slice_of_life & vidtype_filter].copy()
             base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.IMAGE
-            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.image_path
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].image_path
             base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
-            # Update the database, and update all of our logical indices
+            # Update the database
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
 
         # Check to see if our dataset's number of query locations matches the ones we thought we found
         # (can happen if the query location format doesn't match, but dataset was able to find a candidate)
-        if len(query_info) < len(dataset.query_loc):
+        if len(query_info) < len(dataset[0].query_loc):
             # If we have too few, then tack on some extra dataframes so we can track these found query locations, and add them to our database, using the dataset as a basis.
             base_entry = database[slice_of_life & vidtype_filter].copy()
             base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
             base_entry.loc[0, AcquisiTags.DATASET] = None
 
-            for i in range(len(dataset.query_loc) - len(query_info)):
-                base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.query_coord_paths[i]
+            for i in range(len(dataset[0].query_loc) - len(query_info)):
+                base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].query_coord_paths[i]
                 base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
 
-                # Update the database, and update all of our logical indices
+                # Update the database
                 new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
 
         # If we can't find any query locations, or if we just want it, default to querying all pixels.
-        if (len(dataset.query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset.query_coord_paths:
+        if (len(dataset[0].query_loc) == 0 or seg_pixelwise) and Path("All Pixels") not in dataset[0].query_coord_paths:
             seg_pixelwise = True  # Set this to true, if we find that query loc for this dataset is 0
 
-            xm, ym = np.meshgrid(np.arange(dataset.video_data.shape[1]),
-                                 np.arange(dataset.video_data.shape[0]))
+            xm, ym = np.meshgrid(np.arange(dataset[0].video_data.shape[1]),
+                                 np.arange(dataset[0].video_data.shape[0]))
 
             xm = np.reshape(xm, (xm.size, 1))
             ym = np.reshape(ym, (ym.size, 1))
 
             allcoord_data = np.hstack((xm, ym))
 
-            dataset.query_loc.append(allcoord_data)
-            dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in dataset.query_loc]
-            dataset.query_coord_paths.append(Path("All Pixels"))
-            dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
-            dataset.iORG_signals = [None] * len(dataset.query_loc)
-            dataset.summarized_iORGs = [None] * len(dataset.query_loc)
+            # If one dataset needs this, then all sub datasets do too.
+            for sub_dataset in dataset:
+                sub_dataset.query_loc.append(allcoord_data)
+                sub_dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in sub_dataset.query_loc]
+                sub_dataset.query_coord_paths.append(Path("All Pixels"))
+                sub_dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
+                sub_dataset.iORG_signals = [None] * len(sub_dataset.query_loc)
+                sub_dataset.summarized_iORGs = [None] * len(sub_dataset.query_loc)
 
             base_entry = database[slice_of_life & vidtype_filter].copy()
             base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
-            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset.query_coord_paths[-1]
+            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].query_coord_paths[-1]
             base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "All Pixels"
             base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
 
-            # Update the database, and update all of our logical indices
+            # Update the database
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
+
+        if len(dataset) == 1:
+            database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = dataset[0]
+        elif len(dataset) > 1:
+            # If we have subdatasets (from multiple stimuli in one video),
+            # then we need to make new entries for each of them so that they're processed correctly.
+
+            for i, sub_dataset in enumerate(dataset):
+                base_entry = database[slice_of_life & vidtype_filter].copy()
+                base_entry.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = sub_dataset
+                base_entry.loc[slice_of_life & vidtype_filter, DataTags.VIDEO_ID] = base_entry.loc[slice_of_life & vidtype_filter, DataTags.VIDEO_ID].values[0] + "_stim_" + str(i)
+
+                # Update the database with the new entry.
+                new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
+
+            # Once we've completed this, drop the original row so we don't confuse things in the future.
+            database.drop(database[slice_of_life & vidtype_filter].index, inplace=True)
 
 
     return dataset, new_entries
@@ -539,8 +564,42 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
         stimulus_sequence = np.cumsum(pd.read_csv(Dataset.stimseq_fName, header=None,encoding="utf-8-sig").to_numpy())
 
+    dataset = None
+    # Stimulus sequences should be arranged in 3s- that is, pre-stimulus, during-stimulus, and post-stimulus.
+    # In a case where there is more than that, then cut up the video data into multiple sub-datasets for future processing.
+    if stimulus_sequence is None or len(stimulus_sequence) == 3:
+        dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
+    elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 == 0:
+        print(Fore.YELLOW + "Detected multiple stimuli in this dataset. Breaking into subdatasets for analysis...")
+        dataset = []
+        for i in range(0, len(stimulus_sequence)-2, 2):
 
-    return Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)
+            sub_seq = stimulus_sequence[i:i+3].copy()
+            # Subtract the preceding sequence value from this sub-dataset, if available.
+            if i!=0:
+                seq_ind = np.arange(stimulus_sequence[i - 1], sub_seq[2])
+                sub_seq -= stimulus_sequence[i - 1]
+            else:
+                seq_ind = np.arange(0, sub_seq[2])
+
+            subset_stamps, _, std_indices = np.intersect1d(seq_ind, stamps, return_indices=True)
+            # Subtract the first framestamp from this sub-dataset, its now frame 0.
+            subset_stamps -= subset_stamps[0]
+
+            print(len(std_indices))
+            dataset.append(Dataset(video_data[..., std_indices],
+                                   mask_data[..., std_indices],
+                                   avg_image_data, metadata, queryloc_data, subset_stamps, sub_seq, stage))
+
+    elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 != 0:
+        warnings.warn("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Only using first 3 values.")
+        stimulus_sequence = stimulus_sequence[0:2]
+        dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
+    elif len(stimulus_sequence) < 3:
+        warnings.warn("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Unable to analyze dataset.")
+        return None
+
+    return dataset
 
 
 def preprocess_dataset(dataset, params, reference_dataset=None):
@@ -589,7 +648,8 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
 
                     # Determine the residual error in our dewarping, and obtain the maps
                     dataset.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(dataset.video_data,
-                                                                                yshifts, xshifts)
+                                                                                yshifts, xshifts,
+                                                                                fitshifts=True)
 
                     # Dewarp our mask too.
                     with warnings.catch_warnings():
@@ -602,6 +662,159 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                             dataset.mask_data[..., f] = cv2.remap(norm_frame,
                                                                   map_mesh_x, map_mesh_y,
                                                                   interpolation=cv2.INTER_NEAREST)
+            case "demotion":
+                if dataset.metadata[AcquisiTags.META_PATH] is not None:
+                    # Temp until a better way of finding dmp files is found.
+                    #dumpfile = dataset.metadata[AcquisiTags.META_PATH].stem[0:-len("_acceptable_frames")]+".dmp"
+                    with open(dataset.metadata[AcquisiTags.META_PATH], "rb") as file:
+                        pick = pickle.load(file, encoding='latin1')
+
+                        ff_translation_info_rowshift = pick['full_frame_ncc']['row_shifts']
+                        ff_translation_info_colshift = pick['full_frame_ncc']['column_shifts']
+                        strip_translation_info = pick['sequence_interval_data_list']
+
+                        minmaxpix = np.empty([1, 2])
+
+                        for frame in strip_translation_info:
+                            for frame_contents in frame:
+                                ref_pixels = frame_contents['slow_axis_pixels_in_current_frame_interpolated']
+                                minmaxpix = np.append(minmaxpix, [[ref_pixels[0], ref_pixels[-1]]], axis=0)
+
+                        minmaxpix = minmaxpix[1:, :]
+                        topmostrow = minmaxpix[:, 0].max()
+                        bottommostrow = minmaxpix[:, 1].min()
+
+                        # print np.array([pick['strip_cropping_ROI_2'][-1]])
+                        # The first row is the crop ROI.
+
+                        slow_axis_array = np.zeros([len(strip_translation_info), 1000], dtype=int)
+                        unaligned_col_shifts = np.zeros([len(strip_translation_info), 1000])
+                        unaligned_row_shifts = np.zeros([len(strip_translation_info), 1000])
+                        frame_inds = np.full( [len(strip_translation_info)], -1, dtype=int)
+
+                        for i, frame in enumerate(strip_translation_info):
+                            if len(frame) > 0:
+                                #print("************************ Frame " + str(frame[0]['frame_index']) + "************************")
+                                # print "Adjusting the rows...."
+                                frame_inds[i] = frame[0]['frame_index']
+                                slow_axis_pixels = np.zeros([1])
+                                frame_col_shifts = np.zeros([1])
+                                frame_row_shifts = np.zeros([1])
+
+                                for frame_contents in frame:
+                                    slow_axis_pixels = np.append(slow_axis_pixels,
+                                                                 frame_contents['slow_axis_pixels_in_reference_frame'])
+
+                                    ff_row_shift = ff_translation_info_rowshift[frame_inds[i]]
+                                    ff_col_shift = ff_translation_info_colshift[frame_inds[i]]
+
+                                    # First set the relative shifts
+                                    row_shift = (np.subtract(frame_contents['slow_axis_pixels_in_reference_frame'],
+                                                             frame_contents['slow_axis_pixels_in_current_frame_interpolated']))
+                                    col_shift = (frame_contents['fast_axis_pixels_in_reference_frame_interpolated'])
+
+                                    # These will contain all of the motion, not the relative motion between the aligned frames-
+                                    # So then subtract the full frame row shift
+                                    row_shift = np.add(row_shift, ff_row_shift)
+                                    col_shift = np.add(col_shift, ff_col_shift)
+                                    frame_col_shifts = np.append(frame_col_shifts, col_shift)
+                                    frame_row_shifts = np.append(frame_row_shifts, row_shift)
+
+                                slow_axis_pixels = slow_axis_pixels[1:]
+                                frame_col_shifts = frame_col_shifts[1:]
+                                frame_row_shifts = frame_row_shifts[1:]
+
+                                slow_axis_array[i, 0:len(slow_axis_pixels)] = slow_axis_pixels.astype(int)
+                                unaligned_col_shifts[i, 0:len(frame_col_shifts)] = frame_col_shifts
+                                unaligned_row_shifts[i, 0:len(frame_row_shifts)] = frame_row_shifts
+
+                        # Reshuffle the above so its actually in the order that they appear in the video. Wild, I know.
+                        resort_args = np.argsort(frame_inds)
+                        frame_inds = frame_inds[resort_args]
+                        slow_axis_array = slow_axis_array[resort_args, :]
+                        unaligned_col_shifts = unaligned_col_shifts[resort_args, :]
+                        unaligned_row_shifts = unaligned_row_shifts[resort_args, :]
+
+                        # Then, remove frame inds that weren't filled do to a variety of reasons.
+                        slow_axis_array = slow_axis_array[frame_inds >= 0, :]
+                        unaligned_col_shifts = unaligned_col_shifts[frame_inds >= 0, :]
+                        unaligned_row_shifts = unaligned_row_shifts[frame_inds >= 0, :]
+                        frame_inds = frame_inds[frame_inds >= 0]
+
+
+                        # Update our framestamps with the sorted indexes
+                        dataset.framestamps = frame_inds
+
+                        # Find the ROI associated with this particular dataset.
+                        roi = np.array([])
+                        height = 0
+                        for i in range(len(pick['strip_cropping_ROI_2'])):
+                            roi = pick['strip_cropping_ROI_2'][i]
+                            if np.all( dataset.avg_image_data.shape == np.array([roi[1]-roi[0], roi[3]-roi[2]]) ):
+                                height = roi[1]-roi[0]
+                                break
+
+                        ref_max_slow_axis = np.nanmax(slow_axis_array[0,:])
+                        ref_min_slow_axis = np.nanmin(slow_axis_array[0, :])
+
+                        max_slow_axis = np.amax(slow_axis_array)
+                        min_slow_axis = np.amin(slow_axis_array)
+
+                        slow_axis_size = max_slow_axis - min_slow_axis + 1
+                        slow_axis_array -= min_slow_axis
+
+                        colshifts = dict()
+                        rowshifts = dict()
+                        longest_colshifts = 0
+                        longest_rowshifts = 0
+                        # Each row in these arrays are a frame
+                        for frame_ind in range(slow_axis_array.shape[0]):
+
+                            # Find the last element index (will be the max)
+                            maxind = np.argmax(slow_axis_array[frame_ind, :])
+
+                            # Append the shift values for that particular location to the shift
+                            for i in range(maxind):
+                                if slow_axis_array[frame_ind, i] not in colshifts:
+                                    colshifts[slow_axis_array[frame_ind, i]] = np.array([])
+                                    rowshifts[slow_axis_array[frame_ind, i]] = np.array([])
+
+                                colshifts[slow_axis_array[frame_ind, i]] = np.hstack((colshifts[slow_axis_array[frame_ind, i]],
+                                                                                        unaligned_col_shifts[frame_ind, i]))
+
+                                rowshifts[slow_axis_array[frame_ind, i]] = np.hstack((rowshifts[slow_axis_array[frame_ind, i]],
+                                                                                        unaligned_row_shifts[frame_ind, i]))
+
+
+                        all_colshifts = np.full((np.amax(slow_axis_array), slow_axis_array.shape[0]), np.nan)
+                        all_rowshifts = np.full((np.amax(slow_axis_array), slow_axis_array.shape[0]), np.nan)
+
+                        for row, shifts in colshifts.items():
+                            all_colshifts[row, 0:len(shifts)] = shifts
+                        for row, shifts in rowshifts.items():
+                            all_rowshifts[row, 0:len(shifts)] = shifts
+
+                        del colshifts, rowshifts
+
+                        all_colshifts = all_colshifts[roi[0]:roi[1], :].T
+                        all_rowshifts = all_rowshifts[roi[0]:roi[1], :].T
+
+                        # Determine the residual error in our dewarping, and obtain the maps
+                        dataset.video_data, map_mesh_x, map_mesh_y = dewarp_2D_data(dataset.video_data,
+                                                                                    -all_rowshifts, -all_colshifts)
+
+                        # Dewarp our mask too.
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
+
+                            for f in range(dataset.num_frames):
+                                norm_frame = dataset.mask_data[..., f].astype("float32")
+                                norm_frame[norm_frame == 0] = np.nan
+
+                                dataset.mask_data[..., f] = cv2.remap(norm_frame,
+                                                                      map_mesh_x, map_mesh_y,
+                                                                      interpolation=cv2.INTER_NEAREST)
+
 
     # Trim the video down to a smaller/different size, if desired.
     trim = params.get(PreAnalysisPipeline.TRIM)
@@ -688,10 +901,11 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
 def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
 
     norm_params = analysis_params.get(NormParams.NAME, dict())
-    norm_method = norm_params.get(NormParams.NORM_METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
-    rescale_norm = norm_params.get(NormParams.NORM_RESCALE, True)  # Default: Rescales the data back into AU to make results easier to interpret
-    res_mean = norm_params.get(NormParams.NORM_MEAN, 70.0)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
-    res_stddev = norm_params.get(NormParams.NORM_STD, 35.0)  # Default: Rescales to a std dev of 35
+    norm_scope = norm_params.get(NormParams.SCOPE, "frame") # Default: Standardizes the video to each frame's mean and stddev
+    norm_method = norm_params.get(NormParams.METHOD, "score")  # Default: Standardizes the video to a unit mean and stddev
+    rescale_norm = norm_params.get(NormParams.RESCALED, True)  # Default: Rescales the data back into AU to make results easier to interpret
+    res_mean = norm_params.get(NormParams.MEAN, 70.0)  # Default: Rescales to a mean of 70 - these values are based on "ideal" datasets
+    res_stddev = norm_params.get(NormParams.STD, 35.0)  # Default: Rescales to a std dev of 35
 
     # Flat field the video for analysis if desired.
     if analysis_params.get(Analysis.FLAT_FIELD, False):
@@ -705,9 +919,10 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
         dataset.video_data *= dataset.mask_data
 
     # Normalize the video to reduce the influence of framewide intensity changes
-    dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
-                                    rescaled=rescale_norm,
-                                    rescale_mean=res_mean, rescale_std=res_stddev)
+    if norm_scope == "frame":
+        dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
+                                        rescaled=rescale_norm,
+                                        rescale_mean=res_mean, rescale_std=res_stddev)
 
     if debug_params.get(DebugParams.OUTPUT_NORM_VIDEO, False):
         save_tiff_stack(result_folder.joinpath(dataset.video_path.stem + "_" + norm_method + "_norm.tif"),
@@ -778,7 +993,7 @@ class Dataset:
                     for filename in self.base_path.glob("*_ALL_ACQ_AVG.tif"):
                         imname = filename
 
-                if not imname and stage is Stages.ANALYSIS:
+                if not imname: # and stage is Stages.ANALYSIS:
                     warnings.warn("Unable to detect viable average image file; generating one from video. Dataset functionality may be limited.")
                     self.image_path = None
                     self.avg_image_data, _ = weighted_z_projection(self.video_data, self.mask_data)

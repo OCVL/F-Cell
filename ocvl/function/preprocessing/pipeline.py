@@ -43,13 +43,8 @@ from ocvl.function.utility.json_format_constants import DataFormatType, DataTags
 from ocvl.function.utility.resources import save_video
 
 
-# Need to try this:
-# https://mathematica.stackexchange.com/questions/199928/removing-horizontal-noise-artefacts-from-a-sem-image
-
-if __name__ == "__main__":
-    mp.freeze_support()
+def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
     mpl.use('qtagg')
-
 
     dt = datetime.datetime.now()
     now_timestamp = dt.strftime("%Y%m%d_%H")
@@ -64,29 +59,34 @@ if __name__ == "__main__":
         '%dx%d+%d+%d' % (
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-    pName = None
-    json_fName = Path()
-    dat_form = dict()
-    allData = pd.DataFrame()
+    # Grab all the folders/data here.
+    dat_form, allData = parse_file_metadata(config_path, preanalysis_path, PreAnalysisPipeline.NAME)
 
     while allData.empty:
-        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
-        if not pName:
+        preanalysis_path = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=preanalysis_path, parent=root)
+        if not preanalysis_path:
             sys.exit(1)
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
 
-        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
+        config_path = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
                                                 filetypes=[("JSON Configuration Files", "*.json")])
-        if not json_fName:
+        if not config_path:
             sys.exit(2)
 
         # Grab all the folders/data here.
-        dat_form, allData = parse_file_metadata(json_fName, pName, PreAnalysisPipeline.NAME)
+        dat_form, allData = parse_file_metadata(config_path, preanalysis_path, PreAnalysisPipeline.NAME)
 
         if allData.empty:
-            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
+            tryagain = messagebox.askretrycancel("No data detected.",
+                                                 "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if not tryagain:
+                sys.exit(3)
+
+        if allData.loc[:, allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+            tryagain = messagebox.askretrycancel("No videos detected.",
+                                                 "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if not tryagain:
                 sys.exit(3)
 
@@ -95,8 +95,17 @@ if __name__ == "__main__":
         preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME)
         pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
         modes_of_interest = pipeline_params.get(PreAnalysisPipeline.MODALITIES)
+        # If we didn't pick a modality that's of interest, then pick them all.
+        if AcquisiTags.MODALITY in allData.columns:
+            if modes_of_interest is None:
+                modes_of_interest = allData[AcquisiTags.MODALITY].unique().tolist()
+                print("NO MODALITIES SELECTED! Processing all....")
+        else:
+            modes_of_interest = [""]
+
         alignment_ref_mode = pipeline_params.get(PreAnalysisPipeline.ALIGNMENT_REF_MODE)
-        if alignment_ref_mode not in modes_of_interest:
+
+        if alignment_ref_mode is not None and alignment_ref_mode not in modes_of_interest:
             modes_of_interest.append(alignment_ref_mode)
 
         output_folder = pipeline_params.get(PreAnalysisPipeline.OUTPUT_FOLDER)
@@ -113,11 +122,6 @@ if __name__ == "__main__":
         acquisition = dict()
 
         # Group files together based on location, modality, and video number
-        # If we've selected modalities of interest, only process those; otherwise, process them all.
-        if modes_of_interest is None:
-            modes_of_interest = allData.loc[DataTags.MODALITY].unique().tolist()
-            print("NO MODALITIES SELECTED! Processing all....")
-
         for mode in modes_of_interest:
             modevids = allData.loc[allData[DataTags.MODALITY] == mode]
             ref_modevids = allData.loc[allData[DataTags.MODALITY] == alignment_ref_mode]
@@ -139,6 +143,8 @@ if __name__ == "__main__":
                     pre_filter = (allData[DataTags.MODALITY] == mode)
                     dataset, _ = initialize_and_load_dataset(folder=allData.loc[video_info.index, AcquisiTags.BASE_PATH].values[0],
                                                           vidID=num, prefilter=pre_filter, database=allData, params=preanalysis_dat_format)
+
+                    dataset = dataset[0]
 
                     if dataset is not None:
                         # Run the preprocessing pipeline on this dataset, with params specified by the json.
@@ -195,7 +201,11 @@ if __name__ == "__main__":
                 datasets = ref_modes[AcquisiTags.DATASET].to_list()
                 if not datasets:
                     continue
-                avg_images = np.dstack([data.avg_image_data for data in datasets])
+                max_image_size = np.max(np.vstack([data.avg_image_data.shape for data in datasets]), axis=0)
+                avg_images = np.zeros(np.hstack((max_image_size, len(datasets))))
+                for d, data in enumerate(datasets):
+                    datsize = data.avg_image_data.shape
+                    avg_images[0:datsize[0], 0:datsize[1], d] = data.avg_image_data
 
                 dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                             repeat(None),
@@ -243,7 +253,12 @@ if __name__ == "__main__":
                 datasets = modevids[AcquisiTags.DATASET].to_list()
                 if not datasets:
                     continue
-                avg_images = np.dstack([data.avg_image_data for data in datasets])
+                max_image_size = np.max(np.vstack([data.avg_image_data.shape for data in datasets]), axis=0)
+                avg_images = np.zeros( np.hstack( (max_image_size, len(datasets)) ) )
+                for d, data in enumerate(datasets):
+                    datsize = data.avg_image_data.shape
+                    avg_images[0:datsize[0], 0:datsize[1],  d] = data.avg_image_data
+
                 data_filenames = [data.video_path.stem for data in datasets]
 
                 if alignment_ref_mode is None:
@@ -324,27 +339,35 @@ if __name__ == "__main__":
                             pipe_meta_form = pipe_meta_form.get(DataFormatType.METADATA)
                             if pipe_meta_form is not None:
                                 pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
+                            else:
+                                pipe_meta_fname = Path(pipe_vid_form.format_map(dataset.metadata)).with_suffix(".csv")
 
 
                     og_dtype = dataset.video_data.dtype
+                    vid_data = np.zeros( np.hstack( (max_image_size, dataset.num_frames) ), dtype=og_dtype )
+                    mask_dat = np.zeros( np.hstack( (max_image_size, dataset.num_frames) ), dtype=og_dtype)
+
+
                     for i in range(dataset.num_frames):  # Make all of the data in our dataset relative as well.
-                        tmp = dataset.video_data[..., i].astype("float32")
+                        tmp = np.zeros(max_image_size)
+                        tmp[0:rows, 0:cols] = dataset.video_data[..., i].astype("float32")
                         tmp[np.round(tmp) == 0] = np.nan
-                        tmp = cv2.warpAffine(tmp, xform,(cols, rows),
+                        tmp = cv2.warpAffine(tmp, xform,(max_image_size[1], max_image_size[0]),
                                              flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
                         tmp[np.isnan(tmp)] = 0
-                        dataset.video_data[..., i] = tmp.astype(og_dtype)
+                        vid_data[..., i] = tmp.astype(og_dtype)
 
-                        tmp = dataset.mask_data[..., i].astype("float32")
+                        tmp = np.zeros(max_image_size)
+                        tmp[0:rows, 0:cols] = dataset.mask_data[..., i].astype("float32")
                         tmp[np.round(tmp) == 0] = np.nan
-                        tmp = cv2.warpAffine(tmp, xform,(cols, rows),
+                        tmp = cv2.warpAffine(tmp, xform,(max_image_size[1], max_image_size[0]),
                                              flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
                         tmp[np.isnan(tmp)] = 0
-                        dataset.mask_data[..., i] = tmp.astype(og_dtype)
+                        mask_dat[..., i] = tmp.astype(og_dtype)
 
                     out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
                     out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
-                    croprect = save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), dataset.video_data,
+                    croprect = save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), vid_data,
                                framerate=dataset.framerate)
 
                 # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack
@@ -376,7 +399,7 @@ if __name__ == "__main__":
             group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, group+"_group_info.csv"), index=False)
 
 
-        out_json = Path(json_fName).stem + "_" + now_timestamp + ".json"
+        out_json = Path(config_path).stem + "_" + now_timestamp + ".json"
         out_json = dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, out_json)
 
         audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
@@ -387,7 +410,26 @@ if __name__ == "__main__":
             json.dump(audit_json_dict, f, indent=2)
 
 
-
-
     print("PK FIRE")
 
+if __name__ == "__main__":
+    mp.freeze_support()
+
+    pName = None
+    json_fName = Path()
+    dat_form = dict()
+    allData = pd.DataFrame()
+
+    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
+    if not pName:
+        sys.exit(1)
+
+    # We should be 3 levels up from here. Kinda jank, will need to change eventually
+    conf_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+
+    json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=conf_path,
+                                            filetypes=[("JSON Configuration Files", "*.json")])
+    if not json_fName:
+        sys.exit(2)
+
+    preanalysis_pipeline(pName, Path(json_fName))
