@@ -50,7 +50,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     # y = root.winfo_screenheight() / 4
     # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-
     # Grab all the folders/data here.
     dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
 
@@ -68,8 +67,16 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
         if not config_path:
             sys.exit(2)
 
+        # Grab all the folders/data here.
+        dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
+
         if allData.empty:
-            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
+            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if not tryagain:
+                sys.exit(3)
+
+        if allData.loc[:, allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+            tryagain= messagebox.askretrycancel("No videos detected.", "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if not tryagain:
                 sys.exit(3)
 

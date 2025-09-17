@@ -1,9 +1,23 @@
 {
   "version": "0.2",
-  "description": "A JSON file for loading data from Institute de la Vision in Paris.",
+  "description": "A JSON file for loading data from Sorbonne University.",
+  "preanalysis": {
+    "video_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{VidNum}_deinterlaced_SLO_RegVid.mat",
+    "metadata": {
+      "video": {
+        "fields_to_load": ["data", "frames"],
+        "framerate": 37.5
+      }
+    },
+    "pipeline_params": {
+      "intra_stack_xform": "rigid",
+      "inter_stack_xform": "rigid",
+      "correct_torsion": true
+    }
+  },
   "analysis": {
-    "queryloc_format": "{Modality}_{VidNum}_{IDnum}_mean_imagepoints_noise10.csv",
-    "video_format": "SLO_{Modality}_1234_{Eye}_2+0_stat_1_{VidNum}_{IDnum}_deinterlaced_SLO_RegVid.mat",
+    "queryloc_format": "{Modality}_{VidNum}_{IDnum}_mean_imagepoints_noise05.csv",
+    "video_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{VidNum}_{IDnum}_PipeVid.avi",
     "metadata": {
       "video": {
         "fields_to_load": ["data", "frames"],
@@ -12,7 +26,7 @@
       "query_locations": {
         "fields_to_load": ["X", "Y"]
       },
-      "stimulus_sequence": [56, 36, 93]
+      "stimulus_sequence": [74, 36, 75]
     },
     "recursive_search": false,
     "control": {

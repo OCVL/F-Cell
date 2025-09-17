@@ -43,13 +43,8 @@ from ocvl.function.utility.json_format_constants import DataFormatType, DataTags
 from ocvl.function.utility.resources import save_video
 
 
-# Need to try this:
-# https://mathematica.stackexchange.com/questions/199928/removing-horizontal-noise-artefacts-from-a-sem-image
-
-if __name__ == "__main__":
-    mp.freeze_support()
+def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
     mpl.use('qtagg')
-
 
     dt = datetime.datetime.now()
     now_timestamp = dt.strftime("%Y%m%d_%H")
@@ -64,29 +59,34 @@ if __name__ == "__main__":
         '%dx%d+%d+%d' % (
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-    pName = None
-    json_fName = Path()
-    dat_form = dict()
-    allData = pd.DataFrame()
+    # Grab all the folders/data here.
+    dat_form, allData = parse_file_metadata(config_path, preanalysis_path, PreAnalysisPipeline.NAME)
 
     while allData.empty:
-        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName, parent=root)
-        if not pName:
+        preanalysis_path = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=preanalysis_path, parent=root)
+        if not preanalysis_path:
             sys.exit(1)
 
         # We should be 3 levels up from here. Kinda jank, will need to change eventually
         config_path = Path(os.path.dirname(__file__)).parent.parent.parent.joinpath("config_files")
 
-        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
+        config_path = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=config_path, parent=root,
                                                 filetypes=[("JSON Configuration Files", "*.json")])
-        if not json_fName:
+        if not config_path:
             sys.exit(2)
 
         # Grab all the folders/data here.
-        dat_form, allData = parse_file_metadata(json_fName, pName, PreAnalysisPipeline.NAME)
+        dat_form, allData = parse_file_metadata(config_path, preanalysis_path, PreAnalysisPipeline.NAME)
 
         if allData.empty:
-            tryagain= messagebox.askretrycancel("No data detected.", "No data detected in folder using patterns detected in json. \nSelect new folder (retry) or exit? (cancel)")
+            tryagain = messagebox.askretrycancel("No data detected.",
+                                                 "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if not tryagain:
+                sys.exit(3)
+
+        if allData.loc[:, allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+            tryagain = messagebox.askretrycancel("No videos detected.",
+                                                 "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if not tryagain:
                 sys.exit(3)
 
@@ -399,7 +399,7 @@ if __name__ == "__main__":
             group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, group+"_group_info.csv"), index=False)
 
 
-        out_json = Path(json_fName).stem + "_" + now_timestamp + ".json"
+        out_json = Path(config_path).stem + "_" + now_timestamp + ".json"
         out_json = dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, out_json)
 
         audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
@@ -410,7 +410,26 @@ if __name__ == "__main__":
             json.dump(audit_json_dict, f, indent=2)
 
 
-
-
     print("PK FIRE")
 
+if __name__ == "__main__":
+    mp.freeze_support()
+
+    pName = None
+    json_fName = Path()
+    dat_form = dict()
+    allData = pd.DataFrame()
+
+    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
+    if not pName:
+        sys.exit(1)
+
+    # We should be 3 levels up from here. Kinda jank, will need to change eventually
+    conf_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+
+    json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=conf_path,
+                                            filetypes=[("JSON Configuration Files", "*.json")])
+    if not json_fName:
+        sys.exit(2)
+
+    preanalysis_pipeline(pName, Path(json_fName))
