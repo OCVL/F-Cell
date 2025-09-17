@@ -74,7 +74,7 @@ def load_metadata(metadata_params, ext_metadata):
 
 
 
-def parse_file_metadata(config_json_path, parse_path, group=PreAnalysisPipeline.NAME):
+def parse_file_metadata(config_json_path, parse_path, group=None):
 
     with open(config_json_path, 'r') as config_json_path:
         json_dict = json.load(config_json_path)
@@ -82,15 +82,15 @@ def parse_file_metadata(config_json_path, parse_path, group=PreAnalysisPipeline.
         return parse_metadata(json_dict, parse_path, root_group=group)
 
 
-def parse_metadata(json_dict=None, parse_path=None, root_group=None):
+def parse_metadata(json_dict_base=None, parse_path=None, root_group=None):
 
         allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, DataFormatType.FORMAT_TYPE]
         allFilesColumns.extend([d.value for d in DataTags])
 
         if root_group is not None:
-            json_dict = json_dict.get(root_group)
+            json_dict = json_dict_base.get(root_group)
         else:
-            json_dict = json_dict
+            json_dict = json_dict_base
 
         if json_dict is not None and parse_path is not None:
             im_form = json_dict.get(DataFormatType.IMAGE)
@@ -173,7 +173,7 @@ def parse_metadata(json_dict=None, parse_path=None, root_group=None):
 
                                 allFiles.append(entry)
             if allFiles:
-                return json_dict, pd.concat(allFiles, ignore_index=True)
+                return json_dict_base, pd.concat(allFiles, ignore_index=True)
             else:
                 return dict(), pd.DataFrame()
         else:
