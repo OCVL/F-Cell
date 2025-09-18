@@ -7,6 +7,7 @@ import matplotlib as mpl
 import mpl_axes_aligner
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from colorama import Fore
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
@@ -163,62 +164,59 @@ if __name__ == "__main__":
     elif inny == "2":
         pName = None
 
-        pName = filedialog.askdirectory(title="Select the folder containing RMS data.", initialdir=None, parent=root)
+        pName = filedialog.askdirectory(title="Select the folder containing data, or cancel to stop adding it.", initialdir=None, parent=root)
+        sig_data = dict()
+        amp_data = dict()
+        time = dict()
+        while len(pName) != 0:
 
-        if not pName:
-            sys.exit(1)
+            searchpath = Path(pName)
 
-        searchpath = Path(pName)
+            sig_data[searchpath.name] = []
+            amp_data[searchpath.name] = []
+            time[searchpath.name] = np.zeros((1,))
 
-        rmsdata = []
-        timestamps = np.zeros((1,))
+            for path in searchpath.rglob("*pop_sum_iORG*"):
+                dataset = pd.read_csv(path, index_col=0)
 
-        for path in searchpath.glob("*.csv"):
-            dataset = pd.read_csv(path, index_col=0)
+                if len(dataset.columns) > len(time[searchpath.name]):
+                    time[searchpath.name] = np.array(dataset.columns, dtype="float32")
 
-            if len(dataset.columns) > len(timestamps):
-                timestamps = np.array(dataset.columns, dtype="float32")
+                sig_data[searchpath.name].append(dataset.loc["Pooled", :].to_numpy())
 
-            rmsdata.append(dataset.loc["Pooled", :].to_numpy())
+            sig_data[searchpath.name] = np.array(list(itertools.zip_longest(*sig_data[searchpath.name], fillvalue=np.nan))).T
 
-        rmsdata = np.array(list(itertools.zip_longest(*rmsdata, fillvalue=np.nan))).T
+            for path in searchpath.rglob("*pop_summary*"):
+                dataset = pd.read_csv(path, index_col=0, header=1)
+                tmp = dataset.loc[:, "Amplitude"].to_numpy()
 
-        axcolor = "tab:blue"
-        figgy, ax1 = plt.subplots()
-        for i in range(rmsdata.shape[0]):
-            ax1.plot(timestamps, rmsdata[i, :], color=axcolor)
-        ax1.set_ylabel("Gaffney et. al (2024)", color=axcolor)
-        ax1.tick_params(axis="y", labelcolor=axcolor)
+                amp_data[searchpath.name].append(np.nanstd(tmp[:-1])/np.nanmean(tmp[:-1]))
 
-        pName = filedialog.askdirectory(title="Select the folder containing STDDEV data.", initialdir=None, parent=root)
+            amp_data[searchpath.name] = np.array(amp_data[searchpath.name])
 
-        if not pName:
-            sys.exit(1)
+            pName = filedialog.askdirectory(title="Select the folder containing data, or cancel to stop adding it.", initialdir=None, parent=root)
 
-        searchpath = Path(pName)
 
-        stddata = []
-        timestamps = np.zeros((1,))
+        normmap = mpl.colors.Normalize(vmin=0, vmax=len(sig_data), clip=True)
+        mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap("inferno"), norm=normmap)
 
-        for path in searchpath.glob("*.csv"):
-            dataset = pd.read_csv(path, index_col=0)
 
-            if len(dataset.columns) > len(timestamps):
-                timestamps = np.array(dataset.columns, dtype="float32")
+        r=0
+        for key, siggies in sig_data.items():
+            maxval = np.nanmax(siggies.flatten())
+            plt.figure("Signal versus")
+            for sig in siggies:
+                plt.plot(time[key], sig/maxval, color=mapper.to_rgba(r), label=key)
+            r += 1
 
-            stddata.append(dataset.loc["Pooled", :].to_numpy())
 
-        stddata = np.array(list(itertools.zip_longest(*stddata, fillvalue=np.nan))).T
+        plt.figure("CoV versus")
+        sns.barplot(data=amp_data,capsize=.1, ci="sd")
+        sns.swarmplot(data=amp_data,color="0", alpha=.35)
 
-        axcolor = "tab:orange"
-        ax2 = ax1.twinx()
-        for i in range(stddata.shape[0]):
-            ax2.plot(timestamps, stddata[i, :], color=axcolor)
 
-        ax2.set_ylabel("Cooper et. al (2017)", color=axcolor)
-        ax2.tick_params(axis="y", labelcolor=axcolor)
 
-        mpl_axes_aligner.align.yaxes(ax1, 0, ax2, 0, 0.1)
+
         plt.show()
 
         print("huh")
