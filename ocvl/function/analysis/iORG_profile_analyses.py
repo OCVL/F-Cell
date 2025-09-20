@@ -10,8 +10,9 @@ from numpy.fft import fftshift
 from scipy import signal
 from matplotlib import patches as ptch
 from scipy.fft import fft
-from scipy.interpolate import UnivariateSpline, Akima1DInterpolator
+from scipy.interpolate import UnivariateSpline, Akima1DInterpolator, make_smoothing_spline
 from scipy.ndimage import center_of_mass, convolve1d, median_filter
+from scipy.optimize import minimize_scalar
 from scipy.signal import savgol_filter, convolve, freqz
 from skimage.feature import graycomatrix, graycoprops
 from matplotlib import pyplot as plt
@@ -511,7 +512,8 @@ def extract_texture_profiles(full_iORG_profiles, summary_methods=("all"), numlev
 
 
 def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
-                        desired_prestim_frms=None, desired_poststim_frms=None, pool=None):
+                        desired_prestim_frms=None, desired_poststim_frms=None, pool=None,
+                        spline_smooth=None, amplitude_percentile=0.99):
 
     if temporal_signals.ndim == 1:
         temporal_signals = temporal_signals[None, :]
@@ -564,7 +566,12 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         poststim_frms = framestamps[poststim_window_idx]
 
         prestim_val = np.nanmedian(prestim, axis=1)
-        poststim_val = np.nanquantile(poststim, [0.99], axis=1).flatten()
+
+        # This only smooths the signal if spline_smooth is defined- otherwise it does nothing.
+        for c in range(poststim.shape[0]):
+            poststim[c,:] = make_smoothing_spline(poststim_frms, poststim[c,:], lam=spline_smooth)(poststim_frms)
+
+        poststim_val = np.nanquantile(poststim, [amplitude_percentile], axis=1).flatten()
 
         # ** Amplitude **
         amplitude = np.abs(poststim_val - prestim_val)
@@ -755,10 +762,17 @@ def _interp_implicit(params):
             halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
                                                      method="makima")
 
+            # plt.figure("Implicit_time_test")
+            # plt.plot(finite_frms, finite_data-poststim_val)
+            # plt.plot(finite_frms, amp_val_interp(finite_frms))
+            # plt.show()
+
+
             if amp_val_interp.roots().size != 0:
                 amp_implicit_time = amp_val_interp.roots()[0]
             else:
                 amp_implicit_time = np.nan
+
 
             if halfamp_val_interp.roots().size != 0:
                 halfamp_implicit_time = halfamp_val_interp.roots()[0]

@@ -102,12 +102,13 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
     sum_control = sum_params.get(SummaryParams.CONTROL, "none")
 
-    metrics = sum_params.get(SummaryParams.METRICS, dict())
-    metrics_type = metrics.get(SummaryParams.TYPE, ["amp", "amp_imp_time"])
-    metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
-    metrics_units = metrics.get(SummaryParams.UNITS, "time")
-    metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
-    metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
+    metric_params = sum_params.get(SummaryParams.METRICS, dict())
+    metrics_type = metric_params.get(SummaryParams.TYPE, ["amp", "amp_imp_time"])
+    metrics_measured_to = metric_params.get(SummaryParams.MEASURED_TO, "stim-relative")
+    metrics_units = metric_params.get(SummaryParams.UNITS, "time")
+    smooth_factor = metric_params.get(SummaryParams.SMOOTHING_FACTOR, None)
+    amp_percentile = metric_params.get(SummaryParams.AMPLITUDE_PERCENTILE, 0.99)
+
 
     metrics_tags =[]
     for metric in metrics_type:
@@ -612,8 +613,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                     plt.show(block=False)
 
 
-                            metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
-                            metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
+                            metrics_prestim = np.array(metric_params.get(SummaryParams.PRESTIM, [-1, 0]))
+                            metrics_poststim = np.array(metric_params.get(SummaryParams.POSTSTIM, [0, 1]))
                             if metrics_units == "time":
                                 metrics_prestim = np.round(metrics_prestim * dataset.framerate)
                                 metrics_poststim = np.round(metrics_poststim * dataset.framerate)
@@ -631,7 +632,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                             amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, _, _ = iORG_signal_metrics(stim_dataset.summarized_iORGs[q][stim_dataset.framestamps],
                                                                                                                      stim_dataset.framestamps, stim_dataset.framerate,
-                                                                                                                     metrics_prestim, metrics_poststim, the_pool)
+                                                                                                                     metrics_prestim, metrics_poststim, the_pool,
+                                                                                                                     smooth_factor, amp_percentile)
 
                             for metric in metrics_type:
                                 if metric == "aur":
@@ -755,8 +757,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                                + start_timestamp + ".csv"), index_label="Video Number")
                             del pop_iORG_summary
 
-                        metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
-                        metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
+                        metrics_prestim = np.array(metric_params.get(SummaryParams.PRESTIM, [-1, 0]))
+                        metrics_poststim = np.array(metric_params.get(SummaryParams.POSTSTIM, [0, 1]))
                         if metrics_units == "time":
                             metrics_prestim = np.round(metrics_prestim * pooled_framerate)
                             metrics_poststim = np.round(metrics_poststim * pooled_framerate)
@@ -775,7 +777,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                         amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, prestim_idx, poststim_idx = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,
                                                                                                                  pooled_framerate,
-                                                                                                                 metrics_prestim, metrics_poststim, the_pool)
+                                                                                                                 metrics_prestim, metrics_poststim, the_pool,
+                                                                                                                     smooth_factor, amp_percentile)
 
                         for metric in metrics_type:
                             if metric == "aur":
@@ -952,7 +955,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 gc.collect()
 
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
-                            res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool)
+                            res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool,
+                                                                                                                     smooth_factor, amp_percentile)
 
                             with warnings.catch_warnings():
                                 warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")

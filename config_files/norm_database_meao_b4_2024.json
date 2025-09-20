@@ -61,7 +61,7 @@
     },
     "analysis_params": {
       "modalities": ["760nm"],
-      "output_folder": "../../../Results",
+      "output_folder": "Results",
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
       "output_indiv_stdize_orgs": false,
@@ -102,7 +102,9 @@
           "measured": "stim-relative",
           "units": "time",
           "prestim": [-1, 0],
-          "poststim": [0, 1]
+          "poststim": [0, 1],
+          "smoothing_factor": null,
+          "amplitude_percentile": 0.99
         },
         "indiv_cutoff": 5
       },
@@ -144,7 +146,7 @@
           "xmin": 0,
           "xmax": 4,
           "ymin": -5,
-          "ymax": 60,
+          "ymax": 80,
           "cmap": "plasma",
           "legend": true
         }
@@ -176,8 +178,8 @@
       },
       "indiv_summary": {
         "histogram": true,
-        "cumulative_histogram": true,
-        "map_overlay": true,
+        "cumulative_histogram": false,
+        "map_overlay": false,
         "org_video": false,
         "axes": {
           "xmin": null,

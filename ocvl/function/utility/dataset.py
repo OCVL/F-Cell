@@ -300,7 +300,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         pass
 
     elif stage == Stages.ANALYSIS:
-        result_path = obtain_analysis_output_path(folder, timestamp, analysis_params)
+        result_path = obtain_analysis_output_path(folder, timestamp, analysis_params, mkdir=False)
 
     # Read in directly-entered metatags.
     meta_fields = {}
