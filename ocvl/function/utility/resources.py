@@ -66,6 +66,12 @@ def load_video(video_path, video_field=None):
                     break
 
             vid.release()
+        case ".tif":
+            ret, video_data = cv2.imreadmulti(video_path)
+            if not ret:
+                warnings.warn("Failed to open tif: " + video_path)
+                return None
+
         case ".mat":
             mat_data = read_mat(video_path)
             for field in video_field:

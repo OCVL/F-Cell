@@ -344,12 +344,15 @@ def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cum
     plt.figure(figure_label)
 
     numsub = np.sum(len(metrics))
+    numcol = 3
+    numrow = int(numsub/numcol)
+
     subind = 1
     for metric in metrics:
         if iORG_result.loc[:, metric].count() != 0:
             metric_res = iORG_result.loc[:, metric].values.astype(float)
 
-            plt.subplot(1, numsub, subind)
+            plt.subplot(numrow, numcol, subind)
             subind += 1
 
             if not None in xlimits and ax_params.get(DisplayParams.XSTEP):
