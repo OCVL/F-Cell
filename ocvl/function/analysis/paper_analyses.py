@@ -202,16 +202,36 @@ if __name__ == "__main__":
 
 
         r=0
+        plt.figure("Signal versus")
         for key, siggies in sig_data.items():
             maxval = np.nanmax(siggies.flatten())
-            plt.figure("Signal versus")
             for sig in siggies:
-                plt.plot(time[key], sig/maxval, color=mapper.to_rgba(r), label=key)
+                # plt.plot(time[key], sig/maxval, color=mapper.to_rgba(r), label=key)
+                plt.plot(time[key], sig, color=mapper.to_rgba(r), label=key)
+            r += 1
+
+        r=0
+        plt.figure("Mean+-95predict")
+        for key, siggies in sig_data.items():
+            maxval = np.nanmax(siggies.flatten())
+
+            #normsigs = siggies/maxval
+            normsigs = siggies
+
+            datmean = np.nanmean(normsigs, axis=0)
+            datstd = np.nanstd(normsigs, axis=0)
+
+
+            plt.plot(time[key], datmean, linewidth=3, label=key)
+            plt.gca().fill_between(time[key], datmean - 1.96 * datstd, datmean + 1.96 * datstd,
+                                   alpha=0.2, interpolate=True)
+            # plt.show(block=False)
+            # plt.waitforbuttonpress()
             r += 1
 
 
         plt.figure("CoV versus")
-        sns.barplot(data=amp_data,capsize=.1, ci="sd")
+        sns.barplot(data=amp_data,capsize=.1, errorbar="sd")
         sns.swarmplot(data=amp_data,color="0", alpha=.35)
 
 

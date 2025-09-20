@@ -59,22 +59,25 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
     else:
         window_radius = 0
 
+    shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_signals.nbytes)
+
     # If the window radius isn't 0, then densify the matrix, and pad our profiles
     # and densify our matrix (add nans to make sure the signal has a sample for every point).
-    temporal_data=None
+    temporal_data= None
     if window_radius != 0:
         if len(temporal_signals.shape) == 2:
-            temporal_data= np.full((num_signals, 1, framestamps[-1]+1), np.nan)
+            temporal_data = np.ndarray((num_signals, 1, framestamps[-1]+1), dtype=temporal_signals.dtype, buffer=shared_block.buf)
             temporal_data[:, 0, framestamps] = temporal_signals
 
         if len(temporal_signals.shape) == 3:
-            temporal_data = np.full((num_signals, temporal_signals.shape[1], framestamps[-1]+1), np.nan)
+            temporal_data = np.ndarray((num_signals, temporal_signals.shape[1], framestamps[-1]+1), dtype=temporal_signals.dtype, buffer=shared_block.buf)
             temporal_data[:, :, framestamps] = temporal_signals
 
         temporal_data = np.pad(temporal_data, ((0, 0), (0, 0), (window_radius, window_radius)), "symmetric")
 
     else:
-        temporal_data = temporal_signals
+        temporal_data = np.ndarray(temporal_signals.shape, dtype=temporal_signals.dtype, buffer=shared_block.buf)
+        temporal_data[:] = temporal_signals[:]
 
     if len(temporal_signals.shape) == 2:
         num_incl = np.zeros((1, num_samples), dtype=np.uint32)
@@ -83,10 +86,6 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
         num_incl = np.zeros((temporal_signals.shape[1], num_samples), dtype=np.uint32)
         summary = np.full((temporal_signals.shape[1], num_samples), np.nan, dtype=np.float32)
 
-    shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_data.nbytes)
-    np_temporal = np.ndarray(temporal_data.shape, dtype=temporal_data.dtype, buffer=shared_block.buf)
-    # Copy data to our shared array.
-    np_temporal[:] = temporal_data[:]
 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="Mean of empty slice")

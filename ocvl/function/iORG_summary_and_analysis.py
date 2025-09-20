@@ -1061,6 +1061,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                            video_profiles, pooled_framerate.item(),
                                            scalar_mapper=mapper)
 
+                                del video_profiles
+
+                            stim_iORG_summary[q] = None
+
                             tryagain = True
                             while tryagain:
                                 try:
