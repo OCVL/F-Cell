@@ -567,9 +567,12 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
         prestim_val = np.nanmedian(prestim, axis=1)
 
-        # This only smooths the signal if spline_smooth is defined- otherwise it does nothing.
-        for c in range(poststim.shape[0]):
-            poststim[c,:] = make_smoothing_spline(poststim_frms, poststim[c,:], lam=spline_smooth)(poststim_frms)
+        # This only smooths the signal if spline_smooth is defined.
+        if spline_smooth is not None:
+            if spline_smooth == "auto": # This is found automatically using the Generalized Cross Validation, per scipy.
+                spline_smooth = None
+            for c in range(poststim.shape[0]):
+                poststim[c,:] = make_smoothing_spline(poststim_frms, poststim[c,:], lam=spline_smooth)(poststim_frms)
 
         poststim_val = np.nanquantile(poststim, [amplitude_percentile], axis=1).flatten()
 
@@ -761,11 +764,6 @@ def _interp_implicit(params):
             amp_val_interp = Akima1DInterpolator(finite_frms, finite_data - poststim_val, method="makima")
             halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
                                                      method="makima")
-
-            # plt.figure("Implicit_time_test")
-            # plt.plot(finite_frms, finite_data-poststim_val)
-            # plt.plot(finite_frms, amp_val_interp(finite_frms))
-            # plt.show()
 
 
             if amp_val_interp.roots().size != 0:
