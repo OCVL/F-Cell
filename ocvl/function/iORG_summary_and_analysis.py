@@ -1193,7 +1193,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                 tryagain = True
                 while tryagain:
                     try:
-                        plt.savefig(Path(analysis_path).joinpath(fname + "." + ext), dpi=300)
+                        plt.savefig(result_path.joinpath(fname + "." + ext), dpi=300)
                         tryagain = False
                     except PermissionError:
                         tryagain = messagebox.askyesno(

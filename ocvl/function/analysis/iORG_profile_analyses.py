@@ -130,7 +130,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                                               chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
-        elif summary_method == "avg":
+        elif summary_method == "mean":
 
             if window_radius == 0:
                 summary = np.nanmean(temporal_data, axis=0)  # Average second

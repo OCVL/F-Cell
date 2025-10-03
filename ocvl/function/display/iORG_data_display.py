@@ -228,7 +228,7 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
 
     ax_params = params.get(DisplayParams.AXES, dict())
 
-    if data_color is None: data_color = ax_params.get(DisplayParams.CMAP, "viridis")
+    #if data_color is None: data_color = ax_params.get(DisplayParams.CMAP, "viridis")
 
     show_legend = ax_params.get(DisplayParams.LEGEND, False) and \
                   isinstance(stim_vidnums, list) and isinstance(control_vidnums, list)
@@ -265,7 +265,8 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         plt.xlabel("Time (s)")
         plt.ylabel("A.U.")
 
-        _update_plot_colors(data_color)
+        if data_color is not None:
+            _update_plot_colors(data_color)
 
         if stim_delivery_frms is not None and len(plt.gca().get_lines()) == 1:
             for i in range(1, len(stim_delivery_frms), 2):
@@ -345,7 +346,7 @@ def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cum
 
     numsub = np.sum(len(metrics))
     numcol = 3
-    numrow = int(numsub/numcol)
+    numrow = int(np.ceil(numsub/numcol))
 
     subind = 1
     for metric in metrics:
