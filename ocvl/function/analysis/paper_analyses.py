@@ -1,6 +1,7 @@
 import itertools
 import json
 import sys
+import warnings
 from pathlib import Path
 from tkinter import filedialog, Tk
 import matplotlib as mpl
@@ -11,6 +12,11 @@ import seaborn as sns
 from colorama import Fore
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
+import cv2
+import os
+
+from ocvl.function.preprocessing.improc import flat_field
+
 
 # mpl.rcParams['axes.spines.right'] = False
 # mpl.rcParams['axes.spines.top'] = False
@@ -92,11 +98,9 @@ if __name__ == "__main__":
     y = root.winfo_screenheight() / 4
     root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
+    inny = 4
 
-    inny = input("Metrics (1), Signals (2), or whole folder summary (purmutations; 3)?")
-
-
-    if inny == "1":
+    if inny == 1:
         pName = None
 
         pName = filedialog.askdirectory(title="Select the folder containing RMS data.", initialdir=None, parent=root)
@@ -161,7 +165,7 @@ if __name__ == "__main__":
 
 
         plt.show()
-    elif inny == "2":
+    elif inny == 2:
         pName = None
 
         pName = filedialog.askdirectory(title="Select the folder containing data, or cancel to stop adding it.", initialdir=None, parent=root)
@@ -241,7 +245,7 @@ if __name__ == "__main__":
 
         print("huh")
 
-    if inny == "3":
+    elif inny == 3:
 
         pName = filedialog.askdirectory(title="Select the folder containing all data of interest.")
         if not pName:
@@ -257,4 +261,84 @@ if __name__ == "__main__":
 
         database = pd.concat(datalines)
         database.to_csv(Path(pName).joinpath("donedonedone_var.csv"))
+
+    elif inny ==4:
+        # Prompt user to select a folder
+        Tk().withdraw()  # Hide the root window
+        folder_path = filedialog.askdirectory(title='Select the folder containing .avi files')
+
+        # Check if user canceled folder selection
+        if not folder_path:
+            raise Exception('No folder selected. Exiting script.')
+
+        # Get list of all .avi files in the folder
+        all_files = [f for f in os.listdir(folder_path) if f.endswith('.avi')]
+
+        # Separate files into "Direct" and "Reflected" lists
+        direct_files = [f for f in all_files if 'Direct' in f]
+        reflected_files = [f for f in all_files if 'Reflected' in f]
+
+        print(f'Found {len(direct_files)} Direct files and {len(reflected_files)} Reflected files.')
+
+        # Process Direct files
+        for i in range(0, len(direct_files)):  # Start from index 1 to match MATLAB's 2-based indexing
+            direct_file_path = os.path.join(folder_path, direct_files[i])
+            reflected_file_path = os.path.join(folder_path, reflected_files[i])
+            print(f'Loading Direct file: {direct_files[i]}')
+
+            # Load video files
+            direct_cap = cv2.VideoCapture(direct_file_path)
+            reflect_cap = cv2.VideoCapture(reflected_file_path)
+
+            frame_count = int(min(direct_cap.get(cv2.CAP_PROP_FRAME_COUNT),
+                                  reflect_cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+            width = int(direct_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(direct_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+            # Prepare output file path
+            phase_file_name = direct_files[i].replace('Direct', 'PhaseMag')
+            phase_file_path = os.path.join(folder_path, phase_file_name)
+
+            # Define video writer with MJPG encoding for grayscale AVI
+            fourcc = cv2.VideoWriter_fourcc(*'Y800')
+            out = cv2.VideoWriter(phase_file_path, fourcc, direct_cap.get(cv2.CAP_PROP_FPS), (width, height),
+                                  isColor=False)
+
+            frame_idx = 0
+            while direct_cap.isOpened() and reflect_cap.isOpened():
+                ret1, direct_frame = direct_cap.read()
+                ret2, reflect_frame = reflect_cap.read()
+
+                if not ret1 or not ret2:
+                    break
+
+                # Convert to grayscale and float
+                direct_gray = cv2.cvtColor(direct_frame, cv2.COLOR_BGR2GRAY).astype(float)
+                reflect_gray = cv2.cvtColor(reflect_frame, cv2.COLOR_BGR2GRAY).astype(float)
+
+
+
+                phase_frm = (flat_field(direct_gray, sigma=10) - flat_field(reflect_gray, sigma=10))
+
+                # Standardize.
+                frame_norm = np.nanmean(phase_frm)
+                frame_std = np.nanstd(phase_frm)
+                phase_frm = (phase_frm - frame_norm) / frame_std
+                phase_frm *= 35
+
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
+                    phase_mag = np.abs(phase_frm).astype(np.uint8)
+
+                frame_idx += 1
+
+                # Write frame to output video
+                out.write(phase_mag)
+
+            direct_cap.release()
+            reflect_cap.release()
+            out.release()
+
+        plt.close()
+
 
