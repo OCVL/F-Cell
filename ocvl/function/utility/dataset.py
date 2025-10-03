@@ -931,8 +931,8 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
             dataset.video_data[..., f] = gaussian_filter(dataset.video_data[..., f], sigma=gausblur)
         dataset.video_data *= dataset.mask_data
 
-    # Normalize the video to reduce the influence of framewide intensity changes
-    if norm_scope == "frame":
+    # Normalize the video to reduce the influence of framewide intensity changes, if requested.
+    if norm_scope == "frame" and norm_method != "none":
         dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
                                         rescaled=rescale_norm,
                                         rescale_mean=res_mean, rescale_std=res_stddev)
