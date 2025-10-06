@@ -59,12 +59,13 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
     else:
         window_radius = 0
 
-    shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_signals.nbytes)
-
     # If the window radius isn't 0, then densify the matrix, and pad our profiles
     # and densify our matrix (add nans to make sure the signal has a sample for every point).
-    temporal_data= None
+    temporal_data = None
+    shared_block = None
     if window_radius != 0:
+        shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_signals.nbytes)
+
         if len(temporal_signals.shape) == 2:
             temporal_data = np.ndarray((num_signals, 1, framestamps[-1]+1), dtype=temporal_signals.dtype, buffer=shared_block.buf)
             temporal_data[:, 0, framestamps] = temporal_signals
@@ -76,8 +77,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
         temporal_data = np.pad(temporal_data, ((0, 0), (0, 0), (window_radius, window_radius)), "symmetric")
 
     else:
-        temporal_data = np.ndarray(temporal_signals.shape, dtype=temporal_signals.dtype, buffer=shared_block.buf)
-        temporal_data[:] = temporal_signals[:]
+        temporal_data = temporal_signals
 
     if len(temporal_signals.shape) == 2:
         num_incl = np.zeros((1, num_samples), dtype=np.uint32)
@@ -119,7 +119,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
         elif summary_method == "rms":
 
             if window_radius == 0:
-                summary = np.nanmean(temporal_data*temporal_data, axis=0)  # Average second
+                summary = np.nanmean(np.square(temporal_data), axis=0)  # Average second
                 summary = np.sqrt(summary)  # Sqrt last
                 num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):
@@ -156,9 +156,9 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                 summary[c, :] = summa
                 num_incl[c] = num_inc
 
-
-    shared_block.close()
-    shared_block.unlink()
+    if window_radius != 0:
+        shared_block.close()
+        shared_block.unlink()
 
 
     return summary, num_incl
