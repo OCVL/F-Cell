@@ -10,8 +10,9 @@ from numpy.fft import fftshift
 from scipy import signal
 from matplotlib import patches as ptch
 from scipy.fft import fft
-from scipy.interpolate import UnivariateSpline, Akima1DInterpolator
+from scipy.interpolate import UnivariateSpline, Akima1DInterpolator, make_smoothing_spline
 from scipy.ndimage import center_of_mass, convolve1d, median_filter
+from scipy.optimize import minimize_scalar
 from scipy.signal import savgol_filter, convolve, freqz
 from skimage.feature import graycomatrix, graycoprops
 from matplotlib import pyplot as plt
@@ -60,14 +61,17 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
 
     # If the window radius isn't 0, then densify the matrix, and pad our profiles
     # and densify our matrix (add nans to make sure the signal has a sample for every point).
-    temporal_data=None
+    temporal_data = None
+    shared_block = None
     if window_radius != 0:
+        shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_signals.nbytes)
+
         if len(temporal_signals.shape) == 2:
-            temporal_data= np.full((num_signals, 1, framestamps[-1]+1), np.nan)
+            temporal_data = np.ndarray((num_signals, 1, framestamps[-1]+1), dtype=temporal_signals.dtype, buffer=shared_block.buf)
             temporal_data[:, 0, framestamps] = temporal_signals
 
         if len(temporal_signals.shape) == 3:
-            temporal_data = np.full((num_signals, temporal_signals.shape[1], framestamps[-1]+1), np.nan)
+            temporal_data = np.ndarray((num_signals, temporal_signals.shape[1], framestamps[-1]+1), dtype=temporal_signals.dtype, buffer=shared_block.buf)
             temporal_data[:, :, framestamps] = temporal_signals
 
         temporal_data = np.pad(temporal_data, ((0, 0), (0, 0), (window_radius, window_radius)), "symmetric")
@@ -82,10 +86,6 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
         num_incl = np.zeros((temporal_signals.shape[1], num_samples), dtype=np.uint32)
         summary = np.full((temporal_signals.shape[1], num_samples), np.nan, dtype=np.float32)
 
-    shared_block = shared_memory.SharedMemory(name="signals", create=True, size=temporal_data.nbytes)
-    np_temporal = np.ndarray(temporal_data.shape, dtype=temporal_data.dtype, buffer=shared_block.buf)
-    # Copy data to our shared array.
-    np_temporal[:] = temporal_data[:]
 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="Mean of empty slice")
@@ -119,7 +119,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
         elif summary_method == "rms":
 
             if window_radius == 0:
-                summary = np.nanmean(temporal_data*temporal_data, axis=0)  # Average second
+                summary = np.nanmean(np.square(temporal_data), axis=0)  # Average second
                 summary = np.sqrt(summary)  # Sqrt last
                 num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):
@@ -130,7 +130,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                                               chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
-        elif summary_method == "avg":
+        elif summary_method == "mean":
 
             if window_radius == 0:
                 summary = np.nanmean(temporal_data, axis=0)  # Average second
@@ -156,9 +156,9 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                 summary[c, :] = summa
                 num_incl[c] = num_inc
 
-
-    shared_block.close()
-    shared_block.unlink()
+    if window_radius != 0:
+        shared_block.close()
+        shared_block.unlink()
 
 
     return summary, num_incl
@@ -511,7 +511,8 @@ def extract_texture_profiles(full_iORG_profiles, summary_methods=("all"), numlev
 
 
 def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
-                        desired_prestim_frms=None, desired_poststim_frms=None, pool=None):
+                        desired_prestim_frms=None, desired_poststim_frms=None, pool=None,
+                        spline_smooth=None, amplitude_percentile=0.99):
 
     if temporal_signals.ndim == 1:
         temporal_signals = temporal_signals[None, :]
@@ -564,7 +565,15 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         poststim_frms = framestamps[poststim_window_idx]
 
         prestim_val = np.nanmedian(prestim, axis=1)
-        poststim_val = np.nanquantile(poststim, [0.99], axis=1).flatten()
+
+        # This only smooths the signal if spline_smooth is defined.
+        if spline_smooth is not None:
+            if spline_smooth == "auto": # This is found automatically using the Generalized Cross Validation, per scipy.
+                spline_smooth = None
+            for c in range(poststim.shape[0]):
+                poststim[c,:] = make_smoothing_spline(poststim_frms, poststim[c,:], lam=spline_smooth)(poststim_frms)
+
+        poststim_val = np.nanquantile(poststim, [amplitude_percentile], axis=1).flatten()
 
         # ** Amplitude **
         amplitude = np.abs(poststim_val - prestim_val)
@@ -755,10 +764,12 @@ def _interp_implicit(params):
             halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
                                                      method="makima")
 
+
             if amp_val_interp.roots().size != 0:
                 amp_implicit_time = amp_val_interp.roots()[0]
             else:
                 amp_implicit_time = np.nan
+
 
             if halfamp_val_interp.roots().size != 0:
                 halfamp_implicit_time = halfamp_val_interp.roots()[0]

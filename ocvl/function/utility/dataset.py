@@ -180,7 +180,7 @@ def parse_metadata(json_dict_base=None, parse_path=None, root_group=None):
             return dict(), pd.DataFrame()
 
 
-def obtain_analysis_output_path(current_folder, timestamp, analysis_params):
+def obtain_analysis_output_path(current_folder, timestamp, analysis_params, mkdir=True):
 
     if current_folder is not isinstance(current_folder, Path):
         current_folder = Path(current_folder)
@@ -199,10 +199,12 @@ def obtain_analysis_output_path(current_folder, timestamp, analysis_params):
             output_dt_subfolder = PurePath(timestamp)
 
         result_folder = current_folder.joinpath(output_folder, output_dt_subfolder)
-        result_folder.mkdir(parents=True, exist_ok=True)
+        if mkdir:
+            result_folder.mkdir(parents=True, exist_ok=True)
     else:
         result_folder = current_folder.joinpath(output_folder)
-        result_folder.mkdir(parents=True, exist_ok=True)
+        if mkdir:
+            result_folder.mkdir(parents=True, exist_ok=True)
 
     return result_folder
 
@@ -298,7 +300,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         pass
 
     elif stage == Stages.ANALYSIS:
-        result_path = obtain_analysis_output_path(folder, timestamp, analysis_params)
+        result_path = obtain_analysis_output_path(folder, timestamp, analysis_params, mkdir=False)
 
     # Read in directly-entered metatags.
     meta_fields = {}
@@ -929,13 +931,14 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
             dataset.video_data[..., f] = gaussian_filter(dataset.video_data[..., f], sigma=gausblur)
         dataset.video_data *= dataset.mask_data
 
-    # Normalize the video to reduce the influence of framewide intensity changes
-    if norm_scope == "frame":
+    # Normalize the video to reduce the influence of framewide intensity changes, if requested.
+    if norm_scope == "frame" and norm_method != "none":
         dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
                                         rescaled=rescale_norm,
                                         rescale_mean=res_mean, rescale_std=res_stddev)
 
     if debug_params.get(DebugParams.OUTPUT_NORM_VIDEO, False):
+        result_folder.mkdir(parents=True, exist_ok=True)
         save_tiff_stack(result_folder.joinpath(dataset.video_path.stem + "_" + norm_method + "_norm.tif"),
                         dataset.video_data)
 

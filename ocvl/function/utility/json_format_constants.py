@@ -148,6 +148,8 @@ class SummaryParams(StrEnum):
     PRESTIM = "prestim"
     POSTSTIM = "poststim"
     INDIV_CUTOFF = "indiv_cutoff"
+    SMOOTHING_FACTOR = "smoothing_factor"
+    AMPLITUDE_PERCENTILE = "amplitude_percentile"
 
 class ControlParams(StrEnum):
     NAME = "control"

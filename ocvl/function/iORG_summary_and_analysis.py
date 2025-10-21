@@ -25,7 +25,7 @@ from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals,
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
 
-from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages, postprocess_dataset, \
+from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages, \
     obtain_analysis_output_path
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
     AcquisiTags, \
@@ -83,6 +83,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
     modes_of_interest = analysis_params.get(Analysis.MODALITIES)
 
+    # If we don't have any modalities that we're interested amongst our videos
+    if not allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO][DataTags.MODALITY].isin(modes_of_interest).any():
+        warnings.warn("None of the datasets detected match the modalities selected. Please review your dataset format.")
+        return allData
+
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
     seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.
 
@@ -97,12 +102,13 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
     sum_control = sum_params.get(SummaryParams.CONTROL, "none")
 
-    metrics = sum_params.get(SummaryParams.METRICS, dict())
-    metrics_type = metrics.get(SummaryParams.TYPE, ["amp", "amp_imp_time"])
-    metrics_measured_to = metrics.get(SummaryParams.MEASURED_TO, "stim-relative")
-    metrics_units = metrics.get(SummaryParams.UNITS, "time")
-    metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
-    metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
+    metric_params = sum_params.get(SummaryParams.METRICS, dict())
+    metrics_type = metric_params.get(SummaryParams.TYPE, ["amp", "amp_imp_time"])
+    metrics_measured_to = metric_params.get(SummaryParams.MEASURED_TO, "stim-relative")
+    metrics_units = metric_params.get(SummaryParams.UNITS, "time")
+    smooth_factor = metric_params.get(SummaryParams.SMOOTHING_FACTOR, None)
+    amp_percentile = metric_params.get(SummaryParams.AMPLITUDE_PERCENTILE, 0.99)
+
 
     metrics_tags =[]
     for metric in metrics_type:
@@ -607,8 +613,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                     plt.show(block=False)
 
 
-                            metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
-                            metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
+                            metrics_prestim = np.array(metric_params.get(SummaryParams.PRESTIM, [-1, 0]))
+                            metrics_poststim = np.array(metric_params.get(SummaryParams.POSTSTIM, [0, 1]))
                             if metrics_units == "time":
                                 metrics_prestim = np.round(metrics_prestim * dataset.framerate)
                                 metrics_poststim = np.round(metrics_poststim * dataset.framerate)
@@ -626,7 +632,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                             amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, _, _ = iORG_signal_metrics(stim_dataset.summarized_iORGs[q][stim_dataset.framestamps],
                                                                                                                      stim_dataset.framestamps, stim_dataset.framerate,
-                                                                                                                     metrics_prestim, metrics_poststim, the_pool)
+                                                                                                                     metrics_prestim, metrics_poststim, the_pool,
+                                                                                                                     smooth_factor, amp_percentile)
 
                             for metric in metrics_type:
                                 if metric == "aur":
@@ -750,8 +757,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                                + start_timestamp + ".csv"), index_label="Video Number")
                             del pop_iORG_summary
 
-                        metrics_prestim = np.array(metrics.get(SummaryParams.PRESTIM, [-1, 0]))
-                        metrics_poststim = np.array(metrics.get(SummaryParams.POSTSTIM, [0, 1]))
+                        metrics_prestim = np.array(metric_params.get(SummaryParams.PRESTIM, [-1, 0]))
+                        metrics_poststim = np.array(metric_params.get(SummaryParams.POSTSTIM, [0, 1]))
                         if metrics_units == "time":
                             metrics_prestim = np.round(metrics_prestim * pooled_framerate)
                             metrics_poststim = np.round(metrics_poststim * pooled_framerate)
@@ -770,7 +777,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                         amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, prestim_idx, poststim_idx = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,
                                                                                                                  pooled_framerate,
-                                                                                                                 metrics_prestim, metrics_poststim, the_pool)
+                                                                                                                 metrics_prestim, metrics_poststim, the_pool,
+                                                                                                                     smooth_factor, amp_percentile)
 
                         for metric in metrics_type:
                             if metric == "aur":
@@ -947,7 +955,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 gc.collect()
 
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
-                            res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool)
+                            res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool,
+                                                                                                                     smooth_factor, amp_percentile)
 
                             with warnings.catch_warnings():
                                 warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")
@@ -1051,6 +1060,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 save_video(result_path.joinpath(str(subject_IDs[0]) + "_" + mode +"_pooled_pixelpop_iORG_" + sum_method + "_" +folder.name +"_"+ start_timestamp +"_"+ query_loc_names[q]+ ".avi"),
                                            video_profiles, pooled_framerate.item(),
                                            scalar_mapper=mapper)
+
+                                del video_profiles
+
+                            stim_iORG_summary[q] = None
 
                             tryagain = True
                             while tryagain:
@@ -1180,7 +1193,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                 tryagain = True
                 while tryagain:
                     try:
-                        plt.savefig(Path(analysis_path).joinpath(fname + "." + ext), dpi=300)
+                        plt.savefig(result_path.joinpath(fname + "." + ext), dpi=300)
                         tryagain = False
                     except PermissionError:
                         tryagain = messagebox.askyesno(
