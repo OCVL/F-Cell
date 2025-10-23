@@ -53,6 +53,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     # Grab all the folders/data here.
     dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
 
+    ''' Make sure to do a separate parse of control data, if needed, since we removed this from the parse procedure. '''
+
     # If loading the file fails, tell the user, and return what data we could parse.
     if allData.empty or allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
         warnings.warn("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
