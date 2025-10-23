@@ -10,14 +10,15 @@
       }
     },
     "pipeline_params": {
-      "intra_stack_xform": "rigid",
-      "inter_stack_xform": "rigid",
+      "intra_stack_xform": "affine",
+      "inter_stack_xform": "affine",
       "correct_torsion": true
     }
   },
   "analysis": {
+    "image_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{VidNum}_ALL_ACQ_AVG.tif",
     "queryloc_format": "{Modality}_{VidNum}_{IDnum}_mean_imagepoints_noise05.csv",
-    "video_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{VidNum}_{IDnum}_PipeVid.avi",
+    "video_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{VidNum}_PipeVid.avi",
     "metadata": {
       "video": {
         "fields_to_load": ["data", "frames"],
@@ -37,13 +38,14 @@
       "modalities": ["ch1"],
       "output_folder": "Results",
       "normalization": {
+        "scope": "signals",
         "method": "mean",
         "rescaled": false
       },
       "segmentation": {
         "refine_to_ref": false,
         "refine_to_vid": false,
-        "radius": "auto",
+        "radius": 4,
         "shape": "disk",
         "summary": "mean"
       },
