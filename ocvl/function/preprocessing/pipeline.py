@@ -29,6 +29,7 @@ from tkinter import *
 from tkinter import filedialog, ttk, messagebox
 import matplotlib as mpl
 from colorama import Fore
+from ocvl.tags.file_tag_parser import FileTagParser
 from scipy.ndimage import gaussian_filter
 import pandas as pd
 import tifffile as tiff
@@ -61,7 +62,9 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
             w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
     # Grab all the folders/data here.
-    dat_form, allData = parse_file_metadata(config_path, preanalysis_path, PreAnalysisPipeline.NAME)
+    filename_parser = FileTagParser.from_json(config_path, PreAnalysisPipeline.NAME)
+    dat_form = filename_parser.json_dict
+    allData = filename_parser.parse_path(preanalysis_path)
 
     # If loading the file fails, tell the user, and return what data we could parse.
     if allData.empty or allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
@@ -397,8 +400,6 @@ if __name__ == "__main__":
 
     pName = None
     json_fName = Path()
-    dat_form = dict()
-    allData = pd.DataFrame()
 
     pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
     if not pName:
@@ -412,16 +413,16 @@ if __name__ == "__main__":
     if not json_fName:
         sys.exit(2)
 
-    allData = preanalysis_pipeline(pName, Path(json_fName))
+    allData_db = preanalysis_pipeline(pName, Path(json_fName))
 
-    while allData is None or allData.empty or allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
-        if allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+    while allData_db is None or allData_db.empty or allData_db[allData_db[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+        if allData_db[allData_db[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
             tryagain = messagebox.askretrycancel("No videos detected.",
                                                  "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if not tryagain:
                 sys.exit(3)
 
-        if allData.empty:
+        if allData_db.empty:
             tryagain = messagebox.askretrycancel("No data detected.",
                                                  "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if tryagain:
@@ -439,4 +440,4 @@ if __name__ == "__main__":
         if not json_fName:
             sys.exit(2)
 
-        allData = preanalysis_pipeline(pName, Path(json_fName))
+        allData_db = preanalysis_pipeline(pName, Path(json_fName))

@@ -17,6 +17,7 @@ import matplotlib as mpl
 from datetime import datetime
 
 from matplotlib.lines import Line2D
+from ocvl.tags.file_tag_parser import FileTagParser
 
 from scipy.stats import t
 
@@ -25,7 +26,7 @@ from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals,
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
 
-from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages, \
+from ocvl.function.utility.dataset import initialize_and_load_dataset, Stages, \
     obtain_analysis_output_path
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
     AcquisiTags, \
@@ -51,9 +52,20 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
     # Grab all the folders/data here.
-    dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
+    filename_parser = FileTagParser.from_json(config_path, Analysis.NAME)
+    dat_form = filename_parser.json_dict
+    allData = filename_parser.parse_path(analysis_path)
 
-    ''' Make sure to do a separate parse of control data, if needed, since we removed this from the parse procedure. '''
+    # If our control data comes from the file structure, then prep to check for it in case its in the config.
+    control_params = dat_form.get(Analysis.NAME).get(ControlParams.NAME, None)
+    if control_params is not None:
+        control_loc = control_params.get(ControlParams.LOCATION, "folder")
+        if control_loc == "folder":
+            control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
+            controlData = filename_parser.parse_path(Path(analysis_path).joinpath(control_folder))
+            allData = pd.concat([allData, controlData], ignore_index=True)
+
+
 
     # If loading the file fails, tell the user, and return what data we could parse.
     if allData.empty or allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
@@ -1216,8 +1228,6 @@ if __name__ == "__main__":
 
     pName = None
     json_fName = Path()
-    dat_form = dict()
-    allData = pd.DataFrame()
 
     pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
     if not pName:
@@ -1231,16 +1241,16 @@ if __name__ == "__main__":
     if not json_fName:
         sys.exit(2)
 
-    allData = iORG_summary_and_analysis(pName, Path(json_fName))
+    allData_db = iORG_summary_and_analysis(pName, Path(json_fName))
 
-    while allData is None or allData.empty or allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
-        if allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+    while allData_db is None or allData_db.empty or allData_db[allData_db[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+        if allData_db[allData_db[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
             tryagain = messagebox.askretrycancel("No videos detected.",
                                                  "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if not tryagain:
                 sys.exit(3)
 
-        if allData.empty:
+        if allData_db.empty:
             tryagain = messagebox.askretrycancel("No data detected.",
                                                  "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if tryagain:
@@ -1258,4 +1268,4 @@ if __name__ == "__main__":
         if not json_fName:
             sys.exit(2)
 
-        allData = iORG_summary_and_analysis(pName, Path(json_fName))
+        allData_db = iORG_summary_and_analysis(pName, Path(json_fName))
