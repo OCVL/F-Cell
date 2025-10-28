@@ -29,7 +29,8 @@ from tkinter import *
 from tkinter import filedialog, ttk, messagebox
 import matplotlib as mpl
 from colorama import Fore
-from ocvl.tags.file_tag_parser import FileTagParser
+from file_tag_parser.tags.file_tag_parser import FileTagParser
+from file_tag_parser.tags.json_format_constants import DataFormat
 from scipy.ndimage import gaussian_filter
 import pandas as pd
 import tifffile as tiff
@@ -37,10 +38,10 @@ import tifffile as tiff
 
 from ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
-from ocvl.function.utility.dataset import parse_file_metadata, load_dataset, \
+from ocvl.function.utility.dataset import  load_dataset, \
     preprocess_dataset, initialize_and_load_dataset
 
-from ocvl.function.utility.json_format_constants import DataFormatType, DataTags, MetaTags, PreAnalysisPipeline, AcquisiTags, \
+from ocvl.function.utility.json_format_constants import  DataTags, MetaTags, PreAnalysisPipeline, AcquisiParams, \
     ConfigFields, Analysis
 from ocvl.function.utility.resources import save_video
 
@@ -67,7 +68,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
     allData = filename_parser.parse_path(preanalysis_path)
 
     # If loading the file fails, tell the user, and return what data we could parse.
-    if allData.empty or allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+    if allData.empty or allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
         warnings.warn("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
         return allData
 
@@ -78,9 +79,9 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
         pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
         modes_of_interest = pipeline_params.get(PreAnalysisPipeline.MODALITIES)
         # If we didn't pick a modality that's of interest, then pick them all.
-        if AcquisiTags.MODALITY in allData.columns:
+        if AcquisiParams.MODALITY in allData.columns:
             if modes_of_interest is None:
-                modes_of_interest = allData[AcquisiTags.MODALITY].unique().tolist()
+                modes_of_interest = allData[AcquisiParams.MODALITY].unique().tolist()
                 print("NO MODALITIES SELECTED! Processing all....")
         else:
             modes_of_interest = [""]
@@ -99,7 +100,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
         metadata_params = None
         if preanalysis_dat_format.get(MetaTags.METATAG) is not None:
             metadata_params = preanalysis_dat_format.get(MetaTags.METATAG)
-            metadata_form = metadata_params.get(DataFormatType.METADATA)
+            metadata_form = metadata_params.get(DataFormat.METADATA)
 
         acquisition = dict()
 
@@ -115,16 +116,16 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                 acquisition = modevids.loc[modevids[DataTags.VIDEO_ID] == num]
                 ref_acquisition = ref_modevids.loc[ref_modevids[DataTags.VIDEO_ID] == num]
 
-                if (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK).sum() <= 1 and \
-                        (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA).sum() <= 1 and \
-                        (acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO).sum() == 1:
+                if (acquisition[DataFormat.FORMAT_TYPE] == DataFormat.MASK).sum() <= 1 and \
+                        (acquisition[DataFormat.FORMAT_TYPE] == DataFormat.METADATA).sum() <= 1 and \
+                        (acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO).sum() == 1:
 
-                    video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
-                    ref_video_info = ref_acquisition.loc[ref_acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
+                    video_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO]
+                    ref_video_info = ref_acquisition.loc[ref_acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO]
 
                     pre_filter = (allData[DataTags.MODALITY] == mode)
-                    dataset, _ = initialize_and_load_dataset(folder=allData.loc[video_info.index, AcquisiTags.BASE_PATH].values[0],
-                                                          vidID=num, prefilter=pre_filter, database=allData, params=preanalysis_dat_format)
+                    dataset, _ = initialize_and_load_dataset(folder=allData.loc[video_info.index, AcquisiPaths.BASE_PATH].values[0],
+                                                             vidID=num, prefilter=pre_filter, database=allData, params=preanalysis_dat_format)
 
                     dataset = dataset[0]
 
@@ -134,16 +135,16 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                         if alignment_ref_mode is not None and mode != alignment_ref_mode:
 
                             pre_filter = (allData[DataTags.MODALITY] == alignment_ref_mode)
-                            ref_dataset, _ = initialize_and_load_dataset(folder=allData.loc[ref_video_info.index, AcquisiTags.BASE_PATH].values[0],
-                                                                      vidID=num, prefilter=pre_filter, database=allData,
-                                                                      params=preanalysis_dat_format)
+                            ref_dataset, _ = initialize_and_load_dataset(folder=allData.loc[ref_video_info.index, AcquisiPaths.BASE_PATH].values[0],
+                                                                         vidID=num, prefilter=pre_filter, database=allData,
+                                                                         params=preanalysis_dat_format)
 
                             print(Fore.WHITE + "Preprocessing dataset using reference video for alignment...")
-                            allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params, ref_dataset)
+                            allData.loc[video_info.index, AcquisiPaths.DATASET] = preprocess_dataset(dataset, pipeline_params, ref_dataset)
                             print()
                         else:
                             print(Fore.WHITE + "Preprocessing dataset...")
-                            allData.loc[video_info.index, AcquisiTags.DATASET] = preprocess_dataset(dataset, pipeline_params)
+                            allData.loc[video_info.index, AcquisiPaths.DATASET] = preprocess_dataset(dataset, pipeline_params)
                             print()
 
                     else:
@@ -153,7 +154,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
 
         # Remove all entries without associated datasets.
-        allData.drop(allData[allData[AcquisiTags.DATASET].isnull()].index, inplace=True)
+        allData.drop(allData[allData[AcquisiPaths.DATASET].isnull()].index, inplace=True)
 
         grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
         if grouping is not None:
@@ -180,7 +181,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                 ref_modes = group_datasets.loc[group_datasets[DataTags.MODALITY] == alignment_ref_mode]
 
                 vidnums = ref_modes[DataTags.VIDEO_ID].to_numpy()
-                datasets = ref_modes[AcquisiTags.DATASET].to_list()
+                datasets = ref_modes[AcquisiPaths.DATASET].to_list()
                 if not datasets:
                     continue
                 max_image_size = np.max(np.vstack([data.avg_image_data.shape for data in datasets]), axis=0)
@@ -232,7 +233,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                 modevids = group_datasets.loc[group_datasets[DataTags.MODALITY] == mode]
 
                 vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
-                datasets = modevids[AcquisiTags.DATASET].to_list()
+                datasets = modevids[AcquisiPaths.DATASET].to_list()
                 if not datasets:
                     continue
                 max_image_size = np.max(np.vstack([data.avg_image_data.shape for data in datasets]), axis=0)
@@ -288,7 +289,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                 # Determine the filename for the superaverage using the central-most dataset.
                 pipelined_dat_format = dat_form.get(Analysis.NAME)
                 if pipelined_dat_format is not None:
-                    pipe_im_form = pipelined_dat_format.get(DataFormatType.IMAGE)
+                    pipe_im_form = pipelined_dat_format.get(DataFormat.IMAGE)
                     if pipe_im_form is not None:
                         pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
                     else:
@@ -297,20 +298,20 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                     pipe_im_fname = "    "
 
                 # Make sure our output folder exists.
-                central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder).mkdir(parents=True,
-                                                                                                 exist_ok=True)
+                central_dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder).mkdir(parents=True,
+                                                                                               exist_ok=True)
 
                 print("Outputting data...")
                 for dataset, xform in zip(datasets, ref_xforms):
 
                     # Make sure our output folder exists.
-                    dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder).mkdir(parents=True, exist_ok=True)
+                    dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder).mkdir(parents=True, exist_ok=True)
 
                     (rows, cols) = dataset.video_data.shape[0:2]
 
                     if pipelined_dat_format is not None:
-                        pipe_vid_form = pipelined_dat_format.get(DataFormatType.VIDEO)
-                        pipe_mask_form = pipelined_dat_format.get(DataFormatType.MASK)
+                        pipe_vid_form = pipelined_dat_format.get(DataFormat.VIDEO)
+                        pipe_mask_form = pipelined_dat_format.get(DataFormat.MASK)
                         pipe_meta_form = pipelined_dat_format.get(MetaTags.METATAG)
 
                         if pipe_vid_form is not None:
@@ -318,7 +319,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                         if pipe_mask_form is not None:
                             pipe_mask_fname = pipe_mask_form.format_map(dataset.metadata)
                         if pipe_meta_form is not None:
-                            pipe_meta_form = pipe_meta_form.get(DataFormatType.METADATA)
+                            pipe_meta_form = pipe_meta_form.get(DataFormat.METADATA)
                             if pipe_meta_form is not None:
                                 pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
                             else:
@@ -348,14 +349,14 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                         mask_dat[..., i] = tmp.astype(og_dtype)
 
                     out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
-                    out_meta.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
-                    croprect = save_video(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_vid_fname), vid_data,
-                               framerate=dataset.framerate)
+                    out_meta.to_csv(dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
+                    croprect = save_video(dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, pipe_vid_fname), vid_data,
+                                          framerate=dataset.framerate)
 
                 # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack
                 stackmeta_for_IJ = {'Labels': data_filenames}
 
-                stackfname = central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] +"_STK.tif"))
+                stackfname = central_dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] + "_STK.tif"))
                 avg_images = avg_images.astype("float32")
                 with tiff.TiffWriter(stackfname, imagej=True) as tif_writer:
 
@@ -374,15 +375,15 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
                 # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
                 # pipeline filename structure.
-                cv2.imwrite(central_dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, pipe_im_fname),
+                cv2.imwrite(central_dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, pipe_im_fname),
                             avg_avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3]])
 
             # Outputs the metadata for the group to the group folder
-            group_datasets.to_csv(dataset.metadata[AcquisiTags.BASE_PATH].joinpath(group_folder, group+"_group_info.csv"), index=False)
+            group_datasets.to_csv(dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, group + "_group_info.csv"), index=False)
 
 
         out_json = Path(config_path).stem + "_" + now_timestamp + ".json"
-        out_json = dataset.metadata[AcquisiTags.BASE_PATH].joinpath(output_folder, out_json)
+        out_json = dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(output_folder, out_json)
 
         audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
                            ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
@@ -415,8 +416,8 @@ if __name__ == "__main__":
 
     allData_db = preanalysis_pipeline(pName, Path(json_fName))
 
-    while allData_db is None or allData_db.empty or allData_db[allData_db[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
-        if allData_db[allData_db[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+    while allData_db is None or allData_db.empty or allData_db[allData_db[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
+        if allData_db[allData_db[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
             tryagain = messagebox.askretrycancel("No videos detected.",
                                                  "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if not tryagain:
