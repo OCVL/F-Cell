@@ -12,12 +12,13 @@ import cv2
 import numpy as np
 import pandas as pd
 from colorama import Fore
+from file_tag_parser.tags.file_tag_parser import FileTagParser
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 from datetime import datetime
 
 from matplotlib.lines import Line2D
-from ocvl.tags.file_tag_parser import FileTagParser
+
 
 from scipy.stats import t
 
