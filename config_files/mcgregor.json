@@ -16,7 +16,7 @@
     "video_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}.avi",
     "queryloc_format": "piped_{Modality}_{VidNum}_{Year:.4}-{Month:.2}-{Day:.2}_ALL_ACQ_AVG_coords.csv",
     "metadata": {
-      "stimulus_sequence": [501, 1, 491, 1, 491, 1, 491, 1, 491, 1, 491, 1, 491]
+      "stimulus_sequence": [501, 17, 475, 17, 475, 17, 475, 17, 475, 17, 475, 17, 475]
     },
     "analysis_params": {
       "summary": {
@@ -42,8 +42,8 @@
         "pooled": true,
         "annotations": true,
         "axes": {
-          "xmin": -10,
-          "xmax": 10,
+          "xmin": 15,
+          "xmax": 25,
           "cmap": "plasma",
           "legend": true
         }
