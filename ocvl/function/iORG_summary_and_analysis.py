@@ -735,7 +735,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         if stimtrain.shape[0] != 1:
                             warnings.warn("The stimulus frame train of the iORGs analyzed in " + folder.name + " is inconsistent! Pooled results may be incorrect.")
 
-                        stimtrain = stimtrain[0]
+                        largest_prestim = np.argmax(stimtrain, axis=0)
+                        stimtrain = stimtrain[largest_prestim[0],:]
 
                         # Debug - to look at individual cell raw traces.
                         if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
