@@ -16,16 +16,12 @@
     }
   },
   "analysis": {
-    "image_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{VidNum}_ALL_ACQ_AVG.tif",
-    "queryloc_format": "{Modality}_{VidNum}_{IDnum}_mean_imagepoints_noise05.csv",
-    "video_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{VidNum}_PipeVid.avi",
+    "image_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{Day:.1}{Month:.1}{Year:.4}_{VidNum}_ALL_ACQ_AVG.tif",
+    "queryloc_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{Day:.1}{Month:.1}{Year:.4}_{VidNum}_ALL_ACQ_AVG_{QueryLocs:s?}coords.csv",
+    "video_format": "SLO_{Modality}_{IDnum}_{Eye}_2+0_stat_1_{Day:.1}{Month:.1}{Year:.4}_{VidNum}_PipeVid.avi",
     "metadata": {
-      "video": {
-        "fields_to_load": ["data", "frames"],
-        "framerate": 37.5
-      },
-      "query_locations": {
-        "fields_to_load": ["X", "Y"]
+      "fields_to_load": {
+        "framestamps": "FrameStamps"
       },
       "stimulus_sequence": [74, 36, 75]
     },
@@ -45,7 +41,7 @@
       "segmentation": {
         "refine_to_ref": false,
         "refine_to_vid": false,
-        "radius": 4,
+        "radius": "auto",
         "shape": "disk",
         "summary": "mean"
       },
@@ -57,13 +53,13 @@
         "fraction": 0.2
       },
       "standardization": {
-        "method": "std",
+        "method": "stddev",
         "type": "stim-relative",
         "units": "time",
         "start": -2
       },
       "summary": {
-        "method": "std",
+        "method": "stddev",
         "control": "none",
         "metrics": {
           "type": ["amp", "logamp"],
@@ -77,7 +73,7 @@
     },
     "display_params": {
       "debug":{
-        "output_norm_video": true,
+        "output_norm_video": false,
         "plot_refine_to_ref": false,
         "plot_refine_to_vid": false,
         "plot_pop_extracted_orgs": false,
