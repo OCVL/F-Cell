@@ -582,11 +582,10 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     # In a case where there is more than that, then cut up the video data into multiple sub-datasets for future processing.
     if stimulus_sequence is None or len(stimulus_sequence) == 3:
         dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
-    elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 == 0:
+    elif len(stimulus_sequence) > 3:
         print(Fore.YELLOW + "Detected multiple stimuli in this dataset. Breaking into subdatasets for analysis...")
         dataset = []
         for i in range(0, len(stimulus_sequence)-2, 2):
-
             sub_seq = stimulus_sequence[i:i+3].copy()
             # Subtract the preceding sequence value from this sub-dataset, if available.
             if i!=0:
@@ -599,17 +598,12 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
             # Subtract the first framestamp from this sub-dataset, its now frame 0.
             subset_stamps -= subset_stamps[0]
 
-            print(len(std_indices))
             dataset.append(Dataset(video_data[..., std_indices],
                                    mask_data[..., std_indices],
                                    avg_image_data, metadata, queryloc_data, subset_stamps, sub_seq, stage))
 
-    elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 != 0:
-        warnings.warn("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Only using first 3 values.")
-        stimulus_sequence = stimulus_sequence[0:2]
-        dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
     elif len(stimulus_sequence) < 3:
-        warnings.warn("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Unable to analyze dataset.")
+        warnings.warn("Stimulus sequences must be interpretable in sets of 3, in pre-stim, stim, post-stim format. Unable to analyze dataset.")
         return None
 
     return dataset
