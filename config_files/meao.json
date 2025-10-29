@@ -121,8 +121,7 @@
         "height": -1
       }
     },
-    "display_params": {
-       "debug":{
+    "debug":{
         "output_norm_video": false,
         "plot_refine_to_ref": false,
         "plot_refine_to_vid": false,
@@ -141,6 +140,7 @@
           "legend": true
         }
       },
+    "display_params": {
       "pop_summary_overlap": {
         "stimulus": true,
         "control": true,

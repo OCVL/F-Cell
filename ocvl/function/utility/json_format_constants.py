@@ -4,15 +4,6 @@ class ConfigFields(StrEnum):
     VERSION = "version",
     DESCRIPTION = "description"
 
-class DataFormatType(StrEnum):
-    FORMAT_TYPE = "Data_Type"
-    IMAGE = "image_format"
-    VIDEO = "video_format"
-    MASK = "mask_format"
-    METADATA = "metadata_format"
-    QUERYLOC = "queryloc_format"
-    RECURSIVE = "recursive_search"
-
 # Will probably want to make a list of these corresponding to the version of the json files.
 # This verson assumes that we don't have any naming collisions; e.g. these constants aren't used in the filenames.
 class DataTags(StrEnum):
@@ -47,21 +38,12 @@ class MetaTags(StrEnum):
     VIDEO = "video"
     MASK = "mask"
 
-
-class AcquisiTags(StrEnum):
-    DATASET = "Dataset"
-    DATA_PATH = "Data_Path"
-    OUTPUT_PATH = "Output_Path"
-    VIDEO_PATH = "Video_Path"
-    IMAGE_PATH = "Image_Path"
-    QUERYLOC_PATH = "QueryLocation_Path"
+class AcquisiParams(StrEnum):
     STIMSEQ_PATH = "Stimulus_Sequence_Path"
     MODALITY = "Modality"
     PREFIX = "Output_Prefix"
-    BASE_PATH = "Base_Path"
-    MASK_PATH = "Mask_Path"
-    META_PATH = "Metadata_Path"
     STIM_PRESENT = "Stimulus_Present"
+    RECURSIVE_SEARCH = "recursive_search"
 
 class PreAnalysisPipeline(StrEnum):
     NAME = "preanalysis"

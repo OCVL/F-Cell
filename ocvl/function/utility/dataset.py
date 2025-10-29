@@ -12,12 +12,12 @@ import cv2
 import numpy as np
 import pandas as pd
 from colorama import Fore
+from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from scipy.ndimage import gaussian_filter
 
 from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection, \
     norm_video
-from ocvl.function.utility.format_parser import FormatParser
-from ocvl.function.utility.json_format_constants import DataTags, MetaTags, DataFormatType, AcquisiTags, \
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags, AcquisiParams, \
     PreAnalysisPipeline, \
     ControlParams, Analysis, NormParams, DebugParams, DisplayParams, SegmentParams
 from ocvl.function.utility.resources import load_video, save_video, save_tiff_stack
@@ -42,14 +42,14 @@ def load_metadata(metadata_params, ext_metadata):
 
     # Load our externally sourced metadata
     if not ext_metadata.empty and metadata_params is not None:
-        if ext_metadata.at[ext_metadata.index[0], AcquisiTags.DATA_PATH].exists():
-            metadata_path = ext_metadata.at[ext_metadata.index[0], AcquisiTags.DATA_PATH]
+        if ext_metadata.at[ext_metadata.index[0], AcquisiPaths.DATA_PATH].exists():
+            metadata_path = ext_metadata.at[ext_metadata.index[0], AcquisiPaths.DATA_PATH]
             metatype = metadata_params.get(MetaTags.TYPE)
             loadfields = metadata_params.get(MetaTags.FIELDS_OF_INTEREST)
 
             headher = metadata_params.get(MetaTags.HEADERS, 0)
             if metatype == "text_file":
-                dat_metadata = pd.read_csv(ext_metadata.at[ext_metadata.index[0], AcquisiTags.DATA_PATH],
+                dat_metadata = pd.read_csv(ext_metadata.at[ext_metadata.index[0], AcquisiPaths.DATA_PATH],
                                            encoding="utf-8-sig", skipinitialspace=True, header=headher)
 
                 for field, column in loadfields.items():
@@ -71,113 +71,6 @@ def load_metadata(metadata_params, ext_metadata):
         metadata_path = None
 
     return meta_fields, metadata_path
-
-
-
-def parse_file_metadata(config_json_path, parse_path, group=None):
-
-    with open(config_json_path, 'r') as config_json_path:
-        json_dict = json.load(config_json_path)
-
-        return parse_metadata(json_dict, parse_path, root_group=group)
-
-
-def parse_metadata(json_dict_base=None, parse_path=None, root_group=None):
-
-        allFilesColumns = [AcquisiTags.DATASET, AcquisiTags.DATA_PATH, DataFormatType.FORMAT_TYPE]
-        allFilesColumns.extend([d.value for d in DataTags])
-
-        if root_group is not None:
-            json_dict = json_dict_base.get(root_group)
-        else:
-            json_dict = json_dict_base
-
-        if json_dict is not None and parse_path is not None:
-            im_form = json_dict.get(DataFormatType.IMAGE)
-            vid_form = json_dict.get(DataFormatType.VIDEO)
-            mask_form = json_dict.get(DataFormatType.MASK)
-            query_form = json_dict.get(DataFormatType.QUERYLOC)
-
-            metadata_form = None
-            metadata_params = None
-            if json_dict.get(MetaTags.METATAG) is not None:
-                metadata_params = json_dict.get(MetaTags.METATAG)
-                metadata_form = metadata_params.get(DataFormatType.METADATA)
-
-            all_ext = ()
-            # Grab our extensions, make sure to check them all.
-            all_ext = all_ext + (vid_form[vid_form.rfind(".", -5, -1):],) if vid_form else all_ext
-            all_ext = all_ext + (mask_form[mask_form.rfind(".", -5, -1):],) if mask_form and mask_form[
-                                                                                             mask_form.rfind(".", -5,
-                                                                                                             -1):] not in all_ext else all_ext
-            all_ext = all_ext + (im_form[im_form.rfind(".", -5, -1):],) if im_form and im_form[im_form.rfind(".", -5,
-                                                                                                             -1):] not in all_ext else all_ext
-            all_ext = all_ext + (query_form[query_form.rfind(".", -5, -1):],) if query_form and query_form[
-                                                                                                query_form.rfind(".",
-                                                                                                                 -5,
-                                                                                                                 -1):] not in all_ext else all_ext
-            all_ext = all_ext + (metadata_form[metadata_form.rfind(".", -5, -1):],) if metadata_form and metadata_form[
-                                                                                                         metadata_form.rfind(
-                                                                                                             ".", -5,
-                                                                                                             -1):] not in all_ext else all_ext
-
-            # Construct the parser we'll use for each of these forms
-            parser = FormatParser(vid_form, mask_form, im_form, metadata_form, query_form)
-
-            # If our control data comes from the file structure, then prep to check for it in case its in the config.
-            control_params = json_dict.get(ControlParams.NAME, None)
-            if control_params is not None:
-                control_loc = control_params.get(ControlParams.LOCATION, "folder")
-                if control_loc == "folder":
-                    control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
-
-
-            # Parse out the locations and filenames, store them in a hash table by location.
-            searchpath = Path(parse_path)
-            allFiles = list()
-            recurse_me = json_dict.get(DataFormatType.RECURSIVE, True)
-            if recurse_me:
-                for ext in all_ext:
-                    for path in searchpath.rglob("*" + ext):
-                        format_type, file_info = parser.parse_file(path.name)
-                        if format_type is not None:
-                            file_info[DataFormatType.FORMAT_TYPE] = format_type
-                            file_info[AcquisiTags.DATA_PATH] = path
-                            file_info[AcquisiTags.BASE_PATH] = path.parent
-                            file_info[AcquisiTags.DATASET] = None
-                            entry = pd.DataFrame.from_dict([file_info])
-
-                            allFiles.append(entry)
-            else:
-                for ext in all_ext:
-                    for path in searchpath.glob("*" + ext):
-                        format_type, file_info = parser.parse_file(path.name)
-                        if format_type is not None:
-                            file_info[DataFormatType.FORMAT_TYPE] = format_type
-                            file_info[AcquisiTags.DATA_PATH] = path
-                            file_info[AcquisiTags.BASE_PATH] = path.parent
-                            file_info[AcquisiTags.DATASET] = None
-                            entry = pd.DataFrame.from_dict([file_info])
-
-                            allFiles.append(entry)
-                    if control_params is not None:
-                        controlsearchpath = searchpath.joinpath(control_folder)
-                        for path in controlsearchpath.glob("*" + ext):
-                            format_type, file_info = parser.parse_file(path.name)
-                            if format_type is not None:
-                                file_info[DataFormatType.FORMAT_TYPE] = format_type
-                                file_info[AcquisiTags.DATA_PATH] = path
-                                file_info[AcquisiTags.BASE_PATH] = path.parent
-                                file_info[AcquisiTags.DATASET] = None
-                                entry = pd.DataFrame.from_dict([file_info])
-
-                                allFiles.append(entry)
-            if allFiles:
-                return json_dict_base, pd.concat(allFiles, ignore_index=True)
-            else:
-                return dict(), pd.DataFrame()
-        else:
-            return dict(), pd.DataFrame()
 
 
 def obtain_analysis_output_path(current_folder, timestamp, analysis_params, mkdir=True):
@@ -221,7 +114,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
 
 
-    metadata_form = metadata_params.get(DataFormatType.METADATA, dict())
+    metadata_form = metadata_params.get(DataFormat.METADATA, dict())
     seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.
 
     # Construct the filters we'll need for grabbing things related to our dataset.
@@ -229,7 +122,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         prefilter = True
 
     if folder is not None:
-        folder_filter = database[AcquisiTags.BASE_PATH] == folder
+        folder_filter = database[AcquisiPaths.BASE_PATH] == folder
     else:
         folder_filter = True
 
@@ -239,22 +132,22 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         vidid_filter = True
 
 
-    refim_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE
-    mask_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK
-    meta_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA
-    qloc_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
-    vidtype_filter = database[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
+    refim_filter = database[DataFormat.FORMAT_TYPE] == DataFormat.IMAGE
+    mask_filter = database[DataFormat.FORMAT_TYPE] == DataFormat.MASK
+    meta_filter = database[DataFormat.FORMAT_TYPE] == DataFormat.METADATA
+    qloc_filter = database[DataFormat.FORMAT_TYPE] == DataFormat.QUERYLOC
+    vidtype_filter = database[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO
 
     # Get the reference images and query locations and this video number, only for the mode and folder mask we want.
     slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
 
     acquisition = database.loc[slice_of_life]
 
-    video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
-    mask_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK]
-    metadata_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA]
-    im_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE]
-    query_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC]
+    video_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO]
+    mask_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.MASK]
+    metadata_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.METADATA]
+    im_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.IMAGE]
+    query_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.QUERYLOC]
 
     if video_info.shape[0] > 1:
         warnings.warn(f"WARNING: MULTIPLE VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
@@ -267,7 +160,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
 
         acquisition = database.loc[slice_of_life]
-        video_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO]
+        video_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO]
 
     if mask_info.shape[0] > 1:
         warnings.warn(f"WARNING: MULTIPLE MASK VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
@@ -280,7 +173,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
 
         acquisition = database.loc[slice_of_life]
-        mask_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.MASK]
+        mask_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.MASK]
 
     if metadata_info.shape[0] > 1:
         warnings.warn(f"WARNING: MULTIPLE METADATA FILES WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
@@ -293,7 +186,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         slice_of_life = prefilter & folder_filter & (vidid_filter | (refim_filter | qloc_filter))
 
         acquisition = database.loc[slice_of_life]
-        metadata_info = acquisition.loc[acquisition[DataFormatType.FORMAT_TYPE] == DataFormatType.METADATA]
+        metadata_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.METADATA]
 
     result_path = PurePath()
     if stage == Stages.PREANALYSIS:
@@ -321,22 +214,22 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
 
     # Add paths to things that we may want, depending on the stage we're at.
     if not im_info.empty:
-        combined_meta_dict[AcquisiTags.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiTags.DATA_PATH]
+        combined_meta_dict[AcquisiPaths.IMAGE_PATH] = im_info.at[im_info.index[0], AcquisiPaths.DATA_PATH]
 
     if not query_info.empty:
         combined_meta_dict[DataTags.QUERYLOC] = query_info[DataTags.QUERYLOC].unique().tolist()
-        combined_meta_dict[AcquisiTags.QUERYLOC_PATH] = query_info[AcquisiTags.DATA_PATH].unique().tolist()
+        combined_meta_dict[AcquisiPaths.QUERYLOC_PATH] = query_info[AcquisiPaths.DATA_PATH].unique().tolist()
 
 
     if not mask_info.empty:
-        mask_path = mask_info.at[mask_info.index[0], AcquisiTags.DATA_PATH]
+        mask_path = mask_info.at[mask_info.index[0], AcquisiPaths.DATA_PATH]
     else:
         mask_path = None
 
     if not video_info.empty:
         print()
-        print(Fore.GREEN +"Initializing and loading dataset: " + video_info.at[video_info.index[0], AcquisiTags.DATA_PATH].name)
-        dataset = load_dataset(video_info.at[video_info.index[0], AcquisiTags.DATA_PATH],
+        print(Fore.GREEN +"Initializing and loading dataset: " + video_info.at[video_info.index[0], AcquisiPaths.DATA_PATH].name)
+        dataset = load_dataset(video_info.at[video_info.index[0], AcquisiPaths.DATA_PATH],
                                mask_path,
                                metadata_path,
                                combined_meta_dict,
@@ -360,9 +253,9 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         # Then add the automagically detected one to our database.
         if database.loc[slice_of_life & refim_filter].empty and dataset[0].avg_image_data is not None:
             base_entry = database[slice_of_life & vidtype_filter].copy()
-            base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.IMAGE
-            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].image_path
-            base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
+            base_entry.loc[base_entry.index[0], DataFormat.FORMAT_TYPE] = DataFormat.IMAGE
+            base_entry.loc[base_entry.index[0], AcquisiPaths.DATA_PATH] = dataset[0].image_path
+            base_entry.loc[base_entry.index[0], AcquisiPaths.DATASET] = None
 
             # Update the database
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
@@ -372,11 +265,11 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         if len(query_info) < len(dataset[0].query_loc):
             # If we have too few, then tack on some extra dataframes so we can track these found query locations, and add them to our database, using the dataset as a basis.
             base_entry = database[slice_of_life & vidtype_filter].copy()
-            base_entry.loc[0, DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
-            base_entry.loc[0, AcquisiTags.DATASET] = None
+            base_entry.loc[0, DataFormat.FORMAT_TYPE] = DataFormat.QUERYLOC
+            base_entry.loc[0, AcquisiPaths.DATASET] = None
 
             for i in range(len(dataset[0].query_loc) - len(query_info)):
-                base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].query_coord_paths[i]
+                base_entry.loc[base_entry.index[0], AcquisiPaths.DATA_PATH] = dataset[0].query_coord_paths[i]
                 base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
 
                 # Update the database
@@ -399,28 +292,28 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
                 sub_dataset.query_loc.append(allcoord_data)
                 sub_dataset.query_status = [np.full(locs.shape[0], "Included", dtype=object) for locs in sub_dataset.query_loc]
                 sub_dataset.query_coord_paths.append(Path("All Pixels"))
-                sub_dataset.metadata[AcquisiTags.QUERYLOC_PATH].append(Path("All Pixels"))
+                sub_dataset.metadata[AcquisiPaths.QUERYLOC_PATH].append(Path("All Pixels"))
                 sub_dataset.iORG_signals = [None] * len(sub_dataset.query_loc)
                 sub_dataset.summarized_iORGs = [None] * len(sub_dataset.query_loc)
 
             base_entry = database[slice_of_life & vidtype_filter].copy()
-            base_entry.loc[base_entry.index[0], DataFormatType.FORMAT_TYPE] = DataFormatType.QUERYLOC
-            base_entry.loc[base_entry.index[0], AcquisiTags.DATA_PATH] = dataset[0].query_coord_paths[-1]
+            base_entry.loc[base_entry.index[0], DataFormat.FORMAT_TYPE] = DataFormat.QUERYLOC
+            base_entry.loc[base_entry.index[0], AcquisiPaths.DATA_PATH] = dataset[0].query_coord_paths[-1]
             base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "All Pixels"
-            base_entry.loc[base_entry.index[0], AcquisiTags.DATASET] = None
+            base_entry.loc[base_entry.index[0], AcquisiPaths.DATASET] = None
 
             # Update the database
             new_entries = pd.concat([new_entries, base_entry], ignore_index=True)
 
         if len(dataset) == 1:
-            database.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = dataset[0]
+            database.loc[slice_of_life & vidtype_filter, AcquisiPaths.DATASET] = dataset[0]
         elif len(dataset) > 1:
             # If we have subdatasets (from multiple stimuli in one video),
             # then we need to make new entries for each of them so that they're processed correctly.
 
             for i, sub_dataset in enumerate(dataset):
                 base_entry = database[slice_of_life & vidtype_filter].copy()
-                base_entry.loc[slice_of_life & vidtype_filter, AcquisiTags.DATASET] = sub_dataset
+                base_entry.loc[slice_of_life & vidtype_filter, AcquisiPaths.DATASET] = sub_dataset
                 base_entry.loc[slice_of_life & vidtype_filter, DataTags.VIDEO_ID] = base_entry.loc[slice_of_life & vidtype_filter, DataTags.VIDEO_ID].values[0] + "_stim_" + str(i)
 
                 # Update the database with the new entry.
@@ -439,9 +332,9 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
     mask_data = None
     metadata = dataset_metadata
-    metadata[AcquisiTags.VIDEO_PATH] = dataset_metadata[AcquisiTags.DATA_PATH]
-    metadata[AcquisiTags.MASK_PATH] = mask_path
-    metadata[AcquisiTags.META_PATH] = extra_metadata_path
+    metadata[AcquisiPaths.VIDEO_PATH] = dataset_metadata[AcquisiPaths.DATA_PATH]
+    metadata[AcquisiPaths.MASK_PATH] = mask_path
+    metadata[AcquisiPaths.META_PATH] = extra_metadata_path
 
     if video_path.exists():
         resource = load_video(video_path, metadata.get(MetaTags.VIDEO, dict()).get(MetaTags.FIELDS_OF_INTEREST, None))
@@ -473,14 +366,14 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
         mask_data = (video_data != 0).astype(video_data.dtype)
 
     avg_image_data = None
-    if metadata.get(AcquisiTags.IMAGE_PATH) and metadata.get(AcquisiTags.IMAGE_PATH).exists():
-        avg_image_data = cv2.imread(metadata.get(AcquisiTags.IMAGE_PATH), cv2.IMREAD_GRAYSCALE)
+    if metadata.get(AcquisiPaths.IMAGE_PATH) and metadata.get(AcquisiPaths.IMAGE_PATH).exists():
+        avg_image_data = cv2.imread(metadata.get(AcquisiPaths.IMAGE_PATH), cv2.IMREAD_GRAYSCALE)
 
     # For importing the query locations
     queryloc_data = []
-    if AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS not in metadata:
+    if AcquisiPaths.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS not in metadata:
 
-        querylocs = metadata.get(AcquisiTags.QUERYLOC_PATH)
+        querylocs = metadata.get(AcquisiPaths.QUERYLOC_PATH)
 
         for locpath in querylocs:
             if locpath.exists():
@@ -514,12 +407,12 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
                 warnings.warn("Query location path does not exist: "+str(locpath))
 
 
-    elif AcquisiTags.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS in metadata and \
+    elif AcquisiPaths.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS in metadata and \
         metadata.get(MetaTags.QUERY_LOCATIONS).get(MetaTags.FIELDS_OF_INTEREST, None) is not None: # @TODO: Remove duplicate code.
         # If we have query locations defined in the metadata alongside fields to load, then that means we have specific fields
         # from a query location file that we need to grab.
 
-        querylocs = metadata.get(AcquisiTags.QUERYLOC_PATH)
+        querylocs = metadata.get(AcquisiPaths.QUERYLOC_PATH)
         fieldnames = metadata.get(MetaTags.QUERY_LOCATIONS).get(MetaTags.FIELDS_OF_INTEREST, None)
 
         for locpath in querylocs:
@@ -563,14 +456,14 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
     # For importing metadata RE: the stimulus delivery
     stimulus_sequence = None
-    if AcquisiTags.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH, Path()).exists():
-        stimulus_sequence = pd.read_csv(metadata.get(AcquisiTags.STIMSEQ_PATH), header=None, encoding="utf-8-sig").to_numpy()
-    elif MetaTags.STIMULUS_SEQ in metadata and metadata.get(AcquisiTags.STIMSEQ_PATH, Path()).exists():
+    if AcquisiParams.STIMSEQ_PATH in metadata and MetaTags.STIMULUS_SEQ not in metadata and metadata.get(AcquisiParams.STIMSEQ_PATH, Path()).exists():
+        stimulus_sequence = pd.read_csv(metadata.get(AcquisiParams.STIMSEQ_PATH), header=None, encoding="utf-8-sig").to_numpy()
+    elif MetaTags.STIMULUS_SEQ in metadata and metadata.get(AcquisiParams.STIMSEQ_PATH, Path()).exists():
         stimulus_sequence = np.cumsum(np.array(metadata.get(MetaTags.STIMULUS_SEQ), dtype="int"))
     elif stage == Stages.ANALYSIS:
         while Dataset.stimseq_fName is None:
             Dataset.stimseq_fName = filedialog.askopenfilename(title="Stimulus sequence not detected in metadata. Select a stimulus sequence file.",
-                                                               initialdir=metadata.get(AcquisiTags.BASE_PATH, None),
+                                                               initialdir=metadata.get(AcquisiPaths.BASE_PATH, None),
                                                                filetypes=[("Stimulus Sequence files", "*.csv")])
             if Dataset.stimseq_fName is None or not Path(Dataset.stimseq_fName).exists():
                 Dataset.stimseq_fName = None
@@ -626,8 +519,8 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                 # Framestamps from the MEAO AOSLO  start at 1, instead of 0- shift to fix.
                 dataset.framestamps = dataset.framestamps-1
 
-                if dataset.metadata[AcquisiTags.META_PATH] is not None:
-                    dat_metadata = pd.read_csv(dataset.metadata[AcquisiTags.META_PATH], encoding="utf-8-sig",
+                if dataset.metadata[AcquisiPaths.META_PATH] is not None:
+                    dat_metadata = pd.read_csv(dataset.metadata[AcquisiPaths.META_PATH], encoding="utf-8-sig",
                                                skipinitialspace=True)
 
                     ncc = 1 - dat_metadata["NCC"].to_numpy(dtype=float)
@@ -670,10 +563,10 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                                                                   map_mesh_x, map_mesh_y,
                                                                   interpolation=cv2.INTER_NEAREST)
             case "demotion":
-                if dataset.metadata[AcquisiTags.META_PATH] is not None:
+                if dataset.metadata[AcquisiPaths.META_PATH] is not None:
                     # Temp until a better way of finding dmp files is found.
                     #dumpfile = dataset.metadata[AcquisiTags.META_PATH].stem[0:-len("_acceptable_frames")]+".dmp"
-                    with open(dataset.metadata[AcquisiTags.META_PATH], "rb") as file:
+                    with open(dataset.metadata[AcquisiPaths.META_PATH], "rb") as file:
                         pick = pickle.load(file, encoding='latin1')
 
                         ff_translation_info_rowshift = pick['full_frame_ncc']['row_shifts']
@@ -972,12 +865,12 @@ class Dataset:
             self.width = video_data.shape[1]
             self.height = video_data.shape[0]
 
-        self.stimtrain_path = self.metadata.get(AcquisiTags.STIMSEQ_PATH)
-        self.video_path = self.metadata.get(AcquisiTags.VIDEO_PATH)
-        self.mask_path = self.metadata.get(AcquisiTags.MASK_PATH)
-        self.base_path = self.metadata.get(AcquisiTags.BASE_PATH)
+        self.stimtrain_path = self.metadata.get(AcquisiParams.STIMSEQ_PATH)
+        self.video_path = self.metadata.get(AcquisiPaths.VIDEO_PATH)
+        self.mask_path = self.metadata.get(AcquisiPaths.MASK_PATH)
+        self.base_path = self.metadata.get(AcquisiPaths.BASE_PATH)
 
-        self.prefix = self.metadata.get(AcquisiTags.PREFIX)
+        self.prefix = self.metadata.get(AcquisiParams.PREFIX)
 
         if self.video_path:
             # If we don't have supplied definitions of the base path of the dataset or the filename prefix,
@@ -987,7 +880,7 @@ class Dataset:
             if not self.prefix:
                 self.prefix = self.video_path.with_suffix("")
 
-            self.image_path = self.metadata.get(AcquisiTags.IMAGE_PATH, None)
+            self.image_path = self.metadata.get(AcquisiPaths.IMAGE_PATH, None)
             # If we don't have supplied definitions of the image associated with this dataset,
             # then guess.
             if self.image_path is None:
@@ -1008,10 +901,10 @@ class Dataset:
                 else:
                     print(Fore.YELLOW + "Automatically detected the average image "+ str(imname.name) +". **Please verify your image format string**: " )
                     self.image_path = imname
-                    self.metadata[AcquisiTags.IMAGE_PATH] = self.image_path
+                    self.metadata[AcquisiPaths.IMAGE_PATH] = self.image_path
                     self.avg_image_data = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
 
-            self.query_coord_paths = self.metadata.get(AcquisiTags.QUERYLOC_PATH)
+            self.query_coord_paths = self.metadata.get(AcquisiPaths.QUERYLOC_PATH)
             # If we don't have query locations associated with this dataset, then try to guess.
             if self.query_coord_paths is None and not query_locations:
 
@@ -1028,12 +921,12 @@ class Dataset:
 
                 if coordname is None and stage is Stages.ANALYSIS:
                     print(Fore.YELLOW+"Unable to detect viable query location file for dataset at: "+ str(self.video_path) +". Dataset is either a control, or will be converted to a pixelwise analysis.")
-                    self.metadata[AcquisiTags.QUERYLOC_PATH] = []
+                    self.metadata[AcquisiPaths.QUERYLOC_PATH] = []
                     self.query_coord_paths = []
                 elif stage is Stages.ANALYSIS:
                     print(Fore.YELLOW+"Automatically detected the query locations: "+str(coordname.name) + ". **Please verify your queryloc format string**" )
                     # Update our metadata structure, and our internally stored query coord paths.
-                    self.metadata[AcquisiTags.QUERYLOC_PATH] = [coordname]
+                    self.metadata[AcquisiPaths.QUERYLOC_PATH] = [coordname]
                     self.query_coord_paths = [coordname]
                     match self.query_coord_paths[0].suffix:
                         case ".csv":

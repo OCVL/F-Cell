@@ -8,7 +8,11 @@ a = Analysis(
     datas=[],
     hiddenimports=[],
     hookspath=[],
-    hooksconfig={},
+    hooksconfig={
+		"matplotlib": {
+			"backends":["QtAgg","SVG"],
+		},
+	},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,

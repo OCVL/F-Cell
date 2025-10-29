@@ -12,11 +12,14 @@ import cv2
 import numpy as np
 import pandas as pd
 from colorama import Fore
+from file_tag_parser.tags.file_tag_parser import FileTagParser
+from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 from datetime import datetime
 
 from matplotlib.lines import Line2D
+
 
 from scipy.stats import t
 
@@ -25,10 +28,10 @@ from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals,
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
 
-from ocvl.function.utility.dataset import parse_file_metadata, initialize_and_load_dataset, Stages, \
+from ocvl.function.utility.dataset import initialize_and_load_dataset, Stages, \
     obtain_analysis_output_path
-from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataFormatType, DataTags, \
-    AcquisiTags, \
+from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataTags, \
+    AcquisiParams, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
     MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
 from ocvl.function.utility.resources import save_tiff_stack, save_video
@@ -51,10 +54,22 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
     # Grab all the folders/data here.
-    dat_form, allData = parse_file_metadata(config_path, analysis_path, Analysis.NAME)
+    filename_parser = FileTagParser.from_json(config_path, Analysis.NAME)
+    dat_form = filename_parser.json_dict
+    allData = filename_parser.parse_path(analysis_path, dat_form.get(Analysis.NAME).get(AcquisiParams.RECURSIVE_SEARCH))
+
+    # If our control data comes from the file structure, then prep to check for it in case its in the config.
+    control_params = dat_form.get(Analysis.NAME).get(ControlParams.NAME, None)
+    if control_params is not None:
+        control_loc = control_params.get(ControlParams.LOCATION, "folder")
+        if control_loc == "folder":
+            control_folder = control_params.get(ControlParams.FOLDER_NAME, "control")
+            controlData = filename_parser.parse_path(Path(analysis_path).joinpath(control_folder))
+            allData = pd.concat([allData, controlData], ignore_index=True)
+            allData = allData.drop_duplicates(subset=[AcquisiPaths.DATA_PATH])
 
     # If loading the file fails, tell the user, and return what data we could parse.
-    if allData.empty or allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+    if allData.empty or allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
         warnings.warn("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
         return allData
 
@@ -84,7 +99,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     modes_of_interest = analysis_params.get(Analysis.MODALITIES)
 
     # If we don't have any modalities that we're interested amongst our videos
-    if not allData.loc[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO][DataTags.MODALITY].isin(modes_of_interest).any():
+    if not allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO][DataTags.MODALITY].isin(modes_of_interest).any():
         warnings.warn("None of the datasets detected match the modalities selected. Please review your dataset format.")
         return allData
 
@@ -139,7 +154,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     metadata_params = None
     if analysis_dat_format.get(MetaTags.METATAG) is not None:
         metadata_params = analysis_dat_format.get(MetaTags.METATAG)
-        metadata_form = metadata_params.get(DataFormatType.METADATA)
+        metadata_form = metadata_params.get(DataFormat.METADATA)
 
     # If we've selected modalities of interest, only process those; otherwise, process them all.
     if modes_of_interest is None:
@@ -192,16 +207,16 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                 warnings.warn("NO SUBJECT ID FIELD DETECTED IN GROUP " + group + " Labeling outputs with dummy subject ID")
                 subject_IDs = ['']  # Trying empty subject ID
 
-            allData.loc[group_filter, AcquisiTags.STIM_PRESENT] = True
-            allData.loc[group_filter, AcquisiTags.STIM_PRESENT] = allData.loc[group_filter, AcquisiTags.STIM_PRESENT].astype(bool)
+            allData.loc[group_filter, AcquisiParams.STIM_PRESENT] = True
+            allData.loc[group_filter, AcquisiParams.STIM_PRESENT] = allData.loc[group_filter, AcquisiParams.STIM_PRESENT].astype(bool)
 
-            refim_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE
-            qloc_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
-            vidtype_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
+            refim_filter = allData[DataFormat.FORMAT_TYPE] == DataFormat.IMAGE
+            qloc_filter = allData[DataFormat.FORMAT_TYPE] == DataFormat.QUERYLOC
+            vidtype_filter = allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO
 
             # While we're going to process by group, respect the folder structure used by the user here, and only group
             # and analyze things from the same group
-            folder_groups = pd.unique(allData.loc[group_filter, AcquisiTags.BASE_PATH]).tolist()
+            folder_groups = pd.unique(allData.loc[group_filter, AcquisiPaths.BASE_PATH]).tolist()
 
             # Use a nested dictionary to track the query status of all query locations; these will later be used
             # in conjuction with status tracked at the dataset level.
@@ -219,7 +234,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                 # Find the control data, if any, in this group and mode, and load it.
                 if control_loc == "folder" and any(control_folder_name == fold.name for fold in folder_groups):
 
-                    control_folder_filter = allData[AcquisiTags.BASE_PATH].apply(lambda ra: ra.name == control_folder_name)
+                    control_folder_filter = allData[AcquisiPaths.BASE_PATH].apply(lambda ra: ra.name == control_folder_name)
 
                     cntl_slice_of_life = group_filter & control_folder_filter & mode_filter
 
@@ -234,8 +249,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                         vidid_filter = allData[DataTags.VIDEO_ID] == vidnum
 
-                        allData.loc[cntl_slice_of_life & vidid_filter & vidtype_filter, AcquisiTags.STIM_PRESENT] = False
-                        control_path = allData.loc[cntl_slice_of_life & vidid_filter & vidtype_filter, AcquisiTags.BASE_PATH].values[0]
+                        allData.loc[cntl_slice_of_life & vidid_filter & vidtype_filter, AcquisiParams.STIM_PRESENT] = False
+                        control_path = allData.loc[cntl_slice_of_life & vidid_filter & vidtype_filter, AcquisiPaths.BASE_PATH].values[0]
 
                         # Actually load the control dataset.
                         pre_filter = (allData[PreAnalysisPipeline.GROUP_BY] == group) & \
@@ -265,7 +280,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                     result_path = obtain_analysis_output_path(folder, start_timestamp, analysis_params)
 
-                    folder_filter = allData[AcquisiTags.BASE_PATH] == folder
+                    folder_filter = allData[AcquisiPaths.BASE_PATH] == folder
                     slice_of_life = group_filter & mode_filter & folder_filter
 
 
@@ -307,8 +322,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             # If the new entries include datasets, then add those to the database too.
                             if len(new_entries) > 0:
 
-                                for ind, newbie in new_entries[new_entries[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC].iterrows():
-                                    query_loc_names.append(newbie[AcquisiTags.DATA_PATH].name)
+                                for ind, newbie in new_entries[new_entries[DataFormat.FORMAT_TYPE] == DataFormat.QUERYLOC].iterrows():
+                                    query_loc_names.append(newbie[AcquisiPaths.DATA_PATH].name)
                                     all_query_status[mode][folder].append(pd.DataFrame())
 
                                 # Add query status entries for each of the new subdatasets
@@ -320,10 +335,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 # Update the filters.
                                 group_filter = allData[PreAnalysisPipeline.GROUP_BY] == group
                                 mode_filter = allData[DataTags.MODALITY] == mode
-                                folder_filter = allData[AcquisiTags.BASE_PATH] == folder
-                                refim_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.IMAGE
-                                qloc_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.QUERYLOC
-                                vidtype_filter = allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO
+                                folder_filter = allData[AcquisiPaths.BASE_PATH] == folder
+                                refim_filter = allData[DataFormat.FORMAT_TYPE] == DataFormat.IMAGE
+                                qloc_filter = allData[DataFormat.FORMAT_TYPE] == DataFormat.QUERYLOC
+                                vidtype_filter = allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO
 
                         else:
                             for q in range(len(all_query_status[mode][folder])):
@@ -337,7 +352,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 #                     mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
                                 # pb.update()
                                 # pb_label.update()
-                                print(Fore.WHITE +"Processing query locs \"" + str(sub_dataset.metadata.get(AcquisiTags.QUERYLOC_PATH,[Path()])[q].name) +
+                                print(Fore.WHITE +"Processing query locs \"" + str(sub_dataset.metadata.get(AcquisiPaths.QUERYLOC_PATH, [Path()])[q].name) +
                                       "\" in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
                                       + str(group) + " and folder " + folder.name + "...")
 
@@ -374,10 +389,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     # pb.update()
                     # pb_label.update()
 
-                    has_stim = allData.loc[:, AcquisiTags.STIM_PRESENT].astype(bool)
+                    has_stim = allData.loc[:, AcquisiParams.STIM_PRESENT].astype(bool)
                     slice_of_life = group_filter & folder_filter & mode_filter
-                    stim_datasets = allData.loc[slice_of_life & vidtype_filter & has_stim, AcquisiTags.DATASET].tolist()
-                    control_datasets = allData.loc[group_filter & mode_filter & vidtype_filter & ~has_stim, AcquisiTags.DATASET].tolist()
+                    stim_datasets = allData.loc[slice_of_life & vidtype_filter & has_stim, AcquisiPaths.DATASET].tolist()
+                    control_datasets = allData.loc[group_filter & mode_filter & vidtype_filter & ~has_stim, AcquisiPaths.DATASET].tolist()
                     stim_data_vidnums = np.sort(allData.loc[slice_of_life & vidtype_filter & has_stim, DataTags.VIDEO_ID].unique()).tolist()
                     control_data_vidnums = np.sort(allData.loc[group_filter & mode_filter & vidtype_filter & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
 
@@ -449,7 +464,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         slice_of_life = group_filter & folder_filter & mode_filter & vidid_filter
 
                         # Grab the stim dataset associated with this video number.
-                        stim_dataset = allData.loc[slice_of_life & vidtype_filter & has_stim, AcquisiTags.DATASET].values[0]
+                        stim_dataset = allData.loc[slice_of_life & vidtype_filter & has_stim, AcquisiPaths.DATASET].values[0]
                         control_query_status = [pd.DataFrame(columns=control_data_vidnums) for i in range(len(stim_dataset.iORG_signals))]
 
                         if not uniform_datasets or first_run:
@@ -1025,7 +1040,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                         label = "Individual iORG "+metric+" from " + mode + "\nusing query locations " + query_loc_names[q] + " in " + folder.name
                                         folder_display_dict[str(subject_IDs[0]) + "_" + folder.name + "_" + mode + "_indiv_iORG_" + sum_method + "_" + metric + "_overlay_" + query_loc_names[q] + "_" + start_timestamp] = label
 
-                                        refim = allData.loc[group_filter & folder_filter & mode_filter & refim_filter, AcquisiTags.DATA_PATH].values[0]
+                                        refim = allData.loc[group_filter & folder_filter & mode_filter & refim_filter, AcquisiPaths.DATA_PATH].values[0]
 
                                         metric_res = indiv_iORG_result[q].loc[:, metric].values.astype(float)
                                         coords = np.array(indiv_iORG_result[q].loc[:, metric].index.to_list())
@@ -1079,7 +1094,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 figure_label = "Debug- Included cells from "+ mode + " in query location: "+ query_loc_names[q] + " in " + folder.name
                                 plt.figure(figure_label)
                                 folder_display_dict["debug_"+mode + "_inc_cells_"+query_loc_names[q] + "_" +folder.name +"_"+ start_timestamp ] = figure_label
-                                refim = allData.loc[group_filter & folder_filter & mode_filter & refim_filter, AcquisiTags.DATA_PATH].values[0]
+                                refim = allData.loc[group_filter & folder_filter & mode_filter & refim_filter, AcquisiPaths.DATA_PATH].values[0]
 
                                 plt.title(figure_label)
                                 plt.imshow(cv2.imread(refim, cv2.IMREAD_GRAYSCALE), cmap='gray')
@@ -1214,8 +1229,6 @@ if __name__ == "__main__":
 
     pName = None
     json_fName = Path()
-    dat_form = dict()
-    allData = pd.DataFrame()
 
     pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
     if not pName:
@@ -1229,16 +1242,16 @@ if __name__ == "__main__":
     if not json_fName:
         sys.exit(2)
 
-    allData = iORG_summary_and_analysis(pName, Path(json_fName))
+    allData_db = iORG_summary_and_analysis(pName, Path(json_fName))
 
-    while allData is None or allData.empty or allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
-        if allData[allData[DataFormatType.FORMAT_TYPE] == DataFormatType.VIDEO].empty:
+    while allData_db is None or allData_db.empty or allData_db[allData_db[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
+        if allData_db[allData_db[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
             tryagain = messagebox.askretrycancel("No videos detected.",
                                                  "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if not tryagain:
                 sys.exit(3)
 
-        if allData.empty:
+        if allData_db.empty:
             tryagain = messagebox.askretrycancel("No data detected.",
                                                  "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
             if tryagain:
@@ -1256,4 +1269,4 @@ if __name__ == "__main__":
         if not json_fName:
             sys.exit(2)
 
-        allData = iORG_summary_and_analysis(pName, Path(json_fName))
+        allData_db = iORG_summary_and_analysis(pName, Path(json_fName))
