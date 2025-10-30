@@ -30,7 +30,7 @@ from tkinter import filedialog, ttk, messagebox
 import matplotlib as mpl
 from colorama import Fore
 from file_tag_parser.tags.file_tag_parser import FileTagParser
-from file_tag_parser.tags.json_format_constants import DataFormat
+from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from scipy.ndimage import gaussian_filter
 import pandas as pd
 import tifffile as tiff
