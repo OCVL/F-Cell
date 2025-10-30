@@ -68,7 +68,7 @@ def flat_field(dataset, mask=None, sigma=31, rescale=True):
 
         return flat_fielded_dataset
     else:
-        return flat_field_frame(dataset, sigma)
+        return flat_field_frame(dataset.copy(), mask.copy(), sigma)
 
 
 def norm_video(video_data, norm_method="mean", rescaled=False, rescale_mean=None, rescale_std=None):

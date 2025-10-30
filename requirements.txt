@@ -19,3 +19,4 @@ pymatreader>=1.0.0
 parse_type>=0.6.4
 tifffile>=2025.5.10
 PySide6>=6.9.0
+file-tag-parser>=0.2.5.1
