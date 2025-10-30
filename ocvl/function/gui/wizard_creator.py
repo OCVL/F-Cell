@@ -3,15 +3,11 @@ import sys
 
 from PySide6 import QtGui
 from PySide6.QtGui import QFont, QMovie
-from PySide6.QtWidgets import (QApplication, QWizard, QWizardPage,
-                               QLabel, QLineEdit, QVBoxLayout,
-                               QCheckBox, QComboBox, QHBoxLayout, QRadioButton, QButtonGroup, QSizePolicy, QScrollArea,
-                               QWidget, QFileDialog, QMessageBox, QFrame)
-from PySide6.QtCore import Qt, QSize, Signal
-from advancedconfig import create_advanced_setup_widget, description_layer
+from PySide6.QtWidgets import QWizard
 import constructors
-import advancedconfig
 from import_generation import *
+from ocvl.function.utility.dataset import parse_metadata
+import tempfile
 
 bold = QtGui.QFont()
 bold.setBold(True)
@@ -84,8 +80,10 @@ class MainWizard(QWizard):
         if id == 0:
             # On intro page, check which option is selected
             self.update_button_text_for_intro()
-        elif id == 6 | 7:
+        elif id == 6:  # Review page
             self.button(QWizard.NextButton).setText("Save >")
+        elif id == 7:  # Import editor page
+            self.button(QWizard.NextButton).setText("Review >")  # Or "Next >"
         else:
             self.button(QWizard.NextButton).setText("Next >")
 
@@ -741,9 +739,9 @@ class AdvancedSetupPage(QWizardPage):
             'You can edit any configuration field from here. For a more simple setup, go back and select "Simple Setup"\n'
             'Tip: Expand window for better visibility')
 
-        with open("master_config_files/advanced_config_JSON.json", "r") as f:
+        with open("ocvl/function/gui/master_config_files/advanced_config_JSON.json", "r") as f:
             advanced_config_json = json.load(f)
-        with open("master_config_files/master_JSON.json", "r") as f:
+        with open("ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
             self.master_json = json.load(f)
 
         scroll_area = QScrollArea()
@@ -771,29 +769,20 @@ class ReviewPage(QWizardPage):
         self.saved_file_path = None
         self.generated_config = None
 
-        self.layout = QVBoxLayout(self)
-        self.label = QLabel()
-        self.label.setWordWrap(True)
+        # Create scrollable area for the review content
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
 
-        self.label2 = QLabel()
-        self.label2.setWordWrap(True)
+        # Container widget for all content
+        self.container = QWidget()
+        self.scroll.setWidget(self.container)
 
-        self.label3 = QLabel()
-        self.label3.setWordWrap(True)
+        # Main layout
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.addWidget(self.scroll)
 
-        self.label4 = QLabel()
-        self.label4.setWordWrap(True)
-
-        self.label5 = QLabel()
-        self.label5.setWordWrap(True)
-
-        self.layout.addWidget(self.label)
-        self.layout.addWidget(self.label2)
-        self.layout.addWidget(self.label3)
-        self.layout.addWidget(self.label4)
-        self.layout.addWidget(self.label5)
-
-        self.layout.addStretch()
+        # Container layout
+        self.container_layout = QVBoxLayout(self.container)
 
     def nextId(self):
         return 8
@@ -801,85 +790,260 @@ class ReviewPage(QWizardPage):
     def initializePage(self):
         wizard = self.wizard()
 
+        # Clear any existing labels (except header)
+        for i in reversed(range(1, self.container_layout.count())):
+            item = self.container_layout.itemAt(i)
+            if item and item.widget():
+                item.widget().deleteLater()
+
+        # Generate config based on mode
         if wizard.page(1).adv_button.isChecked():
-            self.label.setText(
-                "Advanced setup selected.\n\nPlease review your inputs on the previous page before continuing.")
-            self.generated_config = None  # Don't regenerate config in advanced mode
-            return
-
-        # Simple mode: generate config with only simple-mode configurable elements
-        config = {
-            "version": wizard.page(2).version_value.text(),
-            "description": wizard.page(2).description_value.text(),
-            "preanalysis": {
-                "image_format": wizard.page(3).image_format_value.get_value(),
-                "video_format": wizard.page(3).video_format_value.get_value(),
-                "mask_format": wizard.page(3).mask_format_value.get_value(),
-                "recursive_search" : wizard.page(3).recursive_search_tf.get_value(),
-                "pipeline_params": {
-                    "modalities": wizard.page(3).modalities_list_creator.get_list(),
-                    "alignment_reference_modality" : wizard.page(3).alignment_ref_value.get_value(),
-                    "group_by": None if wizard.page(3).groupby_value.get_value() == "null" else wizard.page(3).groupby_value.get_value(),
-                }
-            },
-            "analysis": {
-                "image_format": wizard.page(4).image_format_value.get_value(),
-                "queryloc_format": wizard.page(4).queryloc_format_value.get_value(),
-                "video_format": wizard.page(4).video_format_value.get_value(),
-                "recursive_search": wizard.page(4).recursive_search_tf.get_value(),
-                "analysis_params": {
-                    "modalities": wizard.page(4).modalities_list_creator.get_list()
-                }
-            }
-        }
-
-        self.generated_config = config
-
-        # Show summary to user
-        summary_text1 = f"Version: {config['version']}\n" \
-                       f"Description: {config['description']}\n"
-
-        summary_text2 = f"Image Format: {config['preanalysis']['image_format']}\n" \
-                       f"Video Format: {config['preanalysis']['video_format']}\n" \
-                       f"Mask Format: {config['preanalysis']['mask_format']}\n" \
-                       f"Recursive Search: {config['preanalysis']['recursive_search']}\n" \
-                       f"Modalities: {config['preanalysis']['pipeline_params']['modalities']}\n" \
-                       f"Alignment Reference Modality : {config['preanalysis']['pipeline_params']['alignment_reference_modality']}\n" \
-                       f"Group By: {config['preanalysis']['pipeline_params']['group_by']}\n"
-
-        summary_text3 = f"Image Format: {config['analysis']['image_format']}\n" \
-                       f"QueryLoc Format: {config['analysis']['queryloc_format']}\n" \
-                       f"Video Format: {config['analysis']['video_format']}\n" \
-                       f"Recursive Search: {config['analysis']['recursive_search']}\n" \
-                       f"Modalities: {config['analysis']['analysis_params']['modalities']}"
-
-        self.label.setText(
-            "Please review the following configurations before clicking 'Save >':\n\n" + summary_text1)
-        self.label2.setText('Pre-Analysis')
-        self.label2.setFont(bold)
-        self.label3.setText(summary_text2)
-        self.label4.setText('Analysis')
-        self.label4.setFont(bold)
-        self.label5.setText(summary_text3)
-
-    def validatePage(self):
-        wizard = self.wizard()
-
-        if wizard.page(1).adv_button.isChecked():
-            # Advanced mode: generate config from widgets directly
+            # Advanced mode: use generate_json
             advanced_widget = wizard.page(5).advanced_widget
             master_json = wizard.page(5).master_json
-            config = generate_json(advanced_widget, master_json)
+            self.generated_config = generate_json(advanced_widget, master_json)
+        elif wizard.page(0).import_button.isChecked():
+            # Import mode: use generate_json with skip_disabled=False
+            import_config = wizard.page(7).form_widget
+            master_json = wizard.page(5).master_json
+            self.generated_config = generate_json(import_config, master_json, skip_disabled=False)
         else:
-            # Simple mode: use the generated config from initializePage
-            config = self.generated_config
-            if not config:
-                self.label.setText("No configuration data available")
-                return False
+            # Simple mode: use the predefined config structure
+            config = {
+                "version": wizard.page(2).version_value.text(),
+                "description": wizard.page(2).description_value.text(),
+                "preanalysis": {
+                    "image_format": wizard.page(3).image_format_value.get_value(),
+                    "video_format": wizard.page(3).video_format_value.get_value(),
+                    "mask_format": wizard.page(3).mask_format_value.get_value(),
+                    "recursive_search": wizard.page(3).recursive_search_tf.get_value(),
+                    "pipeline_params": {
+                        "modalities": wizard.page(3).modalities_list_creator.get_list(),
+                        "alignment_reference_modality": wizard.page(3).alignment_ref_value.get_value(),
+                        "group_by": None if wizard.page(3).groupby_value.get_value() == "null" else wizard.page(
+                            3).groupby_value.get_value(),
+                    }
+                },
+                "analysis": {
+                    "image_format": wizard.page(4).image_format_value.get_value(),
+                    "queryloc_format": wizard.page(4).queryloc_format_value.get_value(),
+                    "video_format": wizard.page(4).video_format_value.get_value(),
+                    "recursive_search": wizard.page(4).recursive_search_tf.get_value(),
+                    "analysis_params": {
+                        "modalities": wizard.page(4).modalities_list_creator.get_list()
+                    }
+                }
+            }
+            self.generated_config = config
+
+        # Parse and display the configuration
+        self.display_parsed_config()
+
+    def create_field_label(self, field_name, field_value):
+        """Create a QLabel for a field with name and value"""
+        label = QLabel(f"<b>{field_name}:</b> {field_value}")
+        label.setWordWrap(True)
+        label.setStyleSheet("""
+            QLabel {
+                padding: 5px;
+                margin: 2px 0;
+                border-left: 3px solid #007ACC;
+            }
+        """)
+        return label
+
+    def create_section_label(self, section_name):
+        """Create a bolded section header label"""
+        label = QLabel(section_name.upper())
+        label.setFont(bold)
+        label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                margin: 10px 0 5px 0;
+                padding: 5px;
+            }
+        """)
+        return label
+
+    def display_parsed_config(self):
+        """Parse the configuration and display results as individual QLabels"""
+        if not self.generated_config:
+            error_label = QLabel("No configuration data available")
+            self.container_layout.addWidget(error_label)
+            return
+
+        try:
+            wizard = self.wizard()
+            is_advanced_mode = wizard.page(1).adv_button.isChecked()
+
+            is_import_mode = wizard.page(0).import_button.isChecked()
+
+            # 1. Display version and description first
+            if "version" in self.generated_config:
+                version_label = self.create_field_label("Version", self.generated_config["version"])
+                self.container_layout.addWidget(version_label)
+
+            if "description" in self.generated_config:
+                description_label = self.create_field_label("Description", self.generated_config["description"])
+                self.container_layout.addWidget(description_label)
+
+            if is_advanced_mode or is_import_mode:
+                # Advanced mode: Display all fields dynamically
+                self.display_all_fields(self.generated_config)
+            else:
+                # Simple mode: Display known fields only
+                self.display_simple_mode_fields()
+
+            # Add stretch at the end
+            self.container_layout.addStretch()
+
+        except Exception as e:
+            error_label = QLabel(f"Error parsing configuration: {str(e)}")
+            error_label.setStyleSheet("color: red; font-weight: bold;")
+            self.container_layout.addWidget(error_label)
+
+    def display_all_fields(self, config):
+        """Display all fields in the configuration recursively for advanced mode"""
+        # Process sections in the desired order
+        ordered_sections = ["raw", "preanalysis", "analysis"]
+
+        # First display known sections in order
+        for section_key in ordered_sections:
+            if section_key in config:
+                section_label = self.create_section_label(section_key.replace("_", " "))
+                self.container_layout.addWidget(section_label)
+
+                # Try to parse with parse_metadata if possible
+                try:
+                    parsed_config, parsed_df = parse_metadata(config, root_group=section_key)
+                except:
+                    pass  # Continue if parsing fails
+
+                # Display all fields in this section
+                self.display_dict_fields(config[section_key])
+
+        # Then display any additional sections
+        for key, value in config.items():
+            if key not in ["version", "description"] + ordered_sections:
+                section_label = self.create_section_label(key.replace("_", " "))
+                self.container_layout.addWidget(section_label)
+
+                if isinstance(value, dict):
+                    self.display_dict_fields(value)
+                else:
+                    field_label = self.create_field_label(key.replace("_", " ").title(), value)
+                    self.container_layout.addWidget(field_label)
+
+    def display_dict_fields(self, dictionary, prefix=""):
+        """Recursively display all fields in a dictionary"""
+        for key, value in dictionary.items():
+            display_key = f"{prefix}{key.replace('_', ' ').title()}" if prefix else key.replace('_', ' ').title()
+
+            if isinstance(value, dict):
+                # If it's a nested dict, create a sub-section or display with indentation
+                if len(value) > 3:  # Create subsection for large nested dicts
+                    subsection_label = QLabel(f"  {display_key}:")
+                    subsection_label.setStyleSheet("""
+                        QLabel {
+                            font-weight: bold;
+                            margin: 5px 0 2px 10px;
+                            padding: 3px;
+                        }
+                    """)
+                    self.container_layout.addWidget(subsection_label)
+                    self.display_dict_fields(value, "    ")
+                else:
+                    # For small nested dicts, display inline
+                    for sub_key, sub_value in value.items():
+                        nested_display_key = f"{display_key} - {sub_key.replace('_', ' ').title()}"
+                        field_label = self.create_field_label(nested_display_key, sub_value)
+                        self.container_layout.addWidget(field_label)
+            else:
+                # Use the improved create_field_label method for all values
+                # (it now handles lists, numbers, booleans, etc. internally)
+                field_label = self.create_field_label(display_key, value)
+                self.container_layout.addWidget(field_label)
+
+    def display_simple_mode_fields(self):
+        """Display only the fields configured in simple mode"""
+        # 2. Display preanalysis section
+        if "preanalysis" in self.generated_config:
+            section_label = self.create_section_label("Pre-Analysis")
+            self.container_layout.addWidget(section_label)
+
+            # Parse with updated function signature
+            preanalysis_config, preanalysis_df = parse_metadata(
+                self.generated_config, root_group="preanalysis"
+            )
+
+            preanalysis_section = self.generated_config["preanalysis"]
+
+            # Display main preanalysis fields
+            for field_name, field_key in [
+                ("Image Format", "image_format"),
+                ("Video Format", "video_format"),
+                ("Mask Format", "mask_format"),
+                ("Recursive Search", "recursive_search")
+            ]:
+                if field_key in preanalysis_section:
+                    field_label = self.create_field_label(field_name, preanalysis_section[field_key])
+                    self.container_layout.addWidget(field_label)
+
+            # Display pipeline_params
+            if "pipeline_params" in preanalysis_section:
+                params = preanalysis_section["pipeline_params"]
+                for field_name, field_key in [
+                    ("Modalities", "modalities"),
+                    ("Alignment Reference Modality", "alignment_reference_modality"),
+                    ("Group By", "group_by")
+                ]:
+                    if field_key in params:
+                        field_label = self.create_field_label(field_name, params[field_key])
+                        self.container_layout.addWidget(field_label)
+
+        # 3. Display analysis section
+        if "analysis" in self.generated_config:
+            section_label = self.create_section_label("Analysis")
+            self.container_layout.addWidget(section_label)
+
+            # Parse with updated function signature
+            analysis_config, analysis_df = parse_metadata(
+                self.generated_config, root_group="analysis"
+            )
+
+            analysis_section = self.generated_config["analysis"]
+
+            # Display main analysis fields
+            for field_name, field_key in [
+                ("Image Format", "image_format"),
+                ("QueryLoc Format", "queryloc_format"),
+                ("Video Format", "video_format"),
+                ("Recursive Search", "recursive_search")
+            ]:
+                if field_key in analysis_section:
+                    field_label = self.create_field_label(field_name, analysis_section[field_key])
+                    self.container_layout.addWidget(field_label)
+
+            # Display analysis_params
+            if "analysis_params" in analysis_section:
+                params = analysis_section["analysis_params"]
+                for field_name, field_key in [
+                    ("Modalities", "modalities")
+                ]:
+                    if field_key in params:
+                        field_label = self.create_field_label(field_name, params[field_key])
+                        self.container_layout.addWidget(field_label)
+
+    def validatePage(self):
+        """Save the generated configuration to a file"""
+        if not self.generated_config:
+            QMessageBox.warning(self, "Error", "No configuration data available")
+            return False
 
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getSaveFileName(
-            wizard,
+            self,
             "Save Configuration File",
             "",
             "JSON Files (*.json);;All Files (*)"
@@ -891,16 +1055,15 @@ class ReviewPage(QWizardPage):
 
             try:
                 with open(file_path, 'w') as f:
-                    json.dump(config, f, indent=2)
+                    json.dump(self.generated_config, f, indent=2)
                 self.saved_file_path = file_path
                 return True
             except Exception as e:
-                self.label.setText(f"Failed to save file:\n{str(e)}")
+                QMessageBox.warning(self, "Error", f"Failed to save file:\n{str(e)}")
                 return False
         else:
-            self.label.setText("No file selected. Please choose a path to save the configuration.")
+            QMessageBox.warning(self, "Error", "No file selected. Please choose a path to save the configuration.")
             return False
-
 
 class ImportEditorPage(QWizardPage):
     def __init__(self, parent=None):
@@ -928,7 +1091,7 @@ class ImportEditorPage(QWizardPage):
         intro_page = wizard.page(0)
 
         if hasattr(intro_page, 'imported_config') and intro_page.imported_config:
-            with open("config_files/master_JSON.json", "r") as f:
+            with open("ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
                 master_json = json.load(f)
 
             self.form_widget = build_form_from_template(master_json, intro_page.imported_config)
@@ -943,52 +1106,8 @@ class ImportEditorPage(QWizardPage):
             error_label.setAlignment(Qt.AlignCenter)
             self.layout.addWidget(error_label)
 
-    def validatePage(self):
-        if not self.form_widget:
-            QMessageBox.warning(self, "Error", "No configuration to save")
-            return False
-
-        # Get the master template
-        with open("config_files/master_JSON.json", "r") as f:
-            master_json = json.load(f)
-
-        wizard = self.wizard()
-        intro_page = wizard.page(0)
-
-        # Generate the JSON from the form
-        config = generate_json(self.form_widget, master_json)
-
-        if not config:
-            QMessageBox.warning(self, "Error", "No configuration data to save")
-            return False
-
-        # Show save file dialog
-        file_dialog = QFileDialog()
-        file_path, _ = file_dialog.getSaveFileName(
-            self,
-            "Save Configuration File",
-            "",
-            "JSON Files (*.json);;All Files (*)"
-        )
-
-        if file_path:
-            if not file_path.endswith('.json'):
-                file_path += '.json'
-
-            try:
-                with open(file_path, 'w') as f:
-                    json.dump(config, f, indent=2)
-                self.saved_file_path = file_path
-                return True
-            except Exception as e:
-                QMessageBox.warning(self, "Error", f"Failed to save file:\n{str(e)}")
-                return False
-
-        QMessageBox.warning(self, "Error", "No file selected")
-        return False
-
     def nextId(self):
-        return 8
+        return 6
 
 class EndPage(QWizardPage):
     def __init__(self, parent=None):

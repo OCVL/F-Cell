@@ -343,6 +343,7 @@ class FormatElementsEditor(QDialog):
         self.type = type
 
         self.extension_options = self._get_extension_options()
+        self.existing_extension = None  # Track existing extension from imported format
 
         self.copy_button = QPushButton("Copy to All in Section")
         self.copy_button.clicked.connect(self.copy_to_all)
@@ -549,6 +550,38 @@ class FormatElementsEditor(QDialog):
         else:
             return [".txt", ".dat", ".log"]
 
+    def _detect_existing_extension(self, format_string):
+        """Detect if the format string already contains a file extension"""
+        if not format_string:
+            return None
+
+        # Common file extensions to check for
+        common_extensions = ['.tif', '.png', '.jpg', '.jpeg', '.avi', '.mov', '.mat', '.npy',
+                             '.txt', '.json', '.xml', '.csv', '.log', '.dat']
+
+        for ext in common_extensions:
+            if format_string.lower().endswith(ext.lower()):
+                return ext
+
+        # Check for any extension pattern at the end (dot followed by 2-5 characters)
+        import re
+        match = re.search(r'\.([a-zA-Z0-9]{2,5})$', format_string)
+        if match:
+            return '.' + match.group(1)
+
+        return None
+
+    def _add_existing_extension_to_dropdown(self, extension):
+        """Add the existing extension to the dropdown if it's not already there"""
+        if extension and extension not in [self.file_type_combo.itemText(i) for i in
+                                           range(self.file_type_combo.count())]:
+            # Add the existing extension at the top of the list
+            self.file_type_combo.insertItem(0, extension)
+            # Add a separator item for clarity
+            self.file_type_combo.insertSeparator(1)
+            # Set the existing extension as selected
+            self.file_type_combo.setCurrentText(extension)
+
     def copy_to_all(self):
         reply = QMessageBox.question(
             self,
@@ -655,13 +688,24 @@ class FormatElementsEditor(QDialog):
 
     def parse_format(self, format_string):
         """Parse an existing format string into elements"""
+        # Check if format string contains an existing extension
+        self.existing_extension = self._detect_existing_extension(format_string)
+
+        # If we found an existing extension, remove it from the format string for parsing
+        # and add it to the dropdown
+        if self.existing_extension:
+            format_without_extension = format_string[:-len(self.existing_extension)]
+            self._add_existing_extension_to_dropdown(self.existing_extension)
+        else:
+            format_without_extension = format_string
+
         # First reset available elements
         self.available_elements = self.original_elements.copy()
         self.available_list.clear()
         self.available_list.addItems(self.available_elements)
 
         # Parse the string by looking for elements enclosed in brackets
-        remaining = format_string
+        remaining = format_without_extension
 
         # Process the format string
         while remaining:
@@ -860,12 +904,27 @@ class FormatElementsEditor(QDialog):
                 # Format element - display with brackets
                 preview_html += f"{item_text}"
 
-        # Add the selected file extension
+        # Add the selected file extension only if we don't already have an extension in the format
         selected_extension = self.file_type_combo.currentText()
-        if selected_extension:
+        if selected_extension and not self._has_extension_in_format():
             preview_html += selected_extension
 
         self.preview_display.setText(preview_html)
+
+    def _has_extension_in_format(self):
+        """Check if the current format already contains a file extension"""
+        format_without_dropdown = ""
+        for i in range(self.selected_list.count()):
+            item = self.selected_list.item(i)
+            item_text = self._get_item_internal_text(item)
+
+            if item_text.startswith("{Added Text: ") and item_text.endswith("}"):
+                separator = item_text[13:-1]
+                format_without_dropdown += separator
+            else:
+                format_without_dropdown += item_text
+
+        return self._detect_existing_extension(format_without_dropdown) is not None
 
     def update_tooltip(self, item):
         """Update tooltip box when hovering over available or selected elements."""
@@ -956,9 +1015,9 @@ class FormatElementsEditor(QDialog):
                 # Format element - add as is
                 format_string += item_text
 
-        # Add the selected file extension
+        # Add the selected file extension only if we don't already have one in the format
         selected_extension = self.file_type_combo.currentText()
-        if selected_extension:
+        if selected_extension and not self._has_extension_in_format():
             format_string += selected_extension
 
         return format_string

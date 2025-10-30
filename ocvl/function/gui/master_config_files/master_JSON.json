@@ -5,6 +5,28 @@
   "description": {
     "type": "freeText"
   },
+  "raw" : {
+	"video_format": {
+      "type": "formatEditor",
+      "save": true
+    },
+	"metadata" : {
+      "type": {
+        "type": "freeText"
+      },
+	  "metadata_format": {
+        "type": "formatEditor"
+      },
+	  "fields_to_load": {
+        "timestamps": {
+          "type": "freeText"
+        },
+		"stimulus_train": {
+          "type": "freeText"
+        }
+      }
+	}
+  },
   "preanalysis": {
     "image_format": {
       "type": "formatEditor",
