@@ -140,7 +140,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                                                                          params=preanalysis_dat_format)
 
                             print(Fore.WHITE + "Preprocessing dataset using reference video for alignment...")
-                            allData.loc[video_info.index, AcquisiPaths.DATASET] = preprocess_dataset(dataset, pipeline_params, ref_dataset)
+                            allData.loc[video_info.index, AcquisiPaths.DATASET] = preprocess_dataset(dataset, pipeline_params, ref_dataset[0])
                             print()
                         else:
                             print(Fore.WHITE + "Preprocessing dataset...")
