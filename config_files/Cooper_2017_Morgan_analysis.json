@@ -108,8 +108,8 @@
         "axes": {
           "xmin": 0,
           "xmax": 16,
-          "ymin": -0.5,
-          "ymax": 3,
+          "ymin": 0.5,
+          "ymax": 4,
           "cmap": "plasma",
           "legend": true
         }

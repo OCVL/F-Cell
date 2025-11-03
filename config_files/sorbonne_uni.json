@@ -97,34 +97,11 @@
         "relative": true,
         "pooled": true,
         "axes": {
-          "xmin": null,
-          "xmax": null,
-          "ymin": null,
-          "ymax": null,
-          "legend": true
-        }
-      },
-      "pop_summary_seq": {
-        "stimulus": false,
-        "relative": false,
-        "num_in_seq": 8,
-        "axes": {
           "xmin": 0,
           "xmax": 5,
-          "ymin": 0,
-          "ymax": 60,
+          "ymin": 0.5,
+          "ymax": 3.5,
           "legend": true
-        }
-      },
-      "indiv_summary_overlap": {
-        "stimulus": false,
-        "control": false,
-        "relative": false,
-        "axes": {
-          "xmin": null,
-          "xmax": null,
-          "ymin": null,
-          "ymax": null
         }
       },
       "indiv_summary": {
@@ -140,7 +117,7 @@
         }
       },
       "saveas": ["png", "svg"],
-      "pause_per_folder": true
+      "pause_per_folder": false
     }
   }
 
