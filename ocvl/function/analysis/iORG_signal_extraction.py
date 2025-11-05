@@ -1,3 +1,4 @@
+import os
 import time
 import warnings
 from itertools import repeat
@@ -24,6 +25,12 @@ from ocvl.function.utility.json_format_constants import SegmentParams, NormParam
 from scipy.spatial.distance import pdist, squareform
 
 from ocvl.function.utility.resources import save_tiff_stack
+
+import tifffile as tiff
+
+STACK_OUTPUT_DIRECTORY = r"C:\Users\4084RIOSN\Desktop\tiff_stacks"
+SAVE_BOX_TIFFS = True
+SAVE_DISC_TIFFS = False
 
 
 def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
@@ -517,6 +524,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 
     goodinds = np.arange(coordinates.shape[0])[includelist]  # Only process the indices that are good.
 
+    seg_mask = "box"
 
     if seg_mask == "box" or seg_mask == "xor":
         mapres = pool.imap(_extract_box, zip(goodinds,
@@ -558,8 +566,16 @@ def _extract_box(params):
     fullcolumn = video[(coord[1] - seg_radius):(coord[1] + seg_radius + 1),
                  (coord[0] - seg_radius):(coord[0] + seg_radius + 1), :]
 
+    if SAVE_BOX_TIFFS:
+        os.makedirs(STACK_OUTPUT_DIRECTORY, exist_ok=True)
+        stack_filename = os.path.join(STACK_OUTPUT_DIRECTORY, f"{vid_name}_cell_{i}_stack.tiff")
+        fullcolumn_reshaped = fullcolumn.transpose(2,1,0) # Reshape fullcolumn object (width X height X frames --> frames X height X width)
+        tiff.imwrite(stack_filename, fullcolumn_reshaped.astype(np.float32)) # Write tiff stack to output directory
+        print("saved box stack!")
+
     coldims = fullcolumn.shape
     coordcolumn = np.reshape(fullcolumn.copy(), (coldims[0] * coldims[1], coldims[2]), order="F")
+
     # print(coord)
     # No partial columns allowed. If there are nans in the column, wipe it out entirely.
     nani = np.any(np.isnan(coordcolumn), axis=0)
@@ -599,6 +615,13 @@ def _extract_disk(params):
     coord = coords[i, :]
     fullcolumn = video[(coord[1] - seg_radius):(coord[1] + seg_radius + 1),
                        (coord[0] - seg_radius):(coord[0] + seg_radius + 1), :]
+
+    if SAVE_DISC_TIFFS:
+        os.makedirs(STACK_OUTPUT_DIRECTORY, exist_ok=True)
+        stack_filename = os.path.join(STACK_OUTPUT_DIRECTORY, f"{vid_name}_cell_{i}_stack.tiff")
+        fullcolumn_reshaped = fullcolumn.transpose(2,1,0) # Reshape fullcolumn object (width X height X frames --> frames X height X width)
+        tiff.imwrite(stack_filename, fullcolumn_reshaped.astype(np.float32)) # Write tiff stack to output directory
+        print("saved box stack!")
 
     mask = disk(seg_radius, strict_radius=False, dtype=fullcolumn.dtype)
 
