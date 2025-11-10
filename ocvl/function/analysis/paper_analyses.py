@@ -98,7 +98,7 @@ if __name__ == "__main__":
     y = root.winfo_screenheight() / 4
     root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
-    inny = 4
+    inny = 2
 
     if inny == 1:
         pName = None
