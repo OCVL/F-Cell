@@ -1,5 +1,6 @@
 import glob
 import json
+import logging
 import os
 import pickle
 import warnings
@@ -103,6 +104,8 @@ def obtain_analysis_output_path(current_folder, timestamp, analysis_params, mkdi
 
 def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, database=pd.DataFrame(),
                                 params=None, stage=Stages.PREANALYSIS):
+    logger = logging.getLogger("ORG_Logger")
+
 
     if params is None:
         params = dict()
@@ -150,7 +153,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
     query_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.QUERYLOC]
 
     if video_info.shape[0] > 1:
-        warnings.warn(f"WARNING: MULTIPLE VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        logger.warning(f"WARNING: MULTIPLE VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
         database.drop(index=video_info.index[1:], inplace=True)
 
         if vidID is not None:
@@ -163,7 +166,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         video_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO]
 
     if mask_info.shape[0] > 1:
-        warnings.warn(f"WARNING: MULTIPLE MASK VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        logger.warning(f"WARNING: MULTIPLE MASK VIDEOs WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
         database.drop(index=mask_info.index[1:], inplace=True)
 
         if vidID is not None:
@@ -176,7 +179,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         mask_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.MASK]
 
     if metadata_info.shape[0] > 1:
-        warnings.warn(f"WARNING: MULTIPLE METADATA FILES WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
+        logger.warning(f"WARNING: MULTIPLE METADATA FILES WITH ID: {vidID} DETECTED!! Only loading dataset with first ID.")
         database.drop(index=metadata_info.index[1:], inplace=True)
 
         if vidID is not None:
@@ -228,14 +231,14 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
 
     if not video_info.empty:
         print()
-        print(Fore.GREEN +"Initializing and loading dataset: " + video_info.at[video_info.index[0], AcquisiPaths.DATA_PATH].name)
+        logger.info("Initializing and loading dataset: " + video_info.at[video_info.index[0], AcquisiPaths.DATA_PATH].name)
         dataset = load_dataset(video_info.at[video_info.index[0], AcquisiPaths.DATA_PATH],
                                mask_path,
                                metadata_path,
                                combined_meta_dict,
                                stage)
     else:
-        warnings.warn("Failed to detect dataset.")
+        logger.warning("Failed to detect dataset.")
         dataset = None
 
     new_entries = None
@@ -329,6 +332,8 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
 
 
 def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_metadata=None, stage=Stages.PREANALYSIS):
+    logger = logging.getLogger("ORG_Logger")
+
 
     mask_data = None
     metadata = dataset_metadata
@@ -404,7 +409,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
                 queryloc_data.append( allcoord_data)
             else:
-                warnings.warn("Query location path does not exist: "+str(locpath))
+                logger.warning("Query location path does not exist: "+str(locpath))
 
 
     elif AcquisiPaths.QUERYLOC_PATH in metadata and MetaTags.QUERY_LOCATIONS in metadata and \
@@ -444,7 +449,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
                 queryloc_data.append(allcoord_data)
             else:
-                warnings.warn("Query location path does not exist: " + str(locpath))
+                logger.warning("Query location path does not exist: " + str(locpath))
     elif MetaTags.QUERY_LOCATIONS in metadata:
         queryloc_data.append(metadata.get(MetaTags.QUERY_LOCATIONS))
 
@@ -476,7 +481,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     if stimulus_sequence is None or len(stimulus_sequence) == 3:
         dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
     elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 == 0:
-        print(Fore.YELLOW + "Detected multiple stimuli in this dataset. Breaking into subdatasets for analysis...")
+        logger.warning(Fore.YELLOW + "Detected multiple stimuli in this dataset. Breaking into subdatasets for analysis...")
         dataset = []
         for i in range(0, len(stimulus_sequence)-2, 2):
 
@@ -492,17 +497,16 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
             # Subtract the first framestamp from this sub-dataset, its now frame 0.
             subset_stamps -= subset_stamps[0]
 
-            print(len(std_indices))
             dataset.append(Dataset(video_data[..., std_indices],
                                    mask_data[..., std_indices],
                                    avg_image_data, metadata, queryloc_data, subset_stamps, sub_seq, stage))
 
     elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 != 0:
-        warnings.warn("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Only using first 3 values.")
+        logger.warning("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Only using first 3 values.")
         stimulus_sequence = stimulus_sequence[0:2]
         dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
     elif len(stimulus_sequence) < 3:
-        warnings.warn("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Unable to analyze dataset.")
+        logger.warning("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Unable to analyze dataset.")
         return None
 
     return dataset
@@ -846,6 +850,8 @@ class Dataset:
     def __init__(self, video_data=None, mask_data=None, avg_image_data=None, metadata=None, query_locations=[],
                  framestamps=None, stimseq=None, stage=Stages.PREANALYSIS):
 
+        logger = logging.getLogger("ORG_Logger")
+
         # Paths to the data used here.
         if metadata is None:
             self.metadata = dict()
@@ -901,11 +907,11 @@ class Dataset:
                         imname = filename
 
                 if not imname: # and stage is Stages.ANALYSIS:
-                    warnings.warn("Unable to detect viable average image file; generating one from video. Dataset functionality may be limited.")
+                    logger.warning("Unable to detect viable average image file; generating one from video. Dataset functionality may be limited.")
                     self.image_path = None
                     self.avg_image_data, _ = weighted_z_projection(self.video_data, self.mask_data)
                 else:
-                    print(Fore.YELLOW + "Automatically detected the average image "+ str(imname.name) +". **Please verify your image format string**: " )
+                    logger.warning("Automatically detected the average image "+ str(imname.name) +". **Please verify your image format string**: " )
                     self.image_path = imname
                     self.metadata[AcquisiPaths.IMAGE_PATH] = self.image_path
                     self.avg_image_data = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
@@ -926,11 +932,11 @@ class Dataset:
                             coordname = filename
 
                 if coordname is None and stage is Stages.ANALYSIS:
-                    print(Fore.YELLOW+"Unable to detect viable query location file for dataset at: "+ str(self.video_path) +". Dataset is either a control, or will be converted to a pixelwise analysis.")
+                    logger.warning("Unable to detect viable query location file for dataset at: "+ str(self.video_path) +". Dataset is either a control, or will be converted to a pixelwise analysis.")
                     self.metadata[AcquisiPaths.QUERYLOC_PATH] = []
                     self.query_coord_paths = []
                 elif stage is Stages.ANALYSIS:
-                    print(Fore.YELLOW+"Automatically detected the query locations: "+str(coordname.name) + ". **Please verify your queryloc format string**" )
+                    logger.warning("Automatically detected the query locations: "+str(coordname.name) + ". **Please verify your queryloc format string**" )
                     # Update our metadata structure, and our internally stored query coord paths.
                     self.metadata[AcquisiPaths.QUERYLOC_PATH] = [coordname]
                     self.query_coord_paths = [coordname]

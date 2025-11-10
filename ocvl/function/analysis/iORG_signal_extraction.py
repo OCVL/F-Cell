@@ -1,3 +1,4 @@
+import logging
 import time
 import warnings
 from itertools import repeat
@@ -28,6 +29,7 @@ from ocvl.function.utility.resources import save_tiff_stack
 
 def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
                                   thread_pool=None):
+    logger = logging.getLogger("ORG_Logger")
 
     if query_loc is None:
         query_loc= dataset.query_loc[0].copy()
@@ -163,17 +165,17 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
             coorddist[coorddist == 0] = np.amax(coorddist.flatten())
             mindist[i] = np.amin(coorddist.flatten())
 
-        print(f"Detected segmentation radius: {(np.nanmean(mindist) / 4): 0.2f} (Rounded to: "+ str(int(np.round(np.nanmean(mindist) / 4))) +")")
+        logger.info(f"Detected segmentation radius: {(np.nanmean(mindist) / 4): 0.2f} (Rounded to: "+ str(int(np.round(np.nanmean(mindist) / 4))) +")")
         segmentation_radius = np.round(np.nanmean(mindist) / 4) if np.round(np.nanmean(mindist) / 4) >= 1 else 1
 
         segmentation_radius = int(segmentation_radius)
 
     elif segmentation_radius != "auto":
         segmentation_radius = int(segmentation_radius)
-        print("Chosen segmentation radius: " + str(segmentation_radius))
+        logger.info("Chosen segmentation radius: " + str(segmentation_radius))
     else:
         segmentation_radius = 1
-        print("Pixelwise segmentation radius: " + str(segmentation_radius))
+        logger.info("Pixelwise segmentation radius: " + str(segmentation_radius))
 
     auto_detect_vals[SegmentParams.RADIUS] = segmentation_radius
 
@@ -308,7 +310,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
     # Wipe out the signals of the invalid signals.
     iORG_signals[~valid_signals, :] = np.nan
-    print(Fore.YELLOW+str(np.sum(~valid_signals)) + "/" + str(valid_signals.shape[0]) + " query locations were removed from consideration.")
+    logger.warning(str(np.sum(~valid_signals)) + "/" + str(valid_signals.shape[0]) + " query locations were removed from consideration.")
 
     summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
                                                                      summary_method=sum_method,
@@ -695,6 +697,8 @@ def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, resc
                         ignored in all scaling methods except "score"
     :return: a NxM numpy matrix of normalized temporal profiles.
     """
+    logger = logging.getLogger("ORG_Logger")
+
 
     if rescale_mean is None:
         rescale_mean = np.nanmean(temporal_signals.flatten())
@@ -716,7 +720,7 @@ def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, resc
 
         framewise_norm = np.nanmean(temporal_signals, axis=0)
 
-        warnings.warn("The \"" + norm_method + "\" normalization type is not recognized. Defaulting to mean.")
+        logger.warning("The \"" + norm_method + "\" normalization type is not recognized. Defaulting to mean.")
 
     if rescaled: # Provide the option to simply scale the data, instead of keeping it in relative terms
         if norm_method != "score":
@@ -751,6 +755,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="mean
 
     :return: a NxM numpy matrix of standardized temporal profiles
     """
+    logger = logging.getLogger("ORG_Logger")
 
     total_num_inds = len(std_indices)
     req_framenums = int(np.floor(total_num_inds*critical_fraction))
@@ -758,7 +763,7 @@ def standardize_signals(temporal_signals, framestamps, std_indices, method="mean
 
     if len(std_indices) == 0:
         #warnings.warn("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed.")
-        print(Fore.RED+ "Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed for this dataset.")
+        logger.error("Time before the stimulus framestamp doesn't exist in the provided list! No standardization performed for this dataset.")
         query_status = np.full(temporal_signals.shape[0], "No prestimulus data for standardization.", dtype=object)
         valid_stdization = np.full(temporal_signals.shape[0], False, dtype=bool)
         return temporal_signals, valid_stdization, query_status

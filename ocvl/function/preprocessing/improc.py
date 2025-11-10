@@ -140,7 +140,7 @@ def norm_video(video_data, norm_method="mean", rescaled=False, rescale_mean=None
         all_norm = np.nanmean(framewise_norm)
     elif norm_method == "flatfield":
         if rescaled:
-            warnings.warn("Flat-field based video normalization ignores the \"rescaled\" parameter.")
+            logger.warning("Flat-field based video normalization ignores the \"rescaled\" parameter.")
         return flat_field(video_data)
     else:
         # Determine each frame's mean.
@@ -150,7 +150,7 @@ def norm_video(video_data, norm_method="mean", rescaled=False, rescale_mean=None
             frm[frm == 0] = np.nan
             framewise_norm[f] = np.nanmean(frm)
         all_norm = np.nanmean(framewise_norm)
-        warnings.warn("The \"" + norm_method + "\" normalization type is not recognized. Defaulting to mean.")
+        logger.warning("The \"" + norm_method + "\" normalization type is not recognized. Defaulting to mean.")
 
 
     if rescaled: # Provide the option to simply scale the data, instead of keeping it in relative terms

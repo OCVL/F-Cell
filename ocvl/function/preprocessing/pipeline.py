@@ -15,6 +15,7 @@
 #
 import datetime
 import json
+import logging
 import os
 import sys
 import warnings
@@ -43,6 +44,7 @@ from ocvl.function.utility.dataset import  load_dataset, \
 
 from ocvl.function.utility.json_format_constants import  DataTags, MetaTags, PreAnalysisPipeline, AcquisiParams, \
     ConfigFields, Analysis
+from ocvl.function.utility.log_formatter import LogFormatter
 from ocvl.function.utility.resources import save_video
 
 
@@ -51,6 +53,8 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
     dt = datetime.datetime.now()
     now_timestamp = dt.strftime("%Y%m%d_%H")
+
+    logger = logging.getLogger("ORG_Logger")
 
     root = Tk()
     root.lift()
@@ -69,7 +73,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
     # If loading the file fails, tell the user, and return what data we could parse.
     if allData.empty or allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
-        warnings.warn("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
+        logger.warning("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
         return allData
 
 
@@ -82,7 +86,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
         if AcquisiParams.MODALITY in allData.columns:
             if modes_of_interest is None:
                 modes_of_interest = allData[AcquisiParams.MODALITY].unique().tolist()
-                print("NO MODALITIES SELECTED! Processing all....")
+                logger.warning("NO MODALITIES SELECTED! Processing all....")
         else:
             modes_of_interest = [""]
 
@@ -139,18 +143,18 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                                                                          vidID=num, prefilter=pre_filter, database=allData,
                                                                          params=preanalysis_dat_format)
 
-                            print(Fore.WHITE + "Preprocessing dataset using reference video for alignment...")
+                            logger.info("Preprocessing dataset using reference video for alignment...")
                             allData.loc[video_info.index, AcquisiPaths.DATASET] = preprocess_dataset(dataset, pipeline_params, ref_dataset[0])
                             print()
                         else:
-                            print(Fore.WHITE + "Preprocessing dataset...")
+                            logger.info("Preprocessing dataset...")
                             allData.loc[video_info.index, AcquisiPaths.DATASET] = preprocess_dataset(dataset, pipeline_params)
                             print()
 
                     else:
-                        warning("Unable to load dataset specified for vidnum: "+num)
+                        logger.warning("Unable to load dataset specified for vidnum: "+num)
                 else:
-                    warning("Detected more than one video or mask associated with vidnum: "+num)
+                    logger.warning("Detected more than one video or mask associated with vidnum: "+num)
 
 
         # Remove all entries without associated datasets.
@@ -177,7 +181,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
             ref_xforms=[]
             dist_ref_idx=0
             if alignment_ref_mode is not None:
-                print("Selecting ideal central frame for REFERENCE mode and location: " + mode)
+                logger.info("Selecting ideal central frame for REFERENCE mode and location: " + mode)
                 ref_modes = group_datasets.loc[group_datasets[DataTags.MODALITY] == alignment_ref_mode]
 
                 vidnums = ref_modes[DataTags.VIDEO_ID].to_numpy()
@@ -209,7 +213,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                 avg_loc_idx = np.argsort(avg_loc_dist)
                 dist_ref_idx = avg_loc_idx[0]
 
-                print("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
+                logger.info("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
 
                 central_dataset = datasets[dist_ref_idx]
 
@@ -245,7 +249,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                 data_filenames = [data.video_path.stem for data in datasets]
 
                 if alignment_ref_mode is None:
-                    print("Selecting ideal central frame for mode and location: "+mode)
+                    logger.info("Selecting ideal central frame for mode and location: "+mode)
 
                     dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
                                                                                 repeat(None),
@@ -266,7 +270,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                     avg_loc_idx = np.argsort(avg_loc_dist)
                     dist_ref_idx = avg_loc_idx[0]
 
-                    print("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
+                    logger.info("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
 
                     central_dataset = datasets[dist_ref_idx]
 
@@ -301,7 +305,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                 central_dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder).mkdir(parents=True,
                                                                                                exist_ok=True)
 
-                print("Outputting data...")
+                logger.info("Outputting data...")
                 for dataset, xform in zip(datasets, ref_xforms):
 
                     # Make sure our output folder exists.
@@ -393,7 +397,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
             json.dump(audit_json_dict, f, indent=2)
 
 
-    print("PK FIRE")
+    logging.debug("PK FIRE")
     return allData
 
 if __name__ == "__main__":
@@ -401,6 +405,22 @@ if __name__ == "__main__":
 
     pName = None
     json_fName = Path()
+
+    # Set up our logger.
+    logger = logging.getLogger("ORG_Logger")
+    logger.propagate = False
+
+    streamlogger = logging.StreamHandler()
+    streamlogger.setLevel(logging.INFO)
+    streamlogger.setFormatter(LogFormatter())
+
+    filelogger = logging.FileHandler("fcell_preanalysis_log.txt",mode="w")
+    filelogger.setLevel(logging.DEBUG)
+    filelogger.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"))
+
+    logger.addHandler(streamlogger)
+    logger.addHandler(filelogger)
+    logger.setLevel(logging.INFO)
 
     pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
     if not pName:

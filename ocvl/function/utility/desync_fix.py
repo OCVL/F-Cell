@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -11,7 +12,7 @@ if __name__ == "__main__":
     # Parse out the locations and filenames, store them in a hash table.
     searchpath = Path("//134.48.93.176/Raw Study Data/00-04710/MEAOSLO1/20210920/Functional/bkup")
     for path in searchpath.rglob("*.avi"):
-        print("Processing: "+path.name)
+        logger.info("Processing: "+path.name)
         if "Confocal" in path.name:
 
             res = load_video(path.as_posix())

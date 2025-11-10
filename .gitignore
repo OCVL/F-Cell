@@ -7,3 +7,5 @@ venv
 **/.idea/tasks.xml
 build
 dist
+ocvl/function/fcell_log.txt
+ocvl/function/fcell_analysis_log.txt

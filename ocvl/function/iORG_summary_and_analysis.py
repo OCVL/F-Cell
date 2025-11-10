@@ -7,7 +7,9 @@ import warnings
 from itertools import repeat
 from pathlib import Path, PurePath
 from tkinter import filedialog,  messagebox
+import logging
 
+import colorama
 import cv2
 import numpy as np
 import pandas as pd
@@ -34,6 +36,7 @@ from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, Met
     AcquisiParams, \
     NormParams, SummaryParams, ControlParams, DisplayParams, \
     MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
+from ocvl.function.utility.log_formatter import LogFormatter
 from ocvl.function.utility.resources import save_tiff_stack, save_video
 
 def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
@@ -44,6 +47,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     dt = datetime.now()
     start_timestamp = dt.strftime("%Y%m%d_%H%M%S")
+
+    logger = logging.getLogger("ORG_Logger")
 
     # root = Tk()
     # root.lift()
@@ -70,7 +75,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     # If loading the file fails, tell the user, and return what data we could parse.
     if allData.empty or allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
-        warnings.warn("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
+        logger.warning("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
         return allData
 
     # x = root.winfo_screenwidth() / 2 - 128
@@ -100,7 +105,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     # If we don't have any modalities that we're interested amongst our videos
     if not allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO][DataTags.MODALITY].isin(modes_of_interest).any():
-        warnings.warn("None of the datasets detected match the modalities selected. Please review your dataset format.")
+        logger.warning("None of the datasets detected match the modalities selected. Please review your dataset format.")
         return allData
     elif DataTags.MODALITY in allData.columns:
         modes_of_interest = allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO][DataTags.MODALITY].unique().tolist()
@@ -164,7 +169,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     # If we've selected modalities of interest, only process those; otherwise, process them all.
     if modes_of_interest is None:
         modes_of_interest = allData[DataTags.MODALITY].unique().tolist()
-        print("NO MODALITIES SELECTED! Processing all....")
+        logger.warning("NO MODALITIES SELECTED! Processing all....")
 
     grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
     if grouping is not None:
@@ -207,9 +212,9 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                 subject_IDs = allData.loc[group_filter, DataTags.DATA_ID].unique()
 
                 if np.size(subject_IDs) > 1:
-                    warnings.warn("MORE THAN 1 SUBJECT ID DETECTED IN GROUP " + group + "!! Labeling outputs with first ID")
+                    logger.warning("MORE THAN 1 SUBJECT ID DETECTED IN GROUP " + group + "!! Labeling outputs with first ID")
             else:
-                warnings.warn("NO SUBJECT ID FIELD DETECTED IN GROUP " + group + " Labeling outputs with dummy subject ID")
+                logger.warning("NO SUBJECT ID FIELD DETECTED IN GROUP " + group + " Labeling outputs with dummy subject ID")
                 subject_IDs = ['']  # Trying empty subject ID
 
             allData.loc[group_filter, AcquisiParams.STIM_PRESENT] = True
@@ -348,7 +353,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         else:
                             for q in range(len(all_query_status[mode][folder])):
                                 all_query_status[mode][folder][q].loc[:, vidnum] = "Dataset Failed To Load"
-                            warnings.warn("Video number " + str(vidnum) + ": Dataset Failed To Load")
+                            logger.warning("Video number " + str(vidnum) + ": Dataset Failed To Load")
 
                         # Perform analyses on each query location set for each stimulus dataset.
                         for sub_dataset in dataset:
@@ -357,7 +362,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 #                     mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
                                 # pb.update()
                                 # pb_label.update()
-                                print(Fore.WHITE +"Processing query locs \"" + str(sub_dataset.metadata.get(AcquisiPaths.QUERYLOC_PATH, [Path()])[q].name) +
+                                logger.info("Processing query locs \"" + str(sub_dataset.metadata.get(AcquisiPaths.QUERYLOC_PATH, [Path()])[q].name) +
                                       "\" in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
                                       + str(group) + " and folder " + folder.name + "...")
 
@@ -425,19 +430,19 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                         if d != 0:
                             if np.all(all_timestamps.shape != the_timestamps.shape) and np.all(all_timestamps != the_timestamps):
-                                warnings.warn("Does not qualify for fast control processing: The stimulus timestamps do not match.")
+                                logger.warning("Does not qualify for fast control processing: The stimulus timestamps do not match.")
                                 uniform_datasets = False
                                 break
 
                             if len(locs) == len(all_locs):
                                 for l, the_locs in enumerate(locs):
                                     if np.all(the_locs.shape != all_locs[l].shape) and np.all(the_locs != all_locs[l]):
-                                        warnings.warn("Does not qualify for fast control processing: The query locations do not match.")
+                                        logger.warning("Does not qualify for fast control processing: The query locations do not match.")
                                         uniform_datasets = False
                                         break
                                 del the_locs
                             else:
-                                warnings.warn("Does not qualify for fast control processing: The number of query locations do not match.")
+                                logger.warning("Does not qualify for fast control processing: The number of query locations do not match.")
                                 uniform_datasets = False
                                 break
                         else:
@@ -500,7 +505,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 #     group) + " and folder " + folder.name + "..."
                                 # pb.update()
                                 # pb_label.update()
-                                print(Fore.GREEN+"Processing query files in control datasets for stim video " + str(
+                                logger.info("Processing query files in control datasets for stim video " + str(
                                     stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
                                     group) + " and folder " + folder.name + "...")
 
@@ -719,12 +724,12 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         gc.collect()
                         pooled_framerate = np.unique(pooled_framerate)
                         if len(pooled_framerate) != 1:
-                            warnings.warn("The framerate of the iORGs analyzed in "+folder.name + " is inconsistent: ("+str(pooled_framerate)+"). Pooled results may be incorrect.")
+                            logger.warning("The framerate of the iORGs analyzed in "+folder.name + " is inconsistent: ("+str(pooled_framerate)+"). Pooled results may be incorrect.")
                             pooled_framerate = pooled_framerate[0]
 
                         stimtrain = np.unique(pd.DataFrame(stimtrain).values.astype(np.int32), axis=0)
                         if stimtrain.shape[0] != 1:
-                            warnings.warn("The stimulus frame train of the iORGs analyzed in " + folder.name + " is inconsistent! Pooled results may be incorrect.")
+                            logger.warning("The stimulus frame train of the iORGs analyzed in " + folder.name + " is inconsistent! Pooled results may be incorrect.")
 
                         stimtrain = stimtrain[0]
 
@@ -1222,7 +1227,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
             plt.clf()
             plt.close(figname)
 
-    print("Say WHAT")
+    logging.debug("Say WHAT")
 
     plt.close('all')
     gc.collect()
@@ -1234,6 +1239,24 @@ if __name__ == "__main__":
 
     pName = None
     json_fName = Path()
+
+    colorama.init()
+
+    # Set up our logger.
+    logger = logging.getLogger("ORG_Logger")
+    logger.propagate = False
+
+    streamlogger = logging.StreamHandler()
+    streamlogger.setLevel(logging.INFO)
+    streamlogger.setFormatter(LogFormatter())
+
+    filelogger = logging.FileHandler("fcell_analysis_log.txt",mode="w")
+    filelogger.setLevel(logging.DEBUG)
+    filelogger.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"))
+
+    logger.addHandler(streamlogger)
+    logger.addHandler(filelogger)
+    logger.setLevel(logging.INFO)
 
     pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
     if not pName:

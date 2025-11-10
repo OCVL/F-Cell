@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import warnings
 from enum import Enum
@@ -54,7 +55,7 @@ def load_video(video_path, video_field=None):
                 video_data = np.empty([height, width, num_frames], dtype=frm.dtype)
                 video_data[..., 0] = frm[..., 0]
             else:
-                warnings.warn("Failed to open video: "+video_path)
+                logger.warning("Failed to open video: "+video_path)
                 return None
 
             i = 1
@@ -70,7 +71,7 @@ def load_video(video_path, video_field=None):
         case ".tif" | ".tiff":
             ret, video_data = cv2.imreadmulti(video_path)
             if not ret:
-                warnings.warn("Failed to open tif: " + video_path)
+                logger.warning("Failed to open tif: " + video_path)
                 return None
 
         case ".mat":
@@ -79,7 +80,7 @@ def load_video(video_path, video_field=None):
                 mat_data = mat_data.get(field, None)
 
                 if mat_data is None:
-                    warnings.warn("Failed to open video: " + video_path)
+                    logger.warning("Failed to open video: " + video_path)
                     return None
 
             video_data = mat_data
