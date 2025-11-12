@@ -268,12 +268,12 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
         if len(query_info) < len(dataset[0].query_loc):
             # If we have too few, then tack on some extra dataframes so we can track these found query locations, and add them to our database, using the dataset as a basis.
             base_entry = database[slice_of_life & vidtype_filter].copy()
-            base_entry.loc[0, DataFormat.FORMAT_TYPE] = DataFormat.QUERYLOC
-            base_entry.loc[0, AcquisiPaths.DATASET] = None
+            base_entry.loc[base_entry.index[0], DataFormat.FORMAT_TYPE] = DataFormat.QUERYLOC
+            base_entry.loc[base_entry.index[0], AcquisiPaths.DATASET] = None
 
             for i in range(len(dataset[0].query_loc) - len(query_info)):
                 base_entry.loc[base_entry.index[0], AcquisiPaths.DATA_PATH] = dataset[0].query_coord_paths[i]
-                base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "Auto_Detected_" + str(i)
+                base_entry.loc[base_entry.index[0], DataTags.QUERYLOC] = "Auto-Detected-" + str(i)
 
                 # Update the database
                 new_entries = pd.concat([new_entries, base_entry], ignore_index=True)

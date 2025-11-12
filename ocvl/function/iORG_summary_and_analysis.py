@@ -333,7 +333,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             if len(new_entries) > 0:
 
                                 for ind, newbie in new_entries[new_entries[DataFormat.FORMAT_TYPE] == DataFormat.QUERYLOC].iterrows():
-                                    query_loc_names.append(newbie[AcquisiPaths.DATA_PATH].name)
+                                    query_loc_names.append(newbie[DataTags.QUERYLOC])
                                     all_query_status[mode][folder].append(pd.DataFrame())
 
                                 # Add query status entries for each of the new subdatasets
