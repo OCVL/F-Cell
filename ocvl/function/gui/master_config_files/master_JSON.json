@@ -8,6 +8,7 @@
   "raw" : {
 	"video_format": {
       "type": "formatEditor",
+      "format_type" : "video",
       "save": true
     },
 	"metadata" : {
@@ -15,7 +16,8 @@
         "type": "freeText"
       },
 	  "metadata_format": {
-        "type": "formatEditor"
+        "type": "formatEditor",
+        "format_type" : "meta"
       },
 	  "fields_to_load": {
         "timestamps": {
@@ -30,14 +32,17 @@
   "preanalysis": {
     "image_format": {
       "type": "formatEditor",
+      "format_type" : "image",
       "save": true
     },
     "video_format": {
       "type": "formatEditor",
+      "format_type" : "video",
       "save": true
     },
     "mask_format": {
       "type": "formatEditor",
+      "format_type" : "mask",
       "save": true
     },
     "metadata": {
@@ -45,7 +50,8 @@
         "type": "freeText"
       },
       "metadata_format": {
-        "type": "formatEditor"
+        "type": "formatEditor",
+        "format_type" : "meta"
       },
       "fields_to_load": {
         "framestamps": {
@@ -117,10 +123,10 @@
 		  "dewarp" : "freeText"
 	  },
       "trim": {
-        "start_idx": {
+        "start_frm": {
           "type": "freeNumber"
         },
-        "end_idx": {
+        "end_frm": {
           "type": "freeNumber"
         }
       }
@@ -129,14 +135,17 @@
   "analysis": {
     "image_format": {
       "type": "formatEditor",
+      "format_type" : "image",
       "save": true
     },
     "queryloc_format": {
-      "type": "formatEditorQueryloc",
+      "type": "formatEditor",
+      "format_type" : "queryloc",
       "save": true
     },
     "video_format": {
       "type": "formatEditor",
+      "format_type" : "video",
       "save": true
     },
     "metadata": {
@@ -144,7 +153,8 @@
         "type": "freeText"
       },
       "metadata_format": {
-        "type": "formatEditor"
+        "type": "formatEditor",
+        "format_type" : "meta"
       },
       "stimulus_sequence": {
           "type": "freeText"
@@ -183,6 +193,15 @@
       },
       "output_subfolder_method": {
         "type": "outputSubfolderMethodComboBox"
+      },
+      "output_indiv_stdize_orgs": {
+        "type": "trueFalse"
+      },
+      "output_sum_pop_orgs": {
+        "type": "trueFalse"
+      },
+      "output_sum_indiv_orgs": {
+        "type": "trueFalse"
       },
       "normalization": {
         "method": {
@@ -295,56 +314,56 @@
         }
       }
     },
-    "display_params": {
-      "debug": {
-        "output_norm_video": {
-          "type": "trueFalse"
-        },
-        "plot_refine_to_ref": {
-          "type": "trueFalse"
-        },
-        "plot_refine_to_vid": {
-          "type": "trueFalse"
-        },
-        "plot_pop_extracted_orgs": {
-          "type": "trueFalse"
-        },
-        "plot_pop_stdize_orgs": {
-          "type": "trueFalse"
-        },
-        "plot_indiv_stdize_orgs": {
-          "type": "trueFalse"
-        },
-        "output_indiv_stdize_orgs": {
-          "type": "trueFalse"
-        },
-        "stimulus": {
-          "type": "trueFalse"
-        },
-        "control": {
-          "type": "trueFalse"
-        },
-        "axes": {
-          "xmin": {
-            "type": "freeNumber"
-          },
-          "xmax": {
-            "type": "freeNumber"
-          },
-          "ymin": {
-            "type": "freeNumber"
-          },
-          "ymax": {
-            "type": "freeNumber"
-          },
-          "cmap": {
-            "type": "cmapSelector"
-          },
-          "legend": {
-            "type": "trueFalse"
-          }
-        }
+    "debug": {
+      "output_norm_video": {
+        "type": "trueFalse"
       },
+      "plot_refine_to_ref": {
+        "type": "trueFalse"
+      },
+      "plot_refine_to_vid": {
+        "type": "trueFalse"
+      },
+      "plot_pop_extracted_orgs": {
+        "type": "trueFalse"
+      },
+      "plot_pop_stdize_orgs": {
+        "type": "trueFalse"
+      },
+      "plot_indiv_stdize_orgs": {
+        "type": "trueFalse"
+      },
+      "plot_valid_cells": {
+        "type": "trueFalse"
+      },
+      "stimulus": {
+        "type": "trueFalse"
+      },
+      "control": {
+        "type": "trueFalse"
+      },
+      "axes": {
+        "xmin": {
+          "type": "freeNumber"
+        },
+        "xmax": {
+          "type": "freeNumber"
+        },
+        "ymin": {
+          "type": "freeNumber"
+        },
+        "ymax": {
+          "type": "freeNumber"
+        },
+        "cmap": {
+          "type": "cmapSelector"
+        },
+        "legend": {
+          "type": "trueFalse"
+        }
+      }
+    },
+    "display_params": {
       "pop_summary_overlap": {
         "stimulus": {
           "type": "trueFalse"
@@ -356,6 +375,12 @@
           "type": "trueFalse"
         },
         "pooled": {
+          "type": "trueFalse"
+        },
+        "cross_group": {
+          "type": "trueFalse"
+        },
+        "annotations": {
           "type": "trueFalse"
         },
         "axes": {
@@ -446,6 +471,12 @@
           "type": "trueFalse"
         },
         "map_overlay": {
+          "type": "trueFalse"
+        },
+        "org_video": {
+          "type": "trueFalse"
+        },
+        "cross_group": {
           "type": "trueFalse"
         },
         "axes": {

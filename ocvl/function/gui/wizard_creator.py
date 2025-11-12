@@ -6,7 +6,7 @@ from PySide6.QtGui import QFont, QMovie
 from PySide6.QtWidgets import QWizard
 import constructors
 from import_generation import *
-from ocvl.function.utility.dataset import parse_metadata
+#from ocvl.function.utility.dataset import parse_metadata
 import tempfile
 
 bold = QtGui.QFont()
@@ -23,6 +23,16 @@ class TextColor:
     GREEN = '\033[92m'
     YELLOW = '\033[93m'
     RED = '\033[91m'
+
+def _clear_layout(layout):
+    while layout and layout.count():
+        item = layout.takeAt(0)
+        w = item.widget()
+        if w is not None:
+            w.setParent(None)
+            w.deleteLater()
+        elif item.layout():
+            _clear_layout(item.layout())
 
 def has_modality(format_string):
     return "{Modality}" in format_string if format_string else False
@@ -739,9 +749,9 @@ class AdvancedSetupPage(QWizardPage):
             'You can edit any configuration field from here. For a more simple setup, go back and select "Simple Setup"\n'
             'Tip: Expand window for better visibility')
 
-        with open("ocvl/function/gui/master_config_files/advanced_config_JSON.json", "r") as f:
+        with open(r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\advanced_config_JSON.json", "r") as f:
             advanced_config_json = json.load(f)
-        with open("ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
+        with open(r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\master_JSON.json", "r") as f:
             self.master_json = json.load(f)
 
         scroll_area = QScrollArea()
@@ -769,290 +779,258 @@ class ReviewPage(QWizardPage):
         self.saved_file_path = None
         self.generated_config = None
 
-        # Create scrollable area for the review content
+        # Scroll container
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
 
-        # Container widget for all content
         self.container = QWidget()
         self.scroll.setWidget(self.container)
 
-        # Main layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.addWidget(self.scroll)
 
-        # Container layout
         self.container_layout = QVBoxLayout(self.container)
 
     def nextId(self):
         return 8
 
+    # ---------- helpers: consistent formatting ----------
+    def _fmt_value(self, v):
+        """Human-friendly rendering of values for the review UI."""
+        if v is None:
+            return "null"
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, (int, float, str)):
+            return str(v)
+        if isinstance(v, (list, tuple)):
+            # render one item per line if long; inline if short
+            if len(v) <= 3 and all(isinstance(x, (int, float, str)) for x in v):
+                return "[" + ", ".join(self._fmt_value(x) for x in v) + "]"
+            return "\n• " + "\n• ".join(self._fmt_value(x) for x in v)
+        # fallback to JSON-ish for unusual objects
+        return str(v)
+
+    def _mk_field(self, title, value):
+        lab = QLabel(f"<b>{title}:</b> {self._fmt_value(value)}")
+        lab.setWordWrap(True)
+        lab.setStyleSheet(
+            "QLabel { padding: 3px 6px; margin: 2px 0; border-left: 3px solid #007ACC; }"
+        )
+        return lab
+
+    def _mk_section(self, title):
+        lab = QLabel(title.upper())
+        f = lab.font();
+        f.setBold(True);
+        lab.setFont(f)
+        lab.setStyleSheet("QLabel { font-size: 14px; margin: 10px 0 4px 0; }")
+        return lab
+
+    def _titleize(self, key):
+        return str(key).replace("_", " ").title()
+
+    # ---------- schema-walking renderers ----------
+    def _render_by_template(self, template_node, data_node, header_name=None):
+        """
+        Render using the 'template' that defined the page (keeps exact key order).
+        Dict in template -> section; non-dict -> leaf (primitive) field.
+        """
+        if header_name is not None:
+            self.container_layout.addWidget(self._mk_section(header_name))
+
+        # If template is a dict: walk keys in order
+        if isinstance(template_node, dict):
+            for k, tmpl_child in template_node.items():
+                # Skip top-level metadata fields we already printed
+                if header_name is None and k in ("version", "description"):
+                    continue
+
+                pretty = self._titleize(k)
+                data_child = None if not isinstance(data_node, dict) else data_node.get(k, None)
+
+                if isinstance(tmpl_child, dict):
+                    # subsection (even if data_child is empty/None, still show header to match UI)
+                    self._render_by_template(tmpl_child, data_child if isinstance(data_child, dict) else {}, pretty)
+                else:
+                    # leaf: show scalar value taken from data_node (or template default if missing)
+                    value = data_child if data_child is not None else tmpl_child
+                    self.container_layout.addWidget(self._mk_field(pretty, value))
+            return
+
+        # If template is not a dict, it's a primitive leaf and should have been handled above.
+
+    def _render_pruned_template(self, template_node, data_node):
+        """
+        Make a pruned copy of 'template_node' that only keeps keys present in data_node.
+        Preserves order from the template.
+        """
+        if not isinstance(template_node, dict) or not isinstance(data_node, dict):
+            return data_node  # primitive (or mismatched) – just return data as-is
+
+        pruned = {}
+        for k, tmpl_child in template_node.items():
+            if k in data_node:
+                dv = data_node[k]
+                if isinstance(tmpl_child, dict) and isinstance(dv, dict):
+                    pruned[k] = self._render_pruned_template(tmpl_child, dv)
+                else:
+                    pruned[k] = tmpl_child
+        return pruned
+
+    # ---------- SIMPLE ----------
+    def _display_simple_mode(self, cfg, wiz):
+        # (unchanged from your version if you like) – but still benefits from _fmt_value
+        if "version" in cfg:
+            self.container_layout.addWidget(self._mk_field("Version", cfg["version"]))
+        if "description" in cfg:
+            self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
+
+        if "preanalysis" in cfg:
+            pre = cfg["preanalysis"]
+            self.container_layout.addWidget(self._mk_section("Pre-Analysis"))
+            for title, k in [("Image Format", "image_format"),
+                             ("Video Format", "video_format"),
+                             ("Mask Format", "mask_format"),
+                             ("Recursive Search", "recursive_search")]:
+                if k in pre:
+                    self.container_layout.addWidget(self._mk_field(title, pre[k]))
+            if "pipeline_params" in pre:
+                params = pre["pipeline_params"]
+                self.container_layout.addWidget(self._mk_section("Pipeline Parameters"))
+                for title, k in [("Modalities", "modalities"),
+                                 ("Alignment Reference Modality", "alignment_reference_modality"),
+                                 ("Group By", "group_by")]:
+                    if k in params:
+                        self.container_layout.addWidget(self._mk_field(title, params[k]))
+
+        if "analysis" in cfg:
+            ana = cfg["analysis"]
+            self.container_layout.addWidget(self._mk_section("Analysis"))
+            for title, k in [("Image Format", "image_format"),
+                             ("Queryloc Format", "queryloc_format"),
+                             ("Video Format", "video_format"),
+                             ("Recursive Search", "recursive_search")]:
+                if k in ana:
+                    self.container_layout.addWidget(self._mk_field(title, ana[k]))
+            if "analysis_params" in ana:
+                params = ana["analysis_params"]
+                self.container_layout.addWidget(self._mk_section("Analysis Params"))
+                if "modalities" in params:
+                    self.container_layout.addWidget(self._mk_field("Modalities", params["modalities"]))
+
+    # ---------- ADVANCED ----------
+    def _display_advanced_mode(self, cfg, wiz):
+        # Header fields first
+        if "version" in cfg:
+            self.container_layout.addWidget(self._mk_field("Version", cfg["version"]))
+        if "description" in cfg:
+            self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
+
+        # Use the SAME template that built Advanced (preserves visual order)
+        with open(
+                r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\advanced_config_JSON.json",
+                "r") as f:
+            advanced_template = json.load(f)
+
+        # Render recursively; nested dicts become sections; primitives become leaf rows
+        self._render_by_template(advanced_template, cfg)
+
+    # ---------- IMPORT ----------
+    def _display_import_mode(self, cfg, wiz):
+        if "version" in cfg:
+            self.container_layout.addWidget(self._mk_field("Version", cfg["version"]))
+        if "description" in cfg:
+            self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
+
+        # Start from the master template, then prune to only the keys actually present in the imported file
+        with open(r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\master_JSON.json",
+                  "r") as f:
+            master_template = json.load(f)
+
+        imported = self.wizard().page(0).imported_config or {}
+        pruned_template = self._render_pruned_template(master_template, imported)
+
+        self._render_by_template(pruned_template, cfg)
+
+    # ---------- main flow ----------
     def initializePage(self):
-        wizard = self.wizard()
+        wiz = self.wizard()
 
-        # Clear any existing labels (except header)
-        for i in reversed(range(1, self.container_layout.count())):
-            item = self.container_layout.itemAt(i)
-            if item and item.widget():
-                item.widget().deleteLater()
+        # Clear previous render (keep layout)
+        while self.container_layout.count():
+            item = self.container_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
 
-        # Generate config based on mode
-        if wizard.page(1).adv_button.isChecked():
-            # Advanced mode: use generate_json
-            advanced_widget = wizard.page(5).advanced_widget
-            master_json = wizard.page(5).master_json
+        # Build the config (unchanged logic)
+        if wiz.page(1).adv_button.isChecked():
+            # Advanced
+            advanced_widget = wiz.page(5).advanced_widget
+            master_json = wiz.page(5).master_json
             self.generated_config = generate_json(advanced_widget, master_json)
-        elif wizard.page(0).import_button.isChecked():
-            # Import mode: use generate_json with skip_disabled=False
-            import_config = wizard.page(7).form_widget
-            master_json = wizard.page(5).master_json
-            self.generated_config = generate_json(import_config, master_json, skip_disabled=False)
+        elif wiz.page(0).import_button.isChecked():
+            # Import editor
+            import_config_widget = wiz.page(7).form_widget
+            master_json = wiz.page(5).master_json
+            self.generated_config = generate_json(import_config_widget, master_json, skip_disabled=False)
         else:
-            # Simple mode: use the predefined config structure
-            config = {
-                "version": wizard.page(2).version_value.text(),
-                "description": wizard.page(2).description_value.text(),
+            # Simple (you already build this struct explicitly)
+            self.generated_config = {
+                "version": wiz.page(2).version_value.text(),
+                "description": wiz.page(2).description_value.text(),
                 "preanalysis": {
-                    "image_format": wizard.page(3).image_format_value.get_value(),
-                    "video_format": wizard.page(3).video_format_value.get_value(),
-                    "mask_format": wizard.page(3).mask_format_value.get_value(),
-                    "recursive_search": wizard.page(3).recursive_search_tf.get_value(),
+                    "image_format": wiz.page(3).image_format_value.get_value(),
+                    "video_format": wiz.page(3).video_format_value.get_value(),
+                    "mask_format": wiz.page(3).mask_format_value.get_value(),
+                    "recursive_search": wiz.page(3).recursive_search_tf.get_value(),
                     "pipeline_params": {
-                        "modalities": wizard.page(3).modalities_list_creator.get_list(),
-                        "alignment_reference_modality": wizard.page(3).alignment_ref_value.get_value(),
-                        "group_by": None if wizard.page(3).groupby_value.get_value() == "null" else wizard.page(
-                            3).groupby_value.get_value(),
+                        "modalities": wiz.page(3).modalities_list_creator.get_list(),
+                        "alignment_reference_modality": wiz.page(3).alignment_ref_value.get_value(),
+                        "group_by": None if wiz.page(3).groupby_value.get_value() == "null" else wiz.page(3).groupby_value.get_value(),
                     }
                 },
                 "analysis": {
-                    "image_format": wizard.page(4).image_format_value.get_value(),
-                    "queryloc_format": wizard.page(4).queryloc_format_value.get_value(),
-                    "video_format": wizard.page(4).video_format_value.get_value(),
-                    "recursive_search": wizard.page(4).recursive_search_tf.get_value(),
+                    "image_format": wiz.page(4).image_format_value.get_value(),
+                    "queryloc_format": wiz.page(4).queryloc_format_value.get_value(),
+                    "video_format": wiz.page(4).video_format_value.get_value(),
+                    "recursive_search": wiz.page(4).recursive_search_tf.get_value(),
                     "analysis_params": {
-                        "modalities": wizard.page(4).modalities_list_creator.get_list()
+                        "modalities": wiz.page(4).modalities_list_creator.get_list()
                     }
                 }
             }
-            self.generated_config = config
 
-        # Parse and display the configuration
-        self.display_parsed_config()
-
-    def create_field_label(self, field_name, field_value):
-        """Create a QLabel for a field with name and value"""
-        label = QLabel(f"<b>{field_name}:</b> {field_value}")
-        label.setWordWrap(True)
-        label.setStyleSheet("""
-            QLabel {
-                padding: 5px;
-                margin: 2px 0;
-                border-left: 3px solid #007ACC;
-            }
-        """)
-        return label
-
-    def create_section_label(self, section_name):
-        """Create a bolded section header label"""
-        label = QLabel(section_name.upper())
-        label.setFont(bold)
-        label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                margin: 10px 0 5px 0;
-                padding: 5px;
-            }
-        """)
-        return label
-
-    def display_parsed_config(self):
-        """Parse the configuration and display results as individual QLabels"""
-        if not self.generated_config:
-            error_label = QLabel("No configuration data available")
-            self.container_layout.addWidget(error_label)
-            return
-
+        # ----- Render by PATH -----
         try:
-            wizard = self.wizard()
-            is_advanced_mode = wizard.page(1).adv_button.isChecked()
-
-            is_import_mode = wizard.page(0).import_button.isChecked()
-
-            # 1. Display version and description first
-            if "version" in self.generated_config:
-                version_label = self.create_field_label("Version", self.generated_config["version"])
-                self.container_layout.addWidget(version_label)
-
-            if "description" in self.generated_config:
-                description_label = self.create_field_label("Description", self.generated_config["description"])
-                self.container_layout.addWidget(description_label)
-
-            if is_advanced_mode or is_import_mode:
-                # Advanced mode: Display all fields dynamically
-                self.display_all_fields(self.generated_config)
+            if wiz.page(1).adv_button.isChecked():
+                self._display_advanced_mode(self.generated_config, wiz)
+            elif wiz.page(0).import_button.isChecked():
+                self._display_import_mode(self.generated_config, wiz)
             else:
-                # Simple mode: Display known fields only
-                self.display_simple_mode_fields()
-
-            # Add stretch at the end
-            self.container_layout.addStretch()
-
+                self._display_simple_mode(self.generated_config, wiz)
         except Exception as e:
-            error_label = QLabel(f"Error parsing configuration: {str(e)}")
-            error_label.setStyleSheet("color: red; font-weight: bold;")
-            self.container_layout.addWidget(error_label)
+            err = QLabel(f"Error rendering review: {e}")
+            err.setStyleSheet("color: red; font-weight: bold;")
+            self.container_layout.addWidget(err)
 
-    def display_all_fields(self, config):
-        """Display all fields in the configuration recursively for advanced mode"""
-        # Process sections in the desired order
-        ordered_sections = ["raw", "preanalysis", "analysis"]
-
-        # First display known sections in order
-        for section_key in ordered_sections:
-            if section_key in config:
-                section_label = self.create_section_label(section_key.replace("_", " "))
-                self.container_layout.addWidget(section_label)
-
-                # Try to parse with parse_metadata if possible
-                try:
-                    parsed_config, parsed_df = parse_metadata(config, root_group=section_key)
-                except:
-                    pass  # Continue if parsing fails
-
-                # Display all fields in this section
-                self.display_dict_fields(config[section_key])
-
-        # Then display any additional sections
-        for key, value in config.items():
-            if key not in ["version", "description"] + ordered_sections:
-                section_label = self.create_section_label(key.replace("_", " "))
-                self.container_layout.addWidget(section_label)
-
-                if isinstance(value, dict):
-                    self.display_dict_fields(value)
-                else:
-                    field_label = self.create_field_label(key.replace("_", " ").title(), value)
-                    self.container_layout.addWidget(field_label)
-
-    def display_dict_fields(self, dictionary, prefix=""):
-        """Recursively display all fields in a dictionary"""
-        for key, value in dictionary.items():
-            display_key = f"{prefix}{key.replace('_', ' ').title()}" if prefix else key.replace('_', ' ').title()
-
-            if isinstance(value, dict):
-                # If it's a nested dict, create a sub-section or display with indentation
-                if len(value) > 3:  # Create subsection for large nested dicts
-                    subsection_label = QLabel(f"  {display_key}:")
-                    subsection_label.setStyleSheet("""
-                        QLabel {
-                            font-weight: bold;
-                            margin: 5px 0 2px 10px;
-                            padding: 3px;
-                        }
-                    """)
-                    self.container_layout.addWidget(subsection_label)
-                    self.display_dict_fields(value, "    ")
-                else:
-                    # For small nested dicts, display inline
-                    for sub_key, sub_value in value.items():
-                        nested_display_key = f"{display_key} - {sub_key.replace('_', ' ').title()}"
-                        field_label = self.create_field_label(nested_display_key, sub_value)
-                        self.container_layout.addWidget(field_label)
-            else:
-                # Use the improved create_field_label method for all values
-                # (it now handles lists, numbers, booleans, etc. internally)
-                field_label = self.create_field_label(display_key, value)
-                self.container_layout.addWidget(field_label)
-
-    def display_simple_mode_fields(self):
-        """Display only the fields configured in simple mode"""
-        # 2. Display preanalysis section
-        if "preanalysis" in self.generated_config:
-            section_label = self.create_section_label("Pre-Analysis")
-            self.container_layout.addWidget(section_label)
-
-            # Parse with updated function signature
-            preanalysis_config, preanalysis_df = parse_metadata(
-                self.generated_config, root_group="preanalysis"
-            )
-
-            preanalysis_section = self.generated_config["preanalysis"]
-
-            # Display main preanalysis fields
-            for field_name, field_key in [
-                ("Image Format", "image_format"),
-                ("Video Format", "video_format"),
-                ("Mask Format", "mask_format"),
-                ("Recursive Search", "recursive_search")
-            ]:
-                if field_key in preanalysis_section:
-                    field_label = self.create_field_label(field_name, preanalysis_section[field_key])
-                    self.container_layout.addWidget(field_label)
-
-            # Display pipeline_params
-            if "pipeline_params" in preanalysis_section:
-                params = preanalysis_section["pipeline_params"]
-                for field_name, field_key in [
-                    ("Modalities", "modalities"),
-                    ("Alignment Reference Modality", "alignment_reference_modality"),
-                    ("Group By", "group_by")
-                ]:
-                    if field_key in params:
-                        field_label = self.create_field_label(field_name, params[field_key])
-                        self.container_layout.addWidget(field_label)
-
-        # 3. Display analysis section
-        if "analysis" in self.generated_config:
-            section_label = self.create_section_label("Analysis")
-            self.container_layout.addWidget(section_label)
-
-            # Parse with updated function signature
-            analysis_config, analysis_df = parse_metadata(
-                self.generated_config, root_group="analysis"
-            )
-
-            analysis_section = self.generated_config["analysis"]
-
-            # Display main analysis fields
-            for field_name, field_key in [
-                ("Image Format", "image_format"),
-                ("QueryLoc Format", "queryloc_format"),
-                ("Video Format", "video_format"),
-                ("Recursive Search", "recursive_search")
-            ]:
-                if field_key in analysis_section:
-                    field_label = self.create_field_label(field_name, analysis_section[field_key])
-                    self.container_layout.addWidget(field_label)
-
-            # Display analysis_params
-            if "analysis_params" in analysis_section:
-                params = analysis_section["analysis_params"]
-                for field_name, field_key in [
-                    ("Modalities", "modalities")
-                ]:
-                    if field_key in params:
-                        field_label = self.create_field_label(field_name, params[field_key])
-                        self.container_layout.addWidget(field_label)
+        self.container_layout.addStretch()
 
     def validatePage(self):
-        """Save the generated configuration to a file"""
+        """Save the generated configuration to a file (unchanged)."""
         if not self.generated_config:
             QMessageBox.warning(self, "Error", "No configuration data available")
             return False
 
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getSaveFileName(
-            self,
-            "Save Configuration File",
-            "",
-            "JSON Files (*.json);;All Files (*)"
+            self, "Save Configuration File", "", "JSON Files (*.json);;All Files (*)"
         )
 
         if file_path:
             if not file_path.endswith('.json'):
                 file_path += '.json'
-
             try:
                 with open(file_path, 'w') as f:
                     json.dump(self.generated_config, f, indent=2)
@@ -1064,6 +1042,7 @@ class ReviewPage(QWizardPage):
         else:
             QMessageBox.warning(self, "Error", "No file selected. Please choose a path to save the configuration.")
             return False
+
 
 class ImportEditorPage(QWizardPage):
     def __init__(self, parent=None):
@@ -1091,7 +1070,7 @@ class ImportEditorPage(QWizardPage):
         intro_page = wizard.page(0)
 
         if hasattr(intro_page, 'imported_config') and intro_page.imported_config:
-            with open("ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
+            with open(r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\master_JSON.json", "r") as f:
                 master_json = json.load(f)
 
             self.form_widget = build_form_from_template(master_json, intro_page.imported_config)

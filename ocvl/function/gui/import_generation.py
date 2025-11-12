@@ -15,10 +15,14 @@ def extract_widget_type(field_def):
         return field_def.get("type")
     return field_def
 
-def create_format_editor_widget(config_dict):
-    """Create FormatEditorWidget with appropriate type based on config"""
-    format_type = config_dict.get("format_type", "Format")
-    return FormatEditorWidget(format_type)
+def create_format_editor_widget_from_spec(field_key: str, widget_spec: dict):
+    """Build a FormatEditorWidget with its type coming from the template's 'format_type'."""
+    fmt_type = (widget_spec or {}).get("format_type")
+    # Label shown left of the widget row uses format_label(key) elsewhere.
+    # The FormatEditorWidget itself shows the format string, so label text isn't critical here.
+    # We still pass something readable as label_text:
+    return FormatEditorWidget(label_text=format_label(field_key), default_format="", type=fmt_type)
+
 
 WIDGET_FACTORY = {
     # Main fields
@@ -39,7 +43,7 @@ WIDGET_FACTORY = {
     "controlComboBox": lambda config=None: DropdownMenu(default="null", options=["none", "subtraction", "division"]),
     "listEditor": lambda config=None: ListEditorWidget(),
     "openFolder": lambda config=None: OpenFolder(),
-    "formatEditor": lambda config=None: create_format_editor_widget(config or {}),
+    "formatEditor": lambda key, spec=None: create_format_editor_widget_from_spec(key, spec or {}),
     "groupbyEditor": lambda config=None: GroupByFormatEditorWidget(None, None, None, "Group By"),
     "cmapSelector": lambda config=None: ColorMapSelector(),
     "affineRigidSelector": lambda config=None: AffineRigidSelector(),
@@ -120,7 +124,10 @@ def build_form_from_template(template: dict, data: dict, adv=False, parent_name=
         if not widget_constructor:
             continue
 
-        field_widget = widget_constructor()
+        if widget_type == "formatEditor":
+            field_widget = widget_constructor(key, widget_def if isinstance(widget_def, dict) else {})
+        else:
+            field_widget = widget_constructor()
 
         if isinstance(field_widget, FormatEditorWidget):
             field_widget.section_name = parent_name
