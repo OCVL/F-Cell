@@ -1,45 +1,64 @@
+#  Copyright (c) 2025. Robert F Cooper
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
 import gc
 import json
 import os
 import multiprocessing as mp
 import sys
 import warnings
-from itertools import repeat
 from pathlib import Path, PurePath
 from tkinter import filedialog,  messagebox
 import logging
-
 import colorama
 import cv2
 import numpy as np
 import pandas as pd
-from colorama import Fore
 from file_tag_parser.tags.file_tag_parser import FileTagParser
 from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 from datetime import datetime
-
 from matplotlib.lines import Line2D
-
-
 from scipy.stats import t
 
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
-
 from ocvl.function.utility.dataset import initialize_and_load_dataset, Stages, \
     obtain_analysis_output_path
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataTags, \
     AcquisiParams, \
-    NormParams, SummaryParams, ControlParams, DisplayParams, \
+    SummaryParams, ControlParams, DisplayParams, \
     MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
 from ocvl.function.utility.log_formatter import LogFormatter
-from ocvl.function.utility.resources import save_tiff_stack, save_video
+from ocvl.function.utility.resources import  save_video
 
 def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
+    """
+    The main entry point for running iORG extraction, summary and analysis. This function performs all of the analysis
+    stages described in the F(Cell) wiki, only taking in the root path for analysis, as well as the path of the
+    configuration file.
+
+    :param analysis_path: The folder path that will be evaluated for iORG analysis. Depending on the configuration, it
+                          may also recurse into child folders to search for more data to analyze.
+    :param config_path: The file path to the .json configuration.
+    :return: The database of all data analyzed.
+    """
+
     mpl.use('qtagg')
     mpl.rcParams['lines.linewidth'] = 2.5
     mpl.rcParams['axes.spines.right'] = False

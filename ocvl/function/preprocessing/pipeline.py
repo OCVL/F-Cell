@@ -1,4 +1,4 @@
-#  Copyright (c) 2021. Robert F Cooper
+#  Copyright (c) 2025. Robert F Cooper
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -18,30 +18,23 @@ import json
 import logging
 import os
 import sys
-import warnings
 from itertools import repeat
-from logging import warning
 from pathlib import Path, PurePath
-
 import cv2
 import numpy as np
 import multiprocessing as mp
 from tkinter import *
-from tkinter import filedialog, ttk, messagebox
+from tkinter import filedialog, messagebox
 import matplotlib as mpl
-from colorama import Fore
 from file_tag_parser.tags.file_tag_parser import FileTagParser
 from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from scipy.ndimage import gaussian_filter
 import pandas as pd
 import tifffile as tiff
 
-
 from ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
-from ocvl.function.utility.dataset import  load_dataset, \
-    preprocess_dataset, initialize_and_load_dataset
-
+from ocvl.function.utility.dataset import  preprocess_dataset, initialize_and_load_dataset
 from ocvl.function.utility.json_format_constants import  DataTags, MetaTags, PreAnalysisPipeline, AcquisiParams, \
     ConfigFields, Analysis
 from ocvl.function.utility.log_formatter import LogFormatter
@@ -49,6 +42,15 @@ from ocvl.function.utility.resources import save_video
 
 
 def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
+    """
+    The main entry point for running the pre-analysis pipeline for iORGs. This function performs all of the
+    stages described in the F(Cell) wiki, only taking in the root path for pre-analysis, as well as the path of the
+    configuration file.
+
+    :param preanalysis_path: The folder path that will be searched for the pre-analysis pipeline.
+    :param config_path: The file path to the .json configuration.
+    :return: The database of all data analyzed.
+    """
     mpl.use('qtagg')
 
     dt = datetime.datetime.now()

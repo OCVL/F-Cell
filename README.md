@@ -30,12 +30,9 @@ flowchart LR
     subgraph analysis["Analysis"]
         direction TB
     A(Load Dataset) --> B([Parse Tags/Metadata])
-    B([Parse Tags/Metadata])  --> C([Normalize Dataset])
-    C([Normalize Dataset])  --> D([Segment Query Points / Extract ORGs])
-    D([Segment Query Points / Extract ORGs])  --> E([Standardize ORGs])
+    B([Parse Tags/Metadata])  --> D([Segment Query Points / Extract ORGs])
+    D([Segment Query Points / Extract ORG])  --> E([Standardize ORGs])
     E([Standardize ORGs])  --> F([Summarize ORGs])
-    F([Summarize ORGs])  --> G([Extract Metrics])
-    G([Extract Metrics])  --> H(Display/Output Results)
     end
     
     click BB "https://github.com/OCVL/F-Cell/wiki/Advanced:-Tag-Parsing" "Tag Parsing"
@@ -53,9 +50,6 @@ flowchart LR
     click F "https://github.com/OCVL/F-Cell/wiki/Advanced:-Analysis-Parameters#org-summary" "Summarization"
     click G "https://github.com/OCVL/F-Cell/wiki/Advanced:-Analysis-Metrics" "Metrics"
     click H "https://github.com/OCVL/F-Cell/wiki/Advanced:-Analysis-Display-Parameters" "Display Results"
-    style preanalysis fill:#203040, stroke:#FFFFFF, stroke-width:2px
-    style analysis fill:#203040, stroke:#FFFFFF, stroke-width:2px
-classDef default fill:#000F1E, stroke:#FFFFFF, stroke-width:2px
 ```
 
 ### Configuration files:

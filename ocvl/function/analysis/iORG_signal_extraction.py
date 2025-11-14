@@ -1,34 +1,38 @@
 import logging
-import time
 import warnings
 from itertools import repeat
-from multiprocessing import RawArray, shared_memory, get_context
-
+from multiprocessing import shared_memory
 import cv2
-
 import numpy as np
-import pandas as pd
-from colorama import Fore
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
-
 from numpy.polynomial import Polynomial
 from scipy.spatial import Delaunay
-
 from skimage.morphology import disk
 
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
 from ocvl.function.display.iORG_data_display import display_iORGs
-from ocvl.function.preprocessing.improc import norm_video, weighted_z_projection
+from ocvl.function.utility.dataset import Dataset
 from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
     SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams, Analysis
-from scipy.spatial.distance import pdist, squareform
-
-from ocvl.function.utility.resources import save_tiff_stack
+from scipy.spatial.distance import pdist
 
 
-def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
-                                  thread_pool=None):
+def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, query_loc: np.array = None, query_loc_name: str = None,
+                                  stimtrain_frame_stamps: np.array =None, thread_pool:mp.Pool =None):
+    """
+    The primary iORG extraction function.
+
+    :param dataset: The `Dataset` object that contains all information needed to extract iORGs.
+    :param analysis_dat_format: A dict with all configuration information necessary.
+    :param query_loc: A Mx2 array holding the query locations that we'll extract data at.
+    :param query_loc_name: The name of the query locations.
+    :param stimtrain_frame_stamps: The framestamps corresponding to the stimulus delivery.
+    :param thread_pool: The thread pool available for algorithms that are multithreaded.
+    :return: The refined iORG signals, the summarized iORGs, the query location inclusion/exclusion list,
+            the query locations, and a dict containing any automatically detected value.
+
+    """
     logger = logging.getLogger("ORG_Logger")
 
     if query_loc is None:
@@ -321,7 +325,15 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
 
 
 def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
+    """
+    Refine a set of coordinates based on the intensity of the underlying image- essentially is an iterative "hill climbing" algorithm.
 
+    :param ref_image: The (grayscale) image used for refinement of the coordinates.
+    :param coordinates: The coordinate set, in (x,y) columnar form.
+    :param search_radius: The radius to consider when hill climbing.
+    :param numiter: The number of iterations to refine coordinate positions.
+    :return: The refined coordinate positions.
+    """
     im_size = ref_image.shape
 
     query_status = np.full(coordinates.shape[0], "Included", dtype=object)
@@ -364,7 +376,17 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
 
 
 def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, threshold=0.3):
+    """
+    Refine a set of coordinates based on the average intensity of an image stack. Uses normalized cross correlation of a
+    template generated from each coordinate in a reference image.
 
+    :param image_stack: The (grayscale) image stack used as the *reference* for normalized cross correlation.
+    :param ref_image: The (grayscale) image used as the *template* for normalized cross correlation.
+    :param coordinates: The coordinate set, in (x,y) columnar form.
+    :param search_radius: The radius of the template created around each supplied coordinate.
+    :param threshold: The alignment threshold used for normalized cross correlation.
+    :return: The refined coordinate positions.
+    """
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="invalid value encountered in cast")
         warnings.filterwarnings(action="ignore", message="Mean of empty slice")
@@ -438,9 +460,18 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 
     :return: an NxM numpy matrix with N cells and M temporal samples of some signal.
     """
+    logger = logging.getLogger("ORG_Logger")
+
 
     if coordinates is None:
-        pass # Todo: create coordinates for every position in the image stack.
+        logger.warning("No coordinates supplies to extract signals function. Generating coordinates for each pixel of "
+                       "the provided image stack.")
+        xm, ym = np.meshgrid(np.arange(image_stack.shape[1]),
+                             np.arange(image_stack.shape[0]))
+
+        xm = np.reshape(xm, (xm.size, 1))
+        ym = np.reshape(ym, (ym.size, 1))
+        coordinates = np.hstack((xm, ym))
 
     coordinates = np.round(coordinates.copy()).astype("int")
 
@@ -460,20 +491,12 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
         coord_mask = cv2.morphologyEx(coord_mask, cv2.MORPH_DILATE, kernel=cellradius,
                                       borderType=cv2.BORDER_CONSTANT, borderValue=0)
 
-        # plt.figure("XOR Mask")
-        # debugim, summap = weighted_z_projection(im_stack)
-        # plt.imshow(debugim, cmap="gray")
-        # plt.imshow(coord_mask == 0, cmap="plasma", alpha=0.3)
-        # plt.show()
-
-
         coordinates = np.fliplr(np.argwhere(coord_mask == 0))
 
         coord_mask = np.repeat(coord_mask[:, :, None], image_stack.shape[-1], axis=2)
 
         im_stack[coord_mask.astype("bool")] = np.nan  # Mask out anything around our coordinate points.
         seg_radius = 1 # Make our radius 1 if we're doing xor.
-
 
     im_size = im_stack.shape
     if sigma is not None:
