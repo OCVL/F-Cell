@@ -29,12 +29,12 @@ from ocvl.function.utility.resources import save_tiff_stack
 import tifffile as tiff
 
 STACK_OUTPUT_DIRECTORY = r"C:\Users\4084RIOSN\Desktop\tiff_stacks"
-SAVE_BOX_TIFFS = True
-SAVE_DISC_TIFFS = False
+SAVE_BOX_TIFFS = False
+SAVE_DISC_TIFFS = True
 
 
 def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, query_loc_name=None, stimtrain_frame_stamps=None,
-                                  thread_pool=None):
+                                  thread_pool=None, vidnum=None):
 
     if query_loc is None:
         query_loc= dataset.query_loc[0].copy()
@@ -187,7 +187,7 @@ def extract_n_refine_iorg_signals(dataset, analysis_dat_format, query_loc=None, 
     # Extract the signals
     iORG_signals, excl_reason, coordinates = extract_signals(dataset.video_data, query_loc.copy(),
                                                 seg_radius=segmentation_radius,
-                                                seg_mask=seg_shape, summary=seg_summary, pool=thread_pool)
+                                                seg_mask=seg_shape, summary=seg_summary, pool=thread_pool, vidnum=vidnum)
     # If we're doing xor, then replace the query locs and
     # status and with what we determined in the above step.
     if seg_shape == "xor":
@@ -427,7 +427,7 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
     return coordinates, includelist, query_status
 
 
-def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None, pool=None):
+def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None, pool=None, vidnum=None):
     """
     This function extracts temporal profiles from a 3D matrix, where the first two dimensions are assumed to
     contain data from a single time point (a single image)
@@ -524,20 +524,20 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 
     goodinds = np.arange(coordinates.shape[0])[includelist]  # Only process the indices that are good.
 
-    seg_mask = "box"
+    seg_mask = "disk"
 
     if seg_mask == "box" or seg_mask == "xor":
         mapres = pool.imap(_extract_box, zip(goodinds,
                                               repeat(shared_vid_block.name), repeat(im_stack.shape),
                                               repeat(shared_que_block.name), repeat(coordinates.shape),
-                                              repeat(seg_radius), repeat(summary)),
+                                              repeat(seg_radius), repeat(summary), repeat(vidnum)),
                                               chunksize=chunk_size )
     elif seg_mask == "disk":
 
         mapres = pool.imap(_extract_disk, zip(goodinds,
                                           repeat(shared_vid_block.name), repeat(im_stack.shape),
                                           repeat(shared_que_block.name), repeat(coordinates.shape),
-                                          repeat(seg_radius), repeat(summary)),
+                                          repeat(seg_radius), repeat(summary), repeat(vidnum)),
                            chunksize=chunk_size )
 
     for i, data, status in mapres:
@@ -552,7 +552,7 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
     return signal_data, query_status, coordinates
 
 def _extract_box(params):
-    i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
+    i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary, vidnum = params
 
     signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
 
@@ -568,7 +568,7 @@ def _extract_box(params):
 
     if SAVE_BOX_TIFFS:
         os.makedirs(STACK_OUTPUT_DIRECTORY, exist_ok=True)
-        stack_filename = os.path.join(STACK_OUTPUT_DIRECTORY, f"{vid_name}_cell_{i}_stack.tiff")
+        stack_filename = os.path.join(STACK_OUTPUT_DIRECTORY, f"{vidnum}_cell_{i}_stack.tiff")
         fullcolumn_reshaped = fullcolumn.transpose(2,1,0) # Reshape fullcolumn object (width X height X frames --> frames X height X width)
         tiff.imwrite(stack_filename, fullcolumn_reshaped.astype(np.float32)) # Write tiff stack to output directory
         print("saved box stack!")
@@ -602,7 +602,7 @@ def _extract_box(params):
     return i, signal_data, query_status
 
 def _extract_disk(params):
-    i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
+    i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary, vidnum = params
 
     signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
 
@@ -618,10 +618,11 @@ def _extract_disk(params):
 
     if SAVE_DISC_TIFFS:
         os.makedirs(STACK_OUTPUT_DIRECTORY, exist_ok=True)
-        stack_filename = os.path.join(STACK_OUTPUT_DIRECTORY, f"{vid_name}_cell_{i}_stack.tiff")
+        os.makedirs(f"{STACK_OUTPUT_DIRECTORY}/{vidnum}_stacks", exist_ok=True)
+        stack_filename = os.path.join(f"{STACK_OUTPUT_DIRECTORY}/{vidnum}_stacks", f"{vidnum}_cell_{i}_stack.tiff")
         fullcolumn_reshaped = fullcolumn.transpose(2,1,0) # Reshape fullcolumn object (width X height X frames --> frames X height X width)
         tiff.imwrite(stack_filename, fullcolumn_reshaped.astype(np.float32)) # Write tiff stack to output directory
-        print("saved box stack!")
+        print("saved disc stack!")
 
     mask = disk(seg_radius, strict_radius=False, dtype=fullcolumn.dtype)
 

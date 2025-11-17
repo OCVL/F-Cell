@@ -83,7 +83,7 @@
       "segmentation": {
         "refine_to_ref": true,
         "refine_to_vid": false,
-        "radius": 3,
+        "radius": 6,
         "shape": "disk",
         "summary": "mean",
         "pixelwise": false

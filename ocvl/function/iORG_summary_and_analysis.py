@@ -350,6 +350,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 all_query_status[mode][folder][q].loc[:, vidnum] = "Dataset Failed To Load"
                             warnings.warn("Video number " + str(vidnum) + ": Dataset Failed To Load")
 
+                        video_count = 1
                         # Perform analyses on each query location set for each stimulus dataset.
                         for sub_dataset in dataset:
                             for q in range(len(sub_dataset.query_loc)):
@@ -371,7 +372,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                  auto_detect_vals) = extract_n_refine_iorg_signals(sub_dataset, analysis_dat_format,#
                                                                                        query_loc=sub_dataset.query_loc[q],
                                                                                        query_loc_name=query_loc_names[q],
-                                                                                       thread_pool=the_pool)
+                                                                                       thread_pool=the_pool,
+                                                                                       vidnum=vidnum)
 
 
                                 # If this is the first time a video of this mode and this folder is loaded, then initialize the query status dataframe
