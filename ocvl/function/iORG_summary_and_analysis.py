@@ -94,7 +94,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     # If loading the file fails, tell the user, and return what data we could parse.
     if allData.empty or allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
-        logger.warning("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
+        logger.error("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
         return allData
 
     # x = root.winfo_screenwidth() / 2 - 128
@@ -124,7 +124,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     # If we don't have any modalities that we're interested amongst our videos
     if not allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO][DataTags.MODALITY].isin(modes_of_interest).any():
-        logger.warning("None of the datasets detected match the modalities selected. Please review your dataset format.")
+        logger.error("None of the datasets detected match the modalities selected. Please review your dataset format.")
         return allData
     elif DataTags.MODALITY in allData.columns:
         modes_of_interest = allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO][DataTags.MODALITY].unique().tolist()

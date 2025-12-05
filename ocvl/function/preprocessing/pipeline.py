@@ -26,6 +26,8 @@ import multiprocessing as mp
 from tkinter import *
 from tkinter import filedialog, messagebox
 import matplotlib as mpl
+from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QMessageBox, QWidget, QApplication
 from file_tag_parser.tags.file_tag_parser import FileTagParser
 from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from scipy.ndimage import gaussian_filter
@@ -58,15 +60,6 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
     logger = logging.getLogger("ORG_Logger")
 
-    root = Tk()
-    root.lift()
-    w = 256
-    h = 128
-    x = root.winfo_screenwidth() / 4
-    y = root.winfo_screenheight() / 4
-    root.geometry(
-        '%dx%d+%d+%d' % (
-            w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
     # Grab all the folders/data here.
     filename_parser = FileTagParser.from_json(config_path, PreAnalysisPipeline.NAME)
@@ -161,6 +154,10 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
         # Remove all entries without associated datasets.
         allData.drop(allData[allData[AcquisiPaths.DATASET].isnull()].index, inplace=True)
+
+        if allData.empty:
+            logger.error("Failed to match any datasets with the provided configuration. Check your configuration to ensure it matches the data in the folder you selected.")
+            sys.exit(4)
 
         grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
         if grouping is not None:
