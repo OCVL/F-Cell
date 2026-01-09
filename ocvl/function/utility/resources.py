@@ -28,6 +28,7 @@ def load_config_json(json_path):
 
 
 def load_video(video_path, video_field=None):
+    logger = logging.getLogger("ORG_Logger")
 
     if video_field is None:
         video_field = []

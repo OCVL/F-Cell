@@ -425,10 +425,11 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
                                                       # And is incredibly important.
     # #https://insightsoftwareconsortium.github.io/SimpleITK-Notebooks/Python_html/61_Registration_Introduction_Continued.html#Final-registration
 
-    im_stack = im_stack.astype("float32")
+    # im_stack = im_stack.astype("float32")
+    #
+    # im_stack[np.isnan(im_stack)] = 0
 
-    im_stack[np.isnan(im_stack)] = 0
-    ref_im = sitk.GetImageFromArray(im_stack[..., reference_idx])
+    ref_im = sitk.GetImageFromArray(im_stack[..., reference_idx].astype("float32"))
     #ref_im = sitk.Cast(ref_im, sitk.sitkfloat32)
     #ref_im = sitk.Normalize(ref_im)
     dims = ref_im.GetDimension()
@@ -450,7 +451,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         imreg_method.SetInitialTransform(xForm)
         imreg_method.SetInterpolator(sitk.sitkLinear)
 
-        moving_im = sitk.GetImageFromArray(im_stack[..., f])
+        moving_im = sitk.GetImageFromArray(im_stack[..., f].astype("float32"))
         #moving_im = sitk.Normalize(moving_im)
         imreg_method.SetMetricMovingMask(sitk.GetImageFromArray(eroded_mask[..., f]))
 
@@ -477,7 +478,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         xforms[f] = Tx[0:2, :]
 
         if inliers[f] and not justalign:
-            norm_frame = im_stack[..., f]
+            norm_frame = im_stack[..., f].astype("float32")
             # Make all masked data nan so that when we transform them we don't have weird edge effects
             norm_frame[mask_stack[..., f] == 0] = np.nan
 
@@ -611,15 +612,15 @@ def weighted_z_projection(image_data, weights=None, projection_axis=-1, type="av
     if weights is None:
         weights = image_data > 0
 
-    image_data = image_data.astype("float32")
-    weights = weights.astype("float32")
+    # image_data = image_data.astype("float32")
+    # weights = weights.astype("float32")
 
     maxstart = np.nanmax(image_data.flatten())
     minstart = np.nanmin(image_data.flatten())
 
     image_projection = image_data * weights
-    image_projection = np.nansum(image_projection, axis=projection_axis)
-    weight_projection = np.nansum(weights, axis=projection_axis)
+    image_projection = np.nansum(image_projection, axis=projection_axis).astype("float64")
+    weight_projection = np.nansum(weights, axis=projection_axis).astype("float64")
     weight_projection[weight_projection == 0] = np.nan
 
     image_projection /= weight_projection
