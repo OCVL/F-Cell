@@ -90,6 +90,7 @@ def norm_video(video_data, norm_method="mean", rescaled=False, rescale_mean=None
 
     :return: a NxMxF numpy matrix of normalized video data.
     """
+    logger = logging.getLogger("ORG_Logger")
 
     if norm_method == "mean":
         if rescale_mean is None:
@@ -368,7 +369,7 @@ def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0, overlap =0.5)
     flattened = (im_stack)
 
     logger.info(f"Performing a NCC-based alignment to frame #{ref_idx}")
-    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)))
+    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)), unit="frm")
 
     if mask_stack is not None:
         for f2 in pbar:
@@ -419,7 +420,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
     # Erode our masks a bit to help with stability.
     logger.info(f"Refining the {num_frames} frame mask stack... ")
-    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)))
+    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)), unit="frm")
 
     for f in pbar:
         pbar.set_description(f"Refining frame {f} of {num_frames}")
@@ -456,7 +457,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
     xforms = [None] * num_frames
     inliers = np.zeros(num_frames, dtype=bool)
     logger.info(f"Aligning {num_frames} frame stack... ")
-    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)))
+    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)), unit="frm")
 
     for f in pbar:
         pbar.set_description( f"Aligning frame {f} of {num_frames}")

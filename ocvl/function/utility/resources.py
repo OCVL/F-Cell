@@ -8,7 +8,9 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from colorama import Fore
 from pymatreader import read_mat
+from tqdm import tqdm
 
 
 class ResourceType(Enum):
@@ -60,13 +62,16 @@ def load_video(video_path, video_field=None):
                 return None
 
             i = 1
-            while vid.isOpened():
-                ret, frm = vid.read()
-                if ret:
-                    video_data[..., i] = frm[..., 0]
-                    i += 1
-                else:
-                    break
+            with tqdm(total=num_frames,bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.WHITE, Fore.GREEN, Fore.WHITE)), unit="frm") as pbar:
+                while vid.isOpened():
+                    ret, frm = vid.read()
+                    if ret:
+                        video_data[..., i] = frm[..., 0]
+                        i += 1
+                        pbar.update(1)
+                        pbar.set_description(f"Loading frame {i}")
+                    else:
+                        break
 
             vid.release()
         case ".tif" | ".tiff":
