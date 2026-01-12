@@ -123,14 +123,16 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     modes_of_interest = analysis_params.get(Analysis.MODALITIES)
 
     # If we don't have any modalities that we're interested amongst our videos
-    if not allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO][DataTags.MODALITY].isin(modes_of_interest).any():
-        logger.error("None of the datasets detected match the modalities selected. Please review your dataset format.")
-        return allData
+    if modes_of_interest is not None:
+        if not allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO][DataTags.MODALITY].isin(modes_of_interest).any():
+            logger.error("None of the datasets detected match the modalities selected. Please review your dataset format.")
+            return allData
     elif DataTags.MODALITY in allData.columns:
         modes_of_interest = allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO][DataTags.MODALITY].unique().tolist()
     else:
         modes_of_interest = [""]
         allData.loc[:,DataTags.MODALITY] = ""
+
 
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
     seg_pixelwise = seg_params.get(SegmentParams.PIXELWISE, False)  # Default to NO pixelwise analyses. Otherwise, add one.
@@ -438,6 +440,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     # if so, we can just process the control data *one* time, saving a lot of time.
                     # ALSO, we can perform an individual iORG analysis by combining a cells' iORGs across acquisitions
                     max_frmstamp = -1
+                    min_frmstamp_rel_to_stim = 0
                     all_locs = None
                     all_timestamps = None
                     first_run = True
@@ -445,10 +448,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     for d, dataset in enumerate(stim_datasets):
                         locs = dataset.query_loc.copy()
                         the_timestamps = dataset.stimtrain_frame_stamps
+                        min_frmstamp_rel_to_stim = np.minimum(min_frmstamp_rel_to_stim, np.amin(dataset.framestamps-(the_timestamps[1]-1)) )
                         max_frmstamp = np.maximum(max_frmstamp, np.amax(dataset.framestamps))
 
                         if d != 0:
-                            if np.all(all_timestamps.shape != the_timestamps.shape) and np.all(all_timestamps != the_timestamps):
+                            if np.all(all_timestamps.shape != the_timestamps.shape) and np.any(all_timestamps != the_timestamps):
                                 logger.warning("Does not qualify for fast control processing: The stimulus timestamps do not match.")
                                 uniform_datasets = False
                                 break
@@ -485,7 +489,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                     # Load each dataset (delineated by different video numbers), and process it relative to the control data.
                     for v, stim_vidnum in enumerate(stim_data_vidnums):
-
 
                         vidid_filter = (allData[DataTags.VIDEO_ID] == stim_vidnum)
 
@@ -554,6 +557,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                                                     thread_pool=the_pool)
 
                                         control_query_status[q].loc[:, cd] = control_query_stat
+
+                                        # Align the framestamps relative to the latest stimulus onset of all acquisitions. Needed in
+                                        # situations where we extract multiple stimuli from one long video. Otherwise, does essentially nothing.
+                                        control_data.framestamps = (control_data.framestamps - (stim_dataset.stimtrain_frame_stamps[1]-1)) - min_frmstamp_rel_to_stim
+
                                         control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]), axis=0)
                                         control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
                                         control_pop_iORG_summaries[cd, control_data.framestamps] = control_data.summarized_iORGs[q]
@@ -599,8 +607,13 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 all_query_status[mode][folder][q].loc[:, stim_vidnum] = stim_dataset.query_status[q]
 
                             stim_pop_summary = np.full((max_frmstamp + 1,), np.nan)
-                            stim_pop_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
                             stim_framestamps = np.arange(max_frmstamp + 1)
+
+                            # Align the framestamps relative to the latest stimulus onset of all acquisitions. Needed in
+                            # situations where we extract multiple stimuli from one long video. Otherwise, does essentially nothing.
+                            stim_dataset.framestamps = (stim_dataset.framestamps-(stim_dataset.stimtrain_frame_stamps[1]-1))-min_frmstamp_rel_to_stim
+
+                            stim_pop_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
 
                             if sum_control == "subtraction" and control_datasets:
                                 stim_dataset.summarized_iORGs[q] = stim_pop_summary - control_pop_iORG_summary_pooled[q]
@@ -660,8 +673,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             metrics_prestim = np.array(metric_params.get(SummaryParams.PRESTIM, [-1, 0]))
                             metrics_poststim = np.array(metric_params.get(SummaryParams.POSTSTIM, [0, 1]))
                             if metrics_units == "time":
-                                metrics_prestim = np.round(metrics_prestim * dataset.framerate)
-                                metrics_poststim = np.round(metrics_poststim * dataset.framerate)
+                                metrics_prestim = np.round(metrics_prestim * stim_dataset.framerate)
+                                metrics_poststim = np.round(metrics_poststim * stim_dataset.framerate)
                             else:  # if units == "frames":
                                 metrics_prestim = np.round(metrics_prestim)
                                 metrics_poststim = np.round(metrics_poststim)
@@ -750,7 +763,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         if stimtrain.shape[0] != 1:
                             logger.warning("The stimulus frame train of the iORGs analyzed in " + folder.name + " is inconsistent! Pooled results may be incorrect.")
 
-                        stimtrain = stimtrain[0]
+                        largest_prestim = np.argmax(stimtrain, axis=0)
+                        stimtrain = stimtrain[largest_prestim[0],:]
 
                         # Debug - to look at individual cell raw traces.
                         if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
@@ -788,6 +802,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         with warnings.catch_warnings():
                             warnings.filterwarnings(action="ignore", message="invalid value encountered in divide")
                             nandata = np.all(np.isnan(stim_pop_iORG_summaries), axis=0)
+
                             stim_pop_iORG_summary[q] = np.nansum(stim_pop_iORG_N * stim_pop_iORG_summaries,axis=0) / np.nansum(stim_pop_iORG_N, axis=0)
                             stim_pop_iORG_summary[q][nandata] = np.nan
 

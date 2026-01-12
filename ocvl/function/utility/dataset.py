@@ -480,11 +480,10 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
     # In a case where there is more than that, then cut up the video data into multiple sub-datasets for future processing.
     if stimulus_sequence is None or len(stimulus_sequence) == 3:
         dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
-    elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 == 0:
-        logger.warning(Fore.YELLOW + "Detected multiple stimuli in this dataset. Breaking into subdatasets for analysis...")
+    elif len(stimulus_sequence) > 3:
+        logger.warning("Detected multiple stimuli in this dataset. Breaking into subdatasets for analysis...")
         dataset = []
         for i in range(0, len(stimulus_sequence)-2, 2):
-
             sub_seq = stimulus_sequence[i:i+3].copy()
             # Subtract the preceding sequence value from this sub-dataset, if available.
             if i!=0:
@@ -501,12 +500,8 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
                                    mask_data[..., std_indices],
                                    avg_image_data, metadata, queryloc_data, subset_stamps, sub_seq, stage))
 
-    elif len(stimulus_sequence) > 3 and len(stimulus_sequence) % 3 != 0:
-        logger.warning("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Only using first 3 values.")
-        stimulus_sequence = stimulus_sequence[0:2]
-        dataset = [Dataset(video_data, mask_data, avg_image_data, metadata, queryloc_data, stamps, stimulus_sequence, stage)]
     elif len(stimulus_sequence) < 3:
-        logger.warning("Stimulus sequences must be a multiple of 3, in pre-stim, stim, post-stim format. Unable to analyze dataset.")
+        logger.warning("Stimulus sequences must be interpretable in sets of 3, in pre-stim, stim, post-stim format. Unable to analyze dataset.")
         return None
 
     return dataset
