@@ -1,8 +1,10 @@
+import logging
 import warnings
 
 import cv2
 import numpy as np
 import SimpleITK as sitk
+from colorama import Fore
 from matplotlib import pyplot, pyplot as plt
 from scipy import ndimage
 from scipy.fft import next_fast_len, fft2, ifft2
@@ -10,6 +12,9 @@ from scipy.ndimage import binary_erosion
 from scipy.signal import fftconvolve
 from numpy.polynomial import Polynomial
 import multiprocessing as mp
+
+from tqdm import tqdm
+
 from ocvl.function.utility.resources import save_video, save_tiff_stack
 
 
@@ -356,13 +361,18 @@ def general_normxcorr2(template_im, reference_im, template_mask=None, reference_
 
 
 def simple_image_stack_align(im_stack, mask_stack=None, ref_idx=0, overlap =0.5):
+    logger = logging.getLogger("ORG_Logger")
     num_frames = im_stack.shape[-1]
     shifts = [None] * num_frames
     # flattened = flat_field(im_stack)
     flattened = (im_stack)
-    print("Aligning to frame " + str(ref_idx))
+
+    logger.info(f"Performing a NCC-based alignment to frame #{ref_idx}")
+    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)))
+
     if mask_stack is not None:
-        for f2 in range(0, num_frames):
+        for f2 in pbar:
+            pbar.set_description(f"Aligning frame {f2} of {num_frames}")
             shift, val, xcorrmap = general_normxcorr2(flattened[..., f2], flattened[..., ref_idx],
                                                       template_mask=mask_stack[..., f2],
                                                       reference_mask=mask_stack[..., ref_idx],
@@ -394,6 +404,8 @@ def simple_dataset_list_align(datasets, ref_idx):
 
 
 def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial_shifts=True, dropthresh=None, transformtype="affine", justalign=False):
+    logger = logging.getLogger("ORG_Logger")
+
     num_frames = im_stack.shape[-1]
     og_dtype = im_stack.dtype
     if not justalign:
@@ -403,10 +415,15 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
         reg_stack = None
         reg_mask = None
 
-    eroded_mask = np.zeros(mask_stack.shape)
+    eroded_mask = np.zeros(mask_stack.shape, dtype=mask_stack.dtype)
 
     # Erode our masks a bit to help with stability.
-    for f in range(0, num_frames):
+    logger.info(f"Refining the {num_frames} frame mask stack... ")
+    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)))
+
+    for f in pbar:
+        pbar.set_description(f"Refining frame {f} of {num_frames}")
+
         eroded_mask[..., f] = binary_erosion(mask_stack[..., f], structure=np.ones((21, 21)))
 
     if determine_initial_shifts:
@@ -434,11 +451,15 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
     #ref_im = sitk.Normalize(ref_im)
     dims = ref_im.GetDimension()
 
-    imreg_method.SetMetricFixedMask(sitk.GetImageFromArray(eroded_mask[..., reference_idx]))
+    imreg_method.SetMetricFixedMask(sitk.GetImageFromArray(eroded_mask[..., reference_idx].astype("float32")))
 
     xforms = [None] * num_frames
     inliers = np.zeros(num_frames, dtype=bool)
-    for f in range(0, num_frames):
+    logger.info(f"Aligning {num_frames} frame stack... ")
+    pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)))
+
+    for f in pbar:
+        pbar.set_description( f"Aligning frame {f} of {num_frames}")
 
         if transformtype == "rigid":
             xForm = sitk.Euler2DTransform()
@@ -453,7 +474,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
         moving_im = sitk.GetImageFromArray(im_stack[..., f].astype("float32"))
         #moving_im = sitk.Normalize(moving_im)
-        imreg_method.SetMetricMovingMask(sitk.GetImageFromArray(eroded_mask[..., f]))
+        imreg_method.SetMetricMovingMask(sitk.GetImageFromArray(eroded_mask[..., f].astype("float32")))
 
         outXform = imreg_method.Execute(ref_im, moving_im)
 
@@ -489,6 +510,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
             norm_frame[np.isnan(norm_frame)] = 0 # Make anything that was nan into a 0, to be kind to non nan-types
             reg_stack[..., f] = norm_frame
 
+    print("Done.")
 
     if justalign:
         return None, xforms, inliers, None

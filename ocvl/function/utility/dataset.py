@@ -513,7 +513,7 @@ def load_dataset(video_path, mask_path=None, extra_metadata_path=None, dataset_m
 
 
 def preprocess_dataset(dataset, params, reference_dataset=None):
-
+    logger = logging.getLogger("ORG_Logger")
     if reference_dataset is None:
         reference_dataset = dataset
 
@@ -572,6 +572,8 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                             dataset.mask_data[..., f] = cv2.remap(norm_frame,
                                                                   map_mesh_x, map_mesh_y,
                                                                   interpolation=cv2.INTER_NEAREST)
+                logger.info("Performed OCVL-style data dewarp.")
+
             case "demotion":
                 if dataset.metadata[AcquisiPaths.META_PATH] is not None:
                     # Temp until a better way of finding dmp files is found.
@@ -725,6 +727,8 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                                                                       map_mesh_x, map_mesh_y,
                                                                       interpolation=cv2.INTER_NEAREST)
 
+                        logger.info("Performed Demotion-style data dewarp.")
+
 
     # Trim the video down to a smaller/different size, if desired.
     trim = params.get(PreAnalysisPipeline.TRIM)
@@ -738,6 +742,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
         dataset.video_data = dataset.video_data[..., goodinds]
         dataset.mask_data = dataset.mask_data[..., goodinds]
         dataset.num_frames = dataset.video_data.shape[-1]
+        logger.info(f"Trimmed dataset to {start_frm} and {end_frm}.")
 
 
     align_dat = reference_dataset.video_data.copy()
@@ -755,6 +760,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
     # Flat field the video for alignment, if desired.
     if params.get(PreAnalysisPipeline.FLAT_FIELD, False):
         align_dat = flat_field(align_dat, mask_dat)
+        logger.info(f"Flat-fielded the dataset.")
 
     # Gaussian blur the data first before aligning, if requested
     gausblur = params.get(PreAnalysisPipeline.GAUSSIAN_BLUR, 0.0)
@@ -762,6 +768,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
         for f in range(align_dat.shape[-1]):
             align_dat[..., f] = gaussian_filter(align_dat[..., f], sigma=gausblur)
         align_dat *= mask_dat
+        logger.info(f"Gaussian blurred the dataset with a {gausblur} sigma kernel.")
 
     # Then crop the data, if requested
     mask_roi = params.get(PreAnalysisPipeline.MASK_ROI)
@@ -774,6 +781,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
         # Everything outside the roi should be cropped
         align_dat = align_dat[r:r + height, c:c + width, :]
         mask_dat = mask_dat[r:r + height, c:c + width, :]
+        logger.info(f"Masked a {width}x{height} region with a top left corner of ({c},{r}) for alignment.")
 
 
     # Finally, correct for residual torsion if requested
@@ -804,6 +812,8 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
                 dataset.video_data[..., f] = norm_frame.astype(og_dtype)
 
         dataset.avg_image_data, awp = weighted_z_projection(dataset.video_data, dataset.mask_data)
+
+        logger.info(f"Corrected intra-stack torsion using a {params.get(PreAnalysisPipeline.INTRA_STACK_XFORM, "rigid")} transform.")
 
     return dataset
 
