@@ -298,70 +298,64 @@ def setup_analysis_dependencies(saved_widgets, parent_name):
     update_modalities_enabled()
 
 def generate_json(form_container, template, skip_disabled=True):
-    result = {}
-    form_layout = form_container.layout()
-    if not form_layout:
-        return result
+    """
+    Build JSON from the form without ever re-parenting layouts.
+    (Re-parenting was breaking collapsibles after Review -> Back.)
+    """
+    def walk_layout(layout, template_for_layout):
+        result = {}
+        if not layout:
+            return result
 
-    for i in range(form_layout.count()):
-        item = form_layout.itemAt(i)
-        widget = item.widget()
-        if not widget:
-            continue
-
-        # Handle collapsible sections (nested objects)
-        if isinstance(widget, CollapsibleSection):
-            if skip_disabled and not widget.is_enabled():
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            widget = item.widget()
+            if not widget:
                 continue
 
-            section_title = widget.title().replace(':', '').replace(' ', '_').lower()
+            # ---- Collapsible section (nested object) ----
+            if isinstance(widget, CollapsibleSection):
+                if skip_disabled and not widget.is_enabled():
+                    continue
 
-            content_layout = widget.content_area.layout()
-            if not content_layout:
+                section_key = widget.title().replace(':', '').replace(' ', '_').lower()
+                content_layout = widget.content_area.layout()
+                if not content_layout:
+                    continue
+
+                section_template = template_for_layout.get(section_key, {})
+                section_data = walk_layout(content_layout, section_template)
+                if section_data:
+                    result[section_key] = section_data
                 continue
 
-            content_widget = QWidget()
-            content_widget.setLayout(content_layout)
-
-            template_for_section = template.get(section_title, {})
-
-            section_data = generate_json(content_widget, template_for_section, skip_disabled)
-            if section_data:
-                result[section_title] = section_data
-            continue
-
-        # Handle regular form rows
-        if isinstance(widget, QWidget):
+            # ---- Regular row widget ----
             row_layout = widget.layout()
             if not row_layout or row_layout.count() < 2:
                 continue
 
-            # The first item is the label, second is the widget (or OptionalField wrapper)
             label_widget = row_layout.itemAt(0).widget()
             field_widget = row_layout.itemAt(1).widget()
 
             if not isinstance(label_widget, QLabel):
                 continue
 
-            # Get the original key from the label
             label_text = label_widget.text().replace(':', '')
             key = label_text.replace(' ', '_').lower()
 
-            # Handle OptionalField wrapper if present
+            # OptionalField wrapper
             if isinstance(field_widget, OptionalField):
                 if skip_disabled and not field_widget.is_checked():
                     continue
                 field_widget = field_widget.field_widget
 
-            # Get the widget type from template to determine how to get the value
-            widget_type_def = template.get(key)
+            widget_type_def = template_for_layout.get(key)
             widget_type = extract_widget_type(widget_type_def) if widget_type_def else None
 
-            # Skip if we don't know how to handle this widget type
             if not widget_type or not isinstance(widget_type, str) or widget_type not in WIDGET_FACTORY:
                 continue
 
-            # Get the value from the widget based on its type
+            # Pull value
             value = None
             if hasattr(field_widget, 'get_value'):
                 value = field_widget.get_value()
@@ -369,43 +363,41 @@ def generate_json(form_container, template, skip_disabled=True):
                 value = field_widget.get_text()
             elif hasattr(field_widget, 'get_list'):
                 value = field_widget.get_list()
-            elif hasattr(field_widget, 'currentText'):  # For QComboBox based widgets
+            elif hasattr(field_widget, 'currentText'):
                 value = field_widget.currentText()
-            elif hasattr(field_widget, 'text'):  # For QLabel and similar
+            elif hasattr(field_widget, 'text'):
                 value = field_widget.text()
-            elif hasattr(field_widget, 'isChecked'):  # For checkboxes
+            elif hasattr(field_widget, 'isChecked'):
                 value = field_widget.isChecked()
             elif isinstance(field_widget, QLabel):
                 value = field_widget.text()
 
-            # Convert string values to appropriate types if needed
+            # Convert string types where appropriate
             if value is not None:
-                # Handle numeric values first
                 if isinstance(value, str):
-                    # Try to convert to int or float if possible
                     try:
                         if '.' in value:
                             value = float(value)
                         else:
                             value = int(value)
                     except (ValueError, TypeError):
-                        # If conversion fails, handle special string cases
                         if value.lower() == "null":
                             value = None
                         elif value.lower() == "true":
                             value = True
                         elif value.lower() == "false":
                             value = False
-                elif widget_type in ["freeInt"] and isinstance(value, (int, float)):
+                elif widget_type == "freeInt" and isinstance(value, (int, float)):
                     value = int(value)
-                elif widget_type in ["freeFloat"] and isinstance(value, (int, float)):
+                elif widget_type == "freeFloat" and isinstance(value, (int, float)):
                     value = float(value)
                 elif widget_type == "trueFalse":
                     value = bool(value)
                 elif widget_type == "null":
                     value = None
 
-            # Always add to result, even if value is None
             result[key] = value
 
-    return result
+        return result
+
+    return walk_layout(form_container.layout(), template)

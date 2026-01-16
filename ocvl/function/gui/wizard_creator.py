@@ -189,30 +189,48 @@ class IntroPage(QWizardPage):
         main_layout.addWidget(scroll)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-    def nextId(self):
+    def validatePage(self):
+        """
+        Only called when the user clicks Next/Import.
+        We open the file dialog here (NOT in nextId), so Back navigation
+        doesn't re-trigger the explorer and Qt doesn't flip Next->Finish.
+        """
         if self.create_button.isChecked():
-            return 1
-        elif self.import_button.isChecked():
+            # Create mode: nothing special to validate
+            return True
 
-            # Show file dialog to select JSON file
-            file_dialog = QFileDialog()
-            file_path, _ = file_dialog.getOpenFileName(
+        if self.import_button.isChecked():
+            # Always prompt in import mode when advancing from Intro
+            file_path, _ = QFileDialog.getOpenFileName(
                 self,
                 "Open Configuration File",
                 "",
                 "JSON Files (*.json);;All Files (*)"
             )
 
-            if file_path:
-                try:
-                    with open(file_path, 'r') as f:
-                        self.imported_config = json.load(f)
-                    return 7  # Go to advanced setup page
-                except Exception as e:
-                    QMessageBox.warning(self, "Error", f"Failed to load file:\n{str(e)}")
-                    return -1  # Stay on current page
-            return -1  # Stay on current page if no file selected
-        return 2
+            if not file_path:
+                # User canceled: stay on Intro
+                return False
+
+            try:
+                with open(file_path, "r") as f:
+                    self.imported_config = json.load(f)
+                return True
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Failed to load file:\n{str(e)}")
+                return False
+
+        return True
+
+    def nextId(self):
+        """
+        nextId() must be deterministic and NEVER open dialogs.
+        """
+        if self.create_button.isChecked():
+            return 1
+        if self.import_button.isChecked():
+            return 7
+        return 1
 
 class SelectionPage(QWizardPage):
     def __init__(self, parent=None):
@@ -749,9 +767,9 @@ class AdvancedSetupPage(QWizardPage):
             'You can edit any configuration field from here. For a more simple setup, go back and select "Simple Setup"\n'
             'Tip: Expand window for better visibility')
 
-        with open(r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\advanced_config_JSON.json", "r") as f:
+        with open(r"ocvl/function/gui/master_config_files/advanced_config_JSON.json", "r") as f:
             advanced_config_json = json.load(f)
-        with open(r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\master_JSON.json", "r") as f:
+        with open(r"ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
             self.master_json = json.load(f)
 
         scroll_area = QScrollArea()
@@ -929,7 +947,7 @@ class ReviewPage(QWizardPage):
 
         # Use the SAME template that built Advanced (preserves visual order)
         with open(
-                r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\advanced_config_JSON.json",
+                r"ocvl/function/gui/master_config_files/advanced_config_JSON.json",
                 "r") as f:
             advanced_template = json.load(f)
 
@@ -944,7 +962,7 @@ class ReviewPage(QWizardPage):
             self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
 
         # Start from the master template, then prune to only the keys actually present in the imported file
-        with open(r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\master_JSON.json",
+        with open(r"ocvl/function/gui/master_config_files/master_JSON.json",
                   "r") as f:
             master_template = json.load(f)
 
@@ -1070,7 +1088,7 @@ class ImportEditorPage(QWizardPage):
         intro_page = wizard.page(0)
 
         if hasattr(intro_page, 'imported_config') and intro_page.imported_config:
-            with open(r"C:\Users\nikor\Documents\GitHub\F-Cell\ocvl\function\gui\master_config_files\master_JSON.json", "r") as f:
+            with open(r"ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
                 master_json = json.load(f)
 
             self.form_widget = build_form_from_template(master_json, intro_page.imported_config)

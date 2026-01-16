@@ -324,7 +324,7 @@ class FormatElementsEditor(QDialog):
     copyRequested = Signal(str, str, str)
 
     def __init__(self, current_format=None, parent=None, type=None, section_name=None, format_key=None,
-                 enable_copy=True):
+                 enable_copy=True, show_extensions=True):
         super().__init__(parent)
         self.setWindowTitle("Format Editor")
         self.setGeometry(600, 600, 650, 500)
@@ -348,9 +348,13 @@ class FormatElementsEditor(QDialog):
         self.copy_button = QPushButton("Copy to All in Section")
         self.copy_button.clicked.connect(self.copy_to_all)
 
-        self.file_type_combo = QComboBox()
-        self.file_type_combo.addItems(self.extension_options)
-        self.file_type_combo.currentTextChanged.connect(self.update_preview)
+        # Extension dropdown is optional (GroupBy should not show one)
+        self.file_type_combo = None
+        self.show_extensions = show_extensions
+        if self.show_extensions:
+            self.file_type_combo = QComboBox()
+            self.file_type_combo.addItems(self.extension_options)
+            self.file_type_combo.currentTextChanged.connect(self.update_preview)
 
         # === MAIN VERTICAL LAYOUT ===
         window_layout = QVBoxLayout(self)
@@ -373,7 +377,8 @@ class FormatElementsEditor(QDialog):
 
         preview_layout.addWidget(self.preview_label)
         preview_layout.addWidget(self.preview_display)
-        preview_layout.addWidget(self.file_type_combo)
+        if self.file_type_combo is not None:
+            preview_layout.addWidget(self.file_type_combo)
         if enable_copy:
             preview_layout.addWidget(self.copy_button)
         preview_layout.setAlignment(Qt.AlignLeft)
@@ -541,7 +546,7 @@ class FormatElementsEditor(QDialog):
         """Get file extension options based on format type"""
         if self.type == "image":
             return [".tif", ".png", ".jpg", ".mat", ".npy"]
-        elif self.type == "video" or "mask":
+        elif self.type in ("video", "mask"):
             return [".avi", ".mov", ".mat", ".npy"]
         elif self.type == "meta":
             return [".txt", ".json", ".xml", ".csv", ".log"]
@@ -573,13 +578,13 @@ class FormatElementsEditor(QDialog):
 
     def _add_existing_extension_to_dropdown(self, extension):
         """Add the existing extension to the dropdown if it's not already there"""
+        if self.file_type_combo is None:
+            return  # No extension dropdown for this editor
+
         if extension and extension not in [self.file_type_combo.itemText(i) for i in
                                            range(self.file_type_combo.count())]:
-            # Add the existing extension at the top of the list
             self.file_type_combo.insertItem(0, extension)
-            # Add a separator item for clarity
             self.file_type_combo.insertSeparator(1)
-            # Set the existing extension as selected
             self.file_type_combo.setCurrentText(extension)
 
     def copy_to_all(self):
@@ -889,7 +894,7 @@ class FormatElementsEditor(QDialog):
             self.update_preview()
 
     def update_preview(self):
-        """Update the preview label with the current format string including file extension"""
+        """Update the preview label with the current format string including file extension (if enabled)"""
         preview_html = ""
 
         for i in range(self.selected_list.count()):
@@ -897,17 +902,16 @@ class FormatElementsEditor(QDialog):
             item_text = self._get_item_internal_text(item)
 
             if item_text.startswith("{Added Text: ") and item_text.endswith("}"):
-                # Static text - display the actual text
                 separator = item_text[13:-1]
                 preview_html += f"{separator}"
             else:
-                # Format element - display with brackets
                 preview_html += f"{item_text}"
 
-        # Add the selected file extension only if we don't already have an extension in the format
-        selected_extension = self.file_type_combo.currentText()
-        if selected_extension and not self._has_extension_in_format():
-            preview_html += selected_extension
+        # Only append extension if this editor supports extensions
+        if self.file_type_combo is not None:
+            selected_extension = self.file_type_combo.currentText()
+            if selected_extension and not self._has_extension_in_format():
+                preview_html += selected_extension
 
         self.preview_display.setText(preview_html)
 
@@ -1000,7 +1004,7 @@ class FormatElementsEditor(QDialog):
         self.update_preview()
 
     def get_format_string(self):
-        """Return the complete format string including file extension"""
+        """Return the complete format string including file extension (if enabled)"""
         format_string = ""
 
         for i in range(self.selected_list.count()):
@@ -1008,17 +1012,16 @@ class FormatElementsEditor(QDialog):
             item_text = self._get_item_internal_text(item)
 
             if item_text.startswith("{Added Text: ") and item_text.endswith("}"):
-                # Static text - just add the text part
                 separator = item_text[13:-1]
                 format_string += separator
             else:
-                # Format element - add as is
                 format_string += item_text
 
-        # Add the selected file extension only if we don't already have one in the format
-        selected_extension = self.file_type_combo.currentText()
-        if selected_extension and not self._has_extension_in_format():
-            format_string += selected_extension
+        # Only append extension if this editor supports extensions
+        if self.file_type_combo is not None:
+            selected_extension = self.file_type_combo.currentText()
+            if selected_extension and not self._has_extension_in_format():
+                format_string += selected_extension
 
         return format_string
 
@@ -1178,7 +1181,7 @@ class GroupByFormatEditorWidget(FormatEditorWidget):
 
         # If current format is "null", pass empty string to the dialog
         current_format = None if self.current_format == "null" else self.current_format
-        dialog = FormatElementsEditor(current_format, self, enable_copy=False)
+        dialog = FormatElementsEditor(current_format, self, enable_copy=False, show_extensions=False)
 
         # Override the dialog's available elements with our dynamic ones
         dialog.original_elements = self.available_elements.copy()
