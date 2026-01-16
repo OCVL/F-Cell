@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QToolButton,
                                QLabel, QComboBox, QTextEdit, QLineEdit, QPushButton, QRadioButton, QHBoxLayout,
                                QButtonGroup, QCheckBox, QSizePolicy, QDialog,
                                QDialogButtonBox, QFileDialog, QSplitter, QListWidget,
-                               QInputDialog, QMenu, QMessageBox, QFrame, QGridLayout)
+                               QInputDialog, QMenu, QMessageBox, QFrame, QGridLayout, QListWidgetItem)
 from PySide6.QtCore import Qt, QSize, Signal
 
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QCheckBox
@@ -323,24 +323,38 @@ class FormatElementsEditor(QDialog):
     """Dialog for editing filename format using predefined elements"""
     copyRequested = Signal(str, str, str)
 
-    def __init__(self, current_format=None, parent=None, queryloc=False, section_name=None, format_key=None, enable_copy=True):
+    def __init__(self, current_format=None, parent=None, type=None, section_name=None, format_key=None,
+                 enable_copy=True, show_extensions=True):
         super().__init__(parent)
         self.setWindowTitle("Format Editor")
-        self.setGeometry(500, 500, 650, 500)
+        self.setGeometry(600, 600, 650, 500)
 
         self.original_elements = [
             ":.1", "Day", "Eye", "FOV_Height", "FOV_Width",
             "IDnum", "LocX", "LocY", "Modality", "Month",
             "VidNum", "Year"
         ]
-        if queryloc: self.original_elements.append("QueryLoc")
+        if type == 'queryloc':
+            self.original_elements.append("QueryLoc")
         self.available_elements = self.original_elements.copy()
 
         self.section_name = section_name
         self.format_key = format_key
+        self.type = type
+
+        self.extension_options = self._get_extension_options()
+        self.existing_extension = None  # Track existing extension from imported format
 
         self.copy_button = QPushButton("Copy to All in Section")
         self.copy_button.clicked.connect(self.copy_to_all)
+
+        # Extension dropdown is optional (GroupBy should not show one)
+        self.file_type_combo = None
+        self.show_extensions = show_extensions
+        if self.show_extensions:
+            self.file_type_combo = QComboBox()
+            self.file_type_combo.addItems(self.extension_options)
+            self.file_type_combo.currentTextChanged.connect(self.update_preview)
 
         # === MAIN VERTICAL LAYOUT ===
         window_layout = QVBoxLayout(self)
@@ -351,15 +365,20 @@ class FormatElementsEditor(QDialog):
         self.preview_label.setStyleSheet("font-weight: bold; padding: 6px;")
         self.preview_display = QLabel("")
         self.preview_display.setStyleSheet("""
-            QLabel {
-                padding: 6px;
-                color: #333;
-                min-height: 40px;
+            QToolButton {
+                border: none;
+                text-align: left;
+                padding: 5px;
+            }
+            QToolButton:disabled {
+                color: gray;
             }
         """)
 
         preview_layout.addWidget(self.preview_label)
         preview_layout.addWidget(self.preview_display)
+        if self.file_type_combo is not None:
+            preview_layout.addWidget(self.file_type_combo)
         if enable_copy:
             preview_layout.addWidget(self.copy_button)
         preview_layout.setAlignment(Qt.AlignLeft)
@@ -438,7 +457,7 @@ class FormatElementsEditor(QDialog):
 
         self.move_up_button = QPushButton("Move Up")
         self.move_down_button = QPushButton("Move Down")
-        self.add_separator_button = QPushButton("Add Static Text")
+        self.add_separator_button = QPushButton("Add Text")
         self.clear_button = QPushButton("Clear All")
 
         # Make buttons consistent size
@@ -510,6 +529,64 @@ class FormatElementsEditor(QDialog):
         # Update the preview initially
         self.update_preview()
 
+    def _add_item_to_selected_list(self, internal_text, display_text=None):
+        """Helper method to add items to selected list with internal and display text"""
+        item = QListWidgetItem()
+        item.setData(Qt.UserRole, internal_text)  # Store internal representation
+        item.setText(display_text if display_text else internal_text)  # Set display text
+        self.selected_list.addItem(item)
+        return item
+
+    def _get_item_internal_text(self, item):
+        """Get the internal text representation of an item"""
+        internal_text = item.data(Qt.UserRole)
+        return internal_text if internal_text else item.text()
+
+    def _get_extension_options(self):
+        """Get file extension options based on format type"""
+        if self.type == "image":
+            return [".tif", ".png", ".jpg", ".mat", ".npy"]
+        elif self.type in ("video", "mask"):
+            return [".avi", ".mov", ".mat", ".npy"]
+        elif self.type == "meta":
+            return [".txt", ".json", ".xml", ".csv", ".log"]
+        elif self.type == "queryloc":
+            return [".txt", ".csv", ".json", ".dat"]
+        else:
+            return [".txt", ".dat", ".log"]
+
+    def _detect_existing_extension(self, format_string):
+        """Detect if the format string already contains a file extension"""
+        if not format_string:
+            return None
+
+        # Common file extensions to check for
+        common_extensions = ['.tif', '.png', '.jpg', '.jpeg', '.avi', '.mov', '.mat', '.npy',
+                             '.txt', '.json', '.xml', '.csv', '.log', '.dat']
+
+        for ext in common_extensions:
+            if format_string.lower().endswith(ext.lower()):
+                return ext
+
+        # Check for any extension pattern at the end (dot followed by 2-5 characters)
+        import re
+        match = re.search(r'\.([a-zA-Z0-9]{2,5})$', format_string)
+        if match:
+            return '.' + match.group(1)
+
+        return None
+
+    def _add_existing_extension_to_dropdown(self, extension):
+        """Add the existing extension to the dropdown if it's not already there"""
+        if self.file_type_combo is None:
+            return  # No extension dropdown for this editor
+
+        if extension and extension not in [self.file_type_combo.itemText(i) for i in
+                                           range(self.file_type_combo.count())]:
+            self.file_type_combo.insertItem(0, extension)
+            self.file_type_combo.insertSeparator(1)
+            self.file_type_combo.setCurrentText(extension)
+
     def copy_to_all(self):
         reply = QMessageBox.question(
             self,
@@ -529,7 +606,8 @@ class FormatElementsEditor(QDialog):
         items_to_return = []
 
         for i in range(self.selected_list.count()):
-            item_text = self.selected_list.item(i).text()
+            item = self.selected_list.item(i)
+            item_text = self._get_item_internal_text(item)
 
             # Only return format elements (not static text) to available list
             if item_text.startswith("{") and item_text.endswith("}") and not item_text.startswith("{Added Text:"):
@@ -568,7 +646,7 @@ class FormatElementsEditor(QDialog):
                                     "Please select an element from the Selected Format Elements list first.")
             return
 
-        item_text = current_item.text()
+        item_text = self._get_item_internal_text(current_item)
 
         # Check if it's a format element (not a separator)
         if not item_text.startswith("{") or not item_text.endswith("}") or item_text.startswith("{Added Text:"):
@@ -606,20 +684,33 @@ class FormatElementsEditor(QDialog):
                 else:
                     # Update the element with new width
                     new_element = f"{{{element_name}:.{width}}}"
-                current_item.setText(new_element)
+
+                current_item.setData(Qt.UserRole, new_element)
+                current_item.setText(new_element)  # Display text same as internal for format elements
                 self.update_preview()
             except ValueError:
                 QMessageBox.warning(self, "Invalid Width", "Width must be a number")
 
     def parse_format(self, format_string):
         """Parse an existing format string into elements"""
+        # Check if format string contains an existing extension
+        self.existing_extension = self._detect_existing_extension(format_string)
+
+        # If we found an existing extension, remove it from the format string for parsing
+        # and add it to the dropdown
+        if self.existing_extension:
+            format_without_extension = format_string[:-len(self.existing_extension)]
+            self._add_existing_extension_to_dropdown(self.existing_extension)
+        else:
+            format_without_extension = format_string
+
         # First reset available elements
         self.available_elements = self.original_elements.copy()
         self.available_list.clear()
         self.available_list.addItems(self.available_elements)
 
         # Parse the string by looking for elements enclosed in brackets
-        remaining = format_string
+        remaining = format_without_extension
 
         # Process the format string
         while remaining:
@@ -628,25 +719,25 @@ class FormatElementsEditor(QDialog):
             if start_idx == -1:
                 # No more elements in brackets, add remaining as separator if not empty
                 if remaining:
-                    self.selected_list.addItem(f"{{Added Text: {remaining}}}")
+                    self._add_item_to_selected_list(f"{{Added Text: {remaining}}}", remaining)
                 break
 
             # Add any text before the bracket as a separator
             if start_idx > 0:
                 separator = remaining[:start_idx]
-                self.selected_list.addItem(f"{{Added Text: {separator}}}")
+                self._add_item_to_selected_list(f"{{Added Text: {separator}}}", separator)
 
             # Find closing bracket
             end_idx = remaining.find('}', start_idx)
             if end_idx == -1:
                 # No closing bracket, add the rest as a separator
-                self.selected_list.addItem(f"{{Added Text: {remaining}}}")
+                self._add_item_to_selected_list(f"{{Added Text: {remaining}}}", remaining)
                 break
 
             # Extract the element name
             element = remaining[start_idx + 1:end_idx]
             if element in self.available_elements or element == ":.1":
-                self.selected_list.addItem(f"{{{element}}}")
+                self._add_item_to_selected_list(f"{{{element}}}")
                 # Remove from available elements
                 if element in self.available_elements:
                     self.available_elements.remove(element)
@@ -656,7 +747,7 @@ class FormatElementsEditor(QDialog):
                 self.available_list.addItems(self.available_elements)
             else:
                 # Not a recognized element, treat as a separator with brackets
-                self.selected_list.addItem(f"{{Added Text: {{{element}}}}}")
+                self._add_item_to_selected_list(f"{{Added Text: {{{element}}}}}", f"{{{element}}}")
 
             # Continue with the remaining string
             remaining = remaining[end_idx + 1:]
@@ -665,7 +756,8 @@ class FormatElementsEditor(QDialog):
         """Return a set of elements already in use"""
         used_elements = set()
         for i in range(self.selected_list.count()):
-            item_text = self.selected_list.item(i).text()
+            item = self.selected_list.item(i)
+            item_text = self._get_item_internal_text(item)
             if item_text.startswith("{") and item_text.endswith("}") and not item_text.startswith("{Added Text:"):
                 element = item_text[1:-1]  # Remove the braces
                 # Get base element name (without width specification)
@@ -682,7 +774,7 @@ class FormatElementsEditor(QDialog):
             return
 
         element = self.available_list.currentItem().text()
-        self.selected_list.addItem(f"{{{element}}}")
+        self._add_item_to_selected_list(f"{{{element}}}")
 
         # Remove from available list
         row = self.available_list.currentRow()
@@ -699,7 +791,7 @@ class FormatElementsEditor(QDialog):
             return
 
         item = self.selected_list.currentItem()
-        item_text = item.text()
+        item_text = self._get_item_internal_text(item)
 
         # Only return to available list if it's a format element (not a separator)
         if item_text.startswith("{") and item_text.endswith("}") and not item_text.startswith("{Added Text:"):
@@ -727,7 +819,7 @@ class FormatElementsEditor(QDialog):
     def handle_double_click_available(self, item):
         """Handle double-click on available list item"""
         element = item.text()
-        self.selected_list.addItem(f"{{{element}}}")
+        self._add_item_to_selected_list(f"{{{element}}}")
 
         # Remove from available list
         row = self.available_list.row(item)
@@ -738,7 +830,7 @@ class FormatElementsEditor(QDialog):
 
     def handle_double_click_selected(self, item):
         """Handle double-click on selected list item"""
-        item_text = item.text()
+        item_text = self._get_item_internal_text(item)
 
         # Only return to available list if it's a format element (not a separator)
         if item_text.startswith("{") and item_text.endswith("}") and not item_text.startswith("{Added Text:"):
@@ -792,34 +884,51 @@ class FormatElementsEditor(QDialog):
             # Get selected position or append to end
             current_row = self.selected_list.currentRow()
             if current_row >= 0:
-                self.selected_list.insertItem(current_row + 1, f"{{Added Text: {text}}}")
+                item = self._add_item_to_selected_list(f"{{Added Text: {text}}}", text)
+                self.selected_list.insertItem(current_row + 1,
+                                              self.selected_list.takeItem(self.selected_list.count() - 1))
                 self.selected_list.setCurrentRow(current_row + 1)
             else:
-                self.selected_list.addItem(f"{{Added Text: {text}}}")
+                self._add_item_to_selected_list(f"{{Added Text: {text}}}", text)
                 self.selected_list.setCurrentRow(self.selected_list.count() - 1)
             self.update_preview()
 
     def update_preview(self):
-        """Update the preview label with the current format string with different styling for elements and static text."""
+        """Update the preview label with the current format string including file extension (if enabled)"""
         preview_html = ""
-        # preview_html = "<html><body style='white-space: pre;'>
 
         for i in range(self.selected_list.count()):
-            item_text = self.selected_list.item(i).text()
+            item = self.selected_list.item(i)
+            item_text = self._get_item_internal_text(item)
 
             if item_text.startswith("{Added Text: ") and item_text.endswith("}"):
-                # Static text - display in blue and bold
                 separator = item_text[13:-1]
                 preview_html += f"{separator}"
-                # preview_html += f"<span style='color: #095591; font-weight: bold;'>{separator}</span>"
             else:
-                # Format element - display in dark green with slight italic
                 preview_html += f"{item_text}"
-                # preview_html += f"<span style='color: #958e7e; '>{item_text}</span>"
 
-        preview_html += ""
-        # preview_html += "</body></html>"
+        # Only append extension if this editor supports extensions
+        if self.file_type_combo is not None:
+            selected_extension = self.file_type_combo.currentText()
+            if selected_extension and not self._has_extension_in_format():
+                preview_html += selected_extension
+
         self.preview_display.setText(preview_html)
+
+    def _has_extension_in_format(self):
+        """Check if the current format already contains a file extension"""
+        format_without_dropdown = ""
+        for i in range(self.selected_list.count()):
+            item = self.selected_list.item(i)
+            item_text = self._get_item_internal_text(item)
+
+            if item_text.startswith("{Added Text: ") and item_text.endswith("}"):
+                separator = item_text[13:-1]
+                format_without_dropdown += separator
+            else:
+                format_without_dropdown += item_text
+
+        return self._detect_existing_extension(format_without_dropdown) is not None
 
     def update_tooltip(self, item):
         """Update tooltip box when hovering over available or selected elements."""
@@ -836,33 +945,31 @@ class FormatElementsEditor(QDialog):
             "Month": "Calendar month in numerical format (1-12)",
             "VidNum": "Video number identifier",
             "Year": "Calendar year (4 digits)",
-            "{Added Text:": "Static text that will appear literally in the filename"
         }
 
         if not item:
             self.tooltip_label.setText("Hover over an element to see its description")
             return
 
-        item_text = item.text()
-
-        # Handle selected list items (which might have formatting)
-        if item_text.startswith("{") and item_text.endswith("}"):
-            if item_text.startswith("{Added Text:"):
-                # Static text separator
+        # Check if this is from the selected list (has internal data)
+        if hasattr(item, 'data') and item.data(Qt.UserRole):
+            internal_text = item.data(Qt.UserRole)
+            if internal_text.startswith("{Added Text:"):
                 self.tooltip_label.setText("Static text that will appear literally in the filename")
-            else:
+                return
+            elif internal_text.startswith("{") and internal_text.endswith("}"):
                 # Format element - extract the base name
-                element = item_text[1:-1]  # Remove braces
+                element = internal_text[1:-1]  # Remove braces
                 if ':' in element:
                     element = element.split(':')[0]  # Get base element before width spec
-
-                # Get the tooltip or fall back to available elements tooltip
-                tooltip = tooltips.get(element, tooltips.get(item_text, "No description available"))
+                tooltip = tooltips.get(element, "No description available")
                 self.tooltip_label.setText(f"{element}: {tooltip}")
-        else:
-            # Available list item
-            tooltip = tooltips.get(item_text, "No description available")
-            self.tooltip_label.setText(f"{item_text}: {tooltip}")
+                return
+
+        # Handle available list items or items without internal data
+        item_text = item.text()
+        tooltip = tooltips.get(item_text, "No description available")
+        self.tooltip_label.setText(f"{item_text}: {tooltip}")
 
     def show_context_menu(self, position):
         """Show context menu for the selected list items"""
@@ -882,33 +989,39 @@ class FormatElementsEditor(QDialog):
         action = menu.exec(self.selected_list.mapToGlobal(position))
 
         if action == edit_action:
-            item_text = item.text()
+            item_text = self._get_item_internal_text(item)
             # Check if it's a separator
             if item_text.startswith("{Added Text: ") and item_text.endswith("}"):
                 old_text = item_text[13:-1]  # Extract text between "{Added Text: " and "}"
                 new_text, ok = QInputDialog.getText(self, "Edit Added Text",
                                                     "Edit added text:", text=old_text)
                 if ok:
-                    item.setText(f"{{Added Text: {new_text}}}")
+                    item.setData(Qt.UserRole, f"{{Added Text: {new_text}}}")
+                    item.setText(new_text)  # Display just the text
         elif action == remove_action:
             self.remove_selected_element()
 
         self.update_preview()
 
     def get_format_string(self):
-        """Return the complete format string as plain text without HTML formatting"""
+        """Return the complete format string including file extension (if enabled)"""
         format_string = ""
 
         for i in range(self.selected_list.count()):
-            item_text = self.selected_list.item(i).text()
+            item = self.selected_list.item(i)
+            item_text = self._get_item_internal_text(item)
 
             if item_text.startswith("{Added Text: ") and item_text.endswith("}"):
-                # Static text - just add the text part
                 separator = item_text[13:-1]
                 format_string += separator
             else:
-                # Format element - add as is
                 format_string += item_text
+
+        # Only append extension if this editor supports extensions
+        if self.file_type_combo is not None:
+            selected_extension = self.file_type_combo.currentText()
+            if selected_extension and not self._has_extension_in_format():
+                format_string += selected_extension
 
         return format_string
 
@@ -931,12 +1044,12 @@ class FormatEditorWidget(QWidget):
     formatChanged = Signal(str)
     copyToAllRequested = Signal(str, str, str)
 
-    def __init__(self, label_text, default_format="", parent=None, queryloc=False, section_name=None, format_key=None):
+    def __init__(self, label_text, default_format="", parent=None, type=None, section_name=None, format_key=None):
         super().__init__(parent)
         self.default_format = default_format
         self.current_format = default_format  # Initialize with default
         self.return_text = default_format  # Initialize return text with default
-        self.queryloc = queryloc
+        self.type = type
         self.section_name = section_name
         self.format_key = format_key
 
@@ -957,7 +1070,7 @@ class FormatEditorWidget(QWidget):
 
     def _open_format_editor(self):
         """Open the format editor dialog"""
-        dialog = FormatElementsEditor(self.current_format, self, self.queryloc, self.section_name, self.format_key)
+        dialog = FormatElementsEditor(self.current_format, self, self.type, self.section_name, self.format_key)
 
         dialog.copyRequested.connect(self.relay_copy_request)
 
@@ -1068,7 +1181,7 @@ class GroupByFormatEditorWidget(FormatEditorWidget):
 
         # If current format is "null", pass empty string to the dialog
         current_format = None if self.current_format == "null" else self.current_format
-        dialog = FormatElementsEditor(current_format, self, enable_copy=False)
+        dialog = FormatElementsEditor(current_format, self, enable_copy=False, show_extensions=False)
 
         # Override the dialog's available elements with our dynamic ones
         dialog.original_elements = self.available_elements.copy()
@@ -1234,10 +1347,6 @@ class CollapsibleSection(QWidget):
                 border: none;
                 text-align: left;
                 padding: 5px;
-                color: black;
-            }
-            QToolButton:checked {
-                background-color: #f0f0f0;
             }
             QToolButton:disabled {
                 color: gray;
@@ -1671,7 +1780,7 @@ class AlignmentModalitySelector(QWidget):
         """Set the current modality"""
         self.comboBox.setCurrentText(value if value else "null")
 
-class freeNumber(QWidget):
+class freeFloat(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -1679,6 +1788,31 @@ class freeNumber(QWidget):
         self.textbox = QLineEdit(self)
         double_validator = QDoubleValidator(-999.9, 999.9, 2)
         self.textbox.setValidator(double_validator)
+        main_layout.addWidget(self.textbox)
+
+    def set_text(self, text):
+        self.textbox.setText(text)
+
+    def get_text(self):
+        if isinstance(self.textbox, QTextEdit):
+            text = self.textbox.toPlainText()
+        else:
+            text = self.textbox.text()
+
+        # Return placeholder text if the field is empty
+        if text == "null" or "":
+            return None
+        elif text:
+            return text
+
+class freeInt(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        main_layout = QVBoxLayout(self)
+        self.textbox = QLineEdit(self)
+        int_validator = QIntValidator(-999, 999)
+        self.textbox.setValidator(int_validator)
         main_layout.addWidget(self.textbox)
 
     def set_text(self, text):

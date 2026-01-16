@@ -33,8 +33,8 @@
 		  "dewarp" : "ocvl"
 	  },
       "trim": {
-        "start_idx": 0.0,
-        "end_idx": -1.0
+        "start_frm": 0.0,
+        "end_frm": -1.0
       }
     }
   },
@@ -60,6 +60,9 @@
       "output_folder": null,
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
+      "output_indiv_stdize_orgs": false,
+      "output_sum_pop_orgs": false,
+      "output_sum_indiv_orgs": false,
       "normalization": {
         "rescaled": true,
         "rescale_mean": 70.0
@@ -111,23 +114,33 @@
         "height": -1.0
       }
     },
+    "debug": {
+      "output_norm_video": false,
+      "plot_refine_to_ref": false,
+      "plot_refine_to_vid": false,
+      "plot_pop_extracted_orgs": false,
+      "plot_pop_stdize_orgs": false,
+      "plot_indiv_stdize_orgs": false,
+      "plot_valid_cells": false,
+      "stimulus": true,
+      "control": true,
+      "axes": {
+        "xmin": 0,
+        "xmax": 6,
+        "ymin": -255,
+        "ymax": 255,
+        "cmap": "viridis",
+        "legend": true
+      }
+    },
     "display_params": {
-      "debug": {
-        "output_norm_video": false,
-        "plot_refine_to_ref": false,
-        "plot_refine_to_vid": false,
-        "plot_pop_extracted_orgs": false,
-        "plot_pop_stdize_orgs": false,
-        "plot_indiv_stdize_orgs": false,
-        "output_indiv_stdize_orgs": false,
-        "stimulus": true,
-        "control": true
-      },
       "pop_summary_overlap": {
         "stimulus": true,
         "control": true,
         "relative": true,
         "pooled": true,
+        "cross_group": false,
+        "annotations": false,
         "axes": {
           "xmin": 0,
           "xmax": 4,
@@ -166,6 +179,8 @@
         "histogram": true,
         "cumulative_histogram": true,
         "map_overlay": true,
+        "org_video": false,
+        "cross_group": false,
         "axes": {
           "xmin": null,
           "xstep": null,
