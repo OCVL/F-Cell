@@ -64,8 +64,10 @@
       "output_sum_pop_orgs": false,
       "output_sum_indiv_orgs": false,
       "normalization": {
+        "method" : "score",
         "rescaled": true,
-        "rescale_mean": 70.0
+        "rescale_mean": 70.0,
+        "rescale_std" : 35.0
       },
       "segmentation": {
         "refine_to_ref": false,
