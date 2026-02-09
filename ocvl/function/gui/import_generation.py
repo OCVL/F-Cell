@@ -15,32 +15,58 @@ def extract_widget_type(field_def):
         return field_def.get("type")
     return field_def
 
+def create_format_editor_widget_from_spec(field_key: str, widget_spec: dict):
+    """Build a FormatEditorWidget with its type coming from the template's 'format_type'."""
+    fmt_type = (widget_spec or {}).get("format_type")
+    # Label shown left of the widget row uses format_label(key) elsewhere.
+    # The FormatEditorWidget itself shows the format string, so label text isn't critical here.
+    # We still pass something readable as label_text:
+    return FormatEditorWidget(label_text=format_label(field_key), default_format="", type=fmt_type)
+
+
 WIDGET_FACTORY = {
-    "freeText": lambda: FreetextBox(),
-    "freeNumber": lambda: freeNumber(),  # or use a QSpinBox/DoubleSpinBox if you make one
-    "trueFalse": lambda: TrueFalseSelector(),
-    "comboBox": lambda: DropdownMenu(default="null"),
-    "outputSubfolderMethodComboBox": lambda: DropdownMenu(options=["DateTime", "Date", "Sequential"]),
-    "shapeComboBox": lambda: DropdownMenu(default="null", options=["disk", "box"]),
-    "summaryComboBox": lambda: DropdownMenu(default="null", options=["mean", "median"]),
-    "typeComboBox": lambda: DropdownMenu(default="null", options=["stim-relative", "absolute"]),
-    "unitsComboBox": lambda: DropdownMenu(default="null", options=["time", "frames"]),
-    "standardizationMethodComboBox": lambda: DropdownMenu(default="null",
+    # Main fields
+    "freeText": lambda config=None: FreetextBox(),
+    "freeFloat": lambda config=None: freeFloat(),  # or use a QSpinBox/DoubleSpinBox if you make one
+    "freeInt": lambda config=None: freeInt(),
+    "trueFalse": lambda config=None: TrueFalseSelector(),
+    "comboBox": lambda config=None: DropdownMenu(default="null"),
+    "outputSubfolderMethodComboBox": lambda config=None: DropdownMenu(options=["DateTime", "Date", "Sequential"]),
+    "shapeComboBox": lambda config=None: DropdownMenu(default="null", options=["disk", "box"]),
+    "summaryComboBox": lambda config=None: DropdownMenu(default="null", options=["mean", "median"]),
+    "typeComboBox": lambda config=None: DropdownMenu(default="null", options=["stim-relative", "absolute"]),
+    "unitsComboBox": lambda config=None: DropdownMenu(default="null", options=["time", "frames"]),
+    "standardizationMethodComboBox": lambda config=None: DropdownMenu(default="null",
                                                           options=["mean_stddev", "stddev", "linear_stddev",
                                                                    "linear_vast", "relative_change", "none"]),
-    "summaryMethodComboBox": lambda: DropdownMenu(default="null", options=["rms", "stddev", "var", "avg"]),
-    "controlComboBox": lambda: DropdownMenu(default="null", options=["none", "subtraction", "division"]),
-    "listEditor": lambda: ListEditorWidget(),
-    "openFolder": lambda: OpenFolder(),
-    "formatEditor": lambda: FormatEditorWidget("Format"),
-    "groupbyEditor": lambda: GroupByFormatEditorWidget(None, None, None, "Group By"),
-    "formatEditorQueryloc": lambda: FormatEditorWidget("Format", queryloc=True),
-    "cmapSelector": lambda: ColorMapSelector(),
-    "affineRigidSelector": lambda: AffineRigidSelector(),
-    "saveasSelector": lambda: SaveasExtensionsEditorWidget("Save as"),
-    "rangeSelector": lambda: rangeSelector(),
-    "null": lambda: QLabel("null"),
+    "summaryMethodComboBox": lambda config=None: DropdownMenu(default="null", options=["rms", "stddev", "var", "avg"]),
+    "controlComboBox": lambda config=None: DropdownMenu(default="null", options=["none", "subtraction", "division"]),
+    "listEditor": lambda config=None: ListEditorWidget(),
+    "openFolder": lambda config=None: OpenFolder(),
+    "formatEditor": lambda key, spec=None: create_format_editor_widget_from_spec(key, spec or {}),
+    "groupbyEditor": lambda config=None: GroupByFormatEditorWidget(None, None, None, "Group By"),
+    "cmapSelector": lambda config=None: ColorMapSelector(),
+    "affineRigidSelector": lambda config=None: AffineRigidSelector(),
+    "saveasSelector": lambda config=None: SaveasExtensionsEditorWidget("Save as"),
+    "rangeSelector": lambda config=None: rangeSelector(),
+    "null": lambda config=None: QLabel("null"),
+
+    # Subfields
+    "text_file": lambda config=None: QLabel("text_file"),  # For metadata type
+    "folder": lambda config=None: QLabel("folder"),  # For control location
+    "score": lambda config=None: QLabel("score"),  # For normalization method
+    "mean_sub": lambda config=None: QLabel("mean_sub"),  # For standardization method
+    "auto": lambda config=None: QLabel("auto"),  # For radius
+    "disk": lambda config=None: QLabel("disk"),  # For shape
+    "mean": lambda config=None: QLabel("mean"),  # For summary
+    "rms": lambda config=None: QLabel("rms"),  # For summary method
+    "subtraction": lambda config=None: QLabel("subtraction"),  # For control
+    "stim-relative": lambda config=None: QLabel("stim-relative"),  # For type
+    "time": lambda config=None: QLabel("time"),  # For units
+    "viridis": lambda config=None: QLabel("viridis"),  # For cmap
+    "plasma": lambda config=None: QLabel("plasma"),  # For cmap
 }
+
 
 def build_form_from_template(template: dict, data: dict, adv=False, parent_name="", saved_widgets=None) -> QWidget:
     if saved_widgets is None:
@@ -82,30 +108,52 @@ def build_form_from_template(template: dict, data: dict, adv=False, parent_name=
             dependencies = None
 
         if not widget_type or widget_type not in WIDGET_FACTORY:
-            continue
+            # If no widget type is defined, create a default widget based on value type
+            if isinstance(val, bool):
+                widget_type = "trueFalse"
+            elif isinstance(val, (int, float)):
+                widget_type = "freeText"  # Use freeText for numbers
+            elif isinstance(val, list):
+                widget_type = "listEditor"
+            elif val is None:
+                widget_type = "null"
+            else:
+                widget_type = "freeText"
 
         widget_constructor = WIDGET_FACTORY.get(widget_type)
-        field_widget = widget_constructor()
+        if not widget_constructor:
+            continue
+
+        if widget_type == "formatEditor":
+            field_widget = widget_constructor(key, widget_def if isinstance(widget_def, dict) else {})
+        else:
+            field_widget = widget_constructor()
 
         if isinstance(field_widget, FormatEditorWidget):
-            field_widget.section_name = parent_name  # e.g., "preanalysis" or "analysis"
+            field_widget.section_name = parent_name
             field_widget.format_key = key
             field_widget.copyToAllRequested.connect(
                 lambda s, k, v, sw=saved_widgets: propagate_advanced_copy(sw, s, k, v)
             )
 
+        # Set the value based on the actual data type
         if val is not None:
-            if hasattr(field_widget, "set_text"):
-                field_widget.set_text(str(val))
-            elif hasattr(field_widget, "set_value"):
-                if isinstance(field_widget, ListEditorWidget) and isinstance(val, list):
+            if hasattr(field_widget, "set_value"):
+                # Handle different value types appropriately
+                if isinstance(val, bool):
                     field_widget.set_value(val)
-                elif isinstance(val, (list, dict)) and not isinstance(field_widget, ListEditorWidget):
+                elif isinstance(val, (int, float)):
+                    # For numeric values, convert to string for widgets that expect text
                     field_widget.set_value(str(val))
-                elif isinstance(val, bool):
+                elif isinstance(val, list) and isinstance(field_widget, ListEditorWidget):
                     field_widget.set_value(val)
+                elif isinstance(val, (list, dict)):
+                    # For complex types, convert to string representation
+                    field_widget.set_value(str(val))
                 else:
                     field_widget.set_value(str(val))
+            elif hasattr(field_widget, "set_text"):
+                field_widget.set_text(str(val))
 
         # Save widget if marked for saving
         if save_widget and parent_name:
@@ -249,72 +297,65 @@ def setup_analysis_dependencies(saved_widgets, parent_name):
     # Initial update
     update_modalities_enabled()
 
-def generate_json(form_container, template):
-    result = {}
-    form_layout = form_container.layout()
-    if not form_layout:
-        return result
+def generate_json(form_container, template, skip_disabled=True):
+    """
+    Build JSON from the form without ever re-parenting layouts.
+    (Re-parenting was breaking collapsibles after Review -> Back.)
+    """
+    def walk_layout(layout, template_for_layout):
+        result = {}
+        if not layout:
+            return result
 
-    for i in range(form_layout.count()):
-        item = form_layout.itemAt(i)
-        widget = item.widget()
-        if not widget:
-            continue
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            widget = item.widget()
+            if not widget:
+                continue
 
-        # Handle collapsible sections (nested objects)
-        if isinstance(widget, CollapsibleSection):
+            # ---- Collapsible section (nested object) ----
             if isinstance(widget, CollapsibleSection):
-                if not widget.is_enabled():  # Skip disabled sections
+                if skip_disabled and not widget.is_enabled():
                     continue
 
-                section_title = widget.title().replace(':', '').replace(' ', '_').lower()
-
+                section_key = widget.title().replace(':', '').replace(' ', '_').lower()
                 content_layout = widget.content_area.layout()
                 if not content_layout:
                     continue
 
-                content_widget = QWidget()
-                content_widget.setLayout(content_layout)
-
-                template_for_section = template.get(section_title, {})
-
-                section_data = generate_json(content_widget, template_for_section)
+                section_template = template_for_layout.get(section_key, {})
+                section_data = walk_layout(content_layout, section_template)
                 if section_data:
-                    result[section_title] = section_data
+                    result[section_key] = section_data
                 continue
 
-        # Handle regular form rows
-        if isinstance(widget, QWidget):
+            # ---- Regular row widget ----
             row_layout = widget.layout()
             if not row_layout or row_layout.count() < 2:
                 continue
 
-            # The first item is the label, second is the widget (or OptionalField wrapper)
             label_widget = row_layout.itemAt(0).widget()
             field_widget = row_layout.itemAt(1).widget()
 
             if not isinstance(label_widget, QLabel):
                 continue
 
-            # Get the original key from the label
             label_text = label_widget.text().replace(':', '')
             key = label_text.replace(' ', '_').lower()
 
-            # Handle OptionalField wrapper if present
+            # OptionalField wrapper
             if isinstance(field_widget, OptionalField):
-                if not field_widget.is_checked():
-                    continue  # Skip if the field is disabled
+                if skip_disabled and not field_widget.is_checked():
+                    continue
                 field_widget = field_widget.field_widget
 
-            # Get the widget type from template to determine how to get the value
-            widget_type_def = template.get(key)
+            widget_type_def = template_for_layout.get(key)
             widget_type = extract_widget_type(widget_type_def) if widget_type_def else None
 
-            # Skip if we don't know how to handle this widget type
             if not widget_type or not isinstance(widget_type, str) or widget_type not in WIDGET_FACTORY:
                 continue
 
-            # Get the value from the widget based on its type
+            # Pull value
             value = None
             if hasattr(field_widget, 'get_value'):
                 value = field_widget.get_value()
@@ -322,34 +363,41 @@ def generate_json(form_container, template):
                 value = field_widget.get_text()
             elif hasattr(field_widget, 'get_list'):
                 value = field_widget.get_list()
+            elif hasattr(field_widget, 'currentText'):
+                value = field_widget.currentText()
+            elif hasattr(field_widget, 'text'):
+                value = field_widget.text()
+            elif hasattr(field_widget, 'isChecked'):
+                value = field_widget.isChecked()
             elif isinstance(field_widget, QLabel):
                 value = field_widget.text()
 
-
-            # Convert string values to appropriate types if needed
+            # Convert string types where appropriate
             if value is not None:
-                if widget_type in ["freeNumber"]:
+                if isinstance(value, str):
                     try:
-                        if '.' in str(value):
+                        if '.' in value:
                             value = float(value)
                         else:
                             value = int(value)
-                    except ValueError:
-                        pass  # Keep as string if conversion fails
+                    except (ValueError, TypeError):
+                        if value.lower() == "null":
+                            value = None
+                        elif value.lower() == "true":
+                            value = True
+                        elif value.lower() == "false":
+                            value = False
+                elif widget_type == "freeInt" and isinstance(value, (int, float)):
+                    value = int(value)
+                elif widget_type == "freeFloat" and isinstance(value, (int, float)):
+                    value = float(value)
                 elif widget_type == "trueFalse":
                     value = bool(value)
                 elif widget_type == "null":
                     value = None
-                elif isinstance(value, str):
-                    # Handle special string cases
-                    if value.lower() == "null":
-                        value = None
-                    elif value.lower() == "true":
-                        value = True
-                    elif value.lower() == "false":
-                        value = False
 
-            # Only add to result if we got a value (including None)
             result[key] = value
 
-    return result
+        return result
+
+    return walk_layout(form_container.layout(), template)

@@ -3,15 +3,11 @@ import sys
 
 from PySide6 import QtGui
 from PySide6.QtGui import QFont, QMovie
-from PySide6.QtWidgets import (QApplication, QWizard, QWizardPage,
-                               QLabel, QLineEdit, QVBoxLayout,
-                               QCheckBox, QComboBox, QHBoxLayout, QRadioButton, QButtonGroup, QSizePolicy, QScrollArea,
-                               QWidget, QFileDialog, QMessageBox, QFrame)
-from PySide6.QtCore import Qt, QSize, Signal
-from advancedconfig import create_advanced_setup_widget, description_layer
+from PySide6.QtWidgets import QWizard
 import constructors
-import advancedconfig
 from import_generation import *
+#from ocvl.function.utility.dataset import parse_metadata
+import tempfile
 
 bold = QtGui.QFont()
 bold.setBold(True)
@@ -27,6 +23,16 @@ class TextColor:
     GREEN = '\033[92m'
     YELLOW = '\033[93m'
     RED = '\033[91m'
+
+def _clear_layout(layout):
+    while layout and layout.count():
+        item = layout.takeAt(0)
+        w = item.widget()
+        if w is not None:
+            w.setParent(None)
+            w.deleteLater()
+        elif item.layout():
+            _clear_layout(item.layout())
 
 def has_modality(format_string):
     return "{Modality}" in format_string if format_string else False
@@ -84,8 +90,10 @@ class MainWizard(QWizard):
         if id == 0:
             # On intro page, check which option is selected
             self.update_button_text_for_intro()
-        elif id == 6 | 7:
+        elif id == 6:  # Review page
             self.button(QWizard.NextButton).setText("Save >")
+        elif id == 7:  # Import editor page
+            self.button(QWizard.NextButton).setText("Review >")  # Or "Next >"
         else:
             self.button(QWizard.NextButton).setText("Next >")
 
@@ -102,8 +110,8 @@ class MainWizard(QWizard):
 class IntroPage(QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setTitle("Welcome to the MEAO Configuration JSON Generator!")
-        self.setSubTitle('To begin, choose if you wish to import an existing config JSON, or create a new one\n'
+        self.setTitle("Welcome to the MEAO Configuration File Generator!")
+        self.setSubTitle('To begin, choose if you wish to import an existing config file, or create a new one\n'
                          '• Note: Importing an existing config file will bring you to "advanced" setup')
 
         self.imported_config = None  # To store the imported config
@@ -126,12 +134,39 @@ class IntroPage(QWizardPage):
 
         # Label
         label = QLabel("Select an option:")
-        label.setToolTip("Test1")
         center_layout.addWidget(label)
 
-        # Radio buttons
-        self.create_button = QRadioButton("Create New Configuration JSON")
-        self.import_button = QRadioButton("Import Existing Configuration JSON")
+        self.create_button = QRadioButton("Create New Configuration")
+        self.import_button = QRadioButton("Import Existing Configuration")
+
+        # Style to make buttons bigger
+        radio_style = """
+            QRadioButton {
+                min-width: 350px;
+                min-height: 45px;
+                font-size: 20px;
+                padding: 5px;
+                spacing: 5px;
+            }
+            QRadioButton::indicator {
+                width: 20px;
+                height: 20px;
+            }
+        """
+        label_style = """
+            QLabel {
+                min-width: 350px;
+                min-height: 30px;
+                font-size: 20px;
+                font-weight: bold;
+                padding: 5px;
+                qproperty-alignment: AlignCenter;
+            }
+        """
+
+        label.setStyleSheet(label_style)
+        self.create_button.setStyleSheet(radio_style)
+        self.import_button.setStyleSheet(radio_style)
 
         self.button_group = QButtonGroup()
         self.button_group.addButton(self.create_button, 0)
@@ -154,37 +189,55 @@ class IntroPage(QWizardPage):
         main_layout.addWidget(scroll)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-    def nextId(self):
+    def validatePage(self):
+        """
+        Only called when the user clicks Next/Import.
+        We open the file dialog here (NOT in nextId), so Back navigation
+        doesn't re-trigger the explorer and Qt doesn't flip Next->Finish.
+        """
         if self.create_button.isChecked():
-            return 1
-        elif self.import_button.isChecked():
+            # Create mode: nothing special to validate
+            return True
 
-            # Show file dialog to select JSON file
-            file_dialog = QFileDialog()
-            file_path, _ = file_dialog.getOpenFileName(
+        if self.import_button.isChecked():
+            # Always prompt in import mode when advancing from Intro
+            file_path, _ = QFileDialog.getOpenFileName(
                 self,
                 "Open Configuration File",
                 "",
                 "JSON Files (*.json);;All Files (*)"
             )
 
-            if file_path:
-                try:
-                    with open(file_path, 'r') as f:
-                        self.imported_config = json.load(f)
-                    return 7  # Go to advanced setup page
-                except Exception as e:
-                    QMessageBox.warning(self, "Error", f"Failed to load file:\n{str(e)}")
-                    return -1  # Stay on current page
-            return -1  # Stay on current page if no file selected
-        return 2
+            if not file_path:
+                # User canceled: stay on Intro
+                return False
+
+            try:
+                with open(file_path, "r") as f:
+                    self.imported_config = json.load(f)
+                return True
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Failed to load file:\n{str(e)}")
+                return False
+
+        return True
+
+    def nextId(self):
+        """
+        nextId() must be deterministic and NEVER open dialogs.
+        """
+        if self.create_button.isChecked():
+            return 1
+        if self.import_button.isChecked():
+            return 7
+        return 1
 
 class SelectionPage(QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTitle('Choose your desired type of setup and click "Next"')
-        self.setSubTitle("• Simple generation: Step-by-step process to create configuration JSON\n"
-                         "• Advanced generation: In-depth menu with access to change any and all fields in the configuration JSON in one step")
+        self.setSubTitle("• Simple generation: Step-by-step process to create configuration file\n"
+                         "• Advanced generation: In-depth menu with access to change any and all fields in the configuration file in one step")
 
         # Create scrollable area
         scroll = QScrollArea()
@@ -198,17 +251,73 @@ class SelectionPage(QWizardPage):
         outer_layout = QVBoxLayout(container)
         outer_layout.setAlignment(Qt.AlignCenter)  # Center everything
 
-        # Inner layout: label and buttons side by side
         center_layout = QHBoxLayout()
         center_layout.setAlignment(Qt.AlignCenter)
+
+        placeholder = "Hover over an option to see details"
+
+        # Tooltip label
+        self.tooltip_label = QLabel(placeholder)
+        self.tooltip_label.setWordWrap(True)
+        self.tooltip_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.tooltip_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.tooltip_label.setStyleSheet("""
+            QLabel {
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                background-color: #f0f0f0;
+                padding: 6px 12px;
+                font-style: italic;
+                color: #333;
+                min-height: 40px;
+            }
+        """)
+
+        def create_hover_widget(layout, tooltip_text):
+            wrapper = QFrame()
+            wrapper.setLayout(layout)
+            wrapper.setMouseTracking(True)
+            wrapper.setStyleSheet("QFrame { background: transparent; }")
+            wrapper.enterEvent = lambda event: self.tooltip_label.setText(tooltip_text)
+            wrapper.leaveEvent = lambda event: self.tooltip_label.setText(placeholder)
+            return wrapper
+
 
         # Label
         label = QLabel("Choose type of generation:")
         center_layout.addWidget(label)
 
         # Radio buttons
-        self.simple_button = QRadioButton("Simple")
-        self.adv_button = QRadioButton("Advanced")
+        self.simple_button = QRadioButton("Simple Generation")
+        self.adv_button = QRadioButton("Advanced Generation")
+
+        radio_style = """
+            QRadioButton {
+                min-width: 350px;
+                min-height: 45px;
+                font-size: 20px;
+                padding: 5px;
+                spacing: 5px;
+            }
+            QRadioButton::indicator {
+                width: 20px;
+                height: 20px;
+            }
+        """
+        label_style = """
+            QLabel {
+                min-width: 350px;
+                min-height: 30px;
+                font-size: 20px;
+                font-weight: bold;
+                padding: 5px;
+                qproperty-alignment: AlignCenter;
+            }
+        """
+
+        self.simple_button.setStyleSheet(radio_style)
+        self.adv_button.setStyleSheet(radio_style)
+        label.setStyleSheet(label_style)
 
         self.button_group = QButtonGroup()
         self.button_group.addButton(self.simple_button, 0)
@@ -222,6 +331,7 @@ class SelectionPage(QWizardPage):
         button_layout.setAlignment(Qt.AlignCenter)
 
         center_layout.addLayout(button_layout)
+
 
         # Add to outer layout
         outer_layout.addLayout(center_layout)
@@ -370,7 +480,7 @@ class PreanalysisPage(QWizardPage):
         image_layout = QHBoxLayout()
         image_layout.setAlignment(Qt.AlignLeft)
         image_label = QLabel("Image Format:")
-        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.tif", type='image')
         image_layout.addWidget(image_label)
         image_layout.addWidget(self.image_format_value)
         image_widget = create_hover_widget(image_layout, "Image Format: Format string for image filenames.")
@@ -379,7 +489,7 @@ class PreanalysisPage(QWizardPage):
         video_layout = QHBoxLayout()
         video_layout.setAlignment(Qt.AlignLeft)
         video_label = QLabel("Video Format:")
-        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='video')
         video_layout.addWidget(video_label)
         video_layout.addWidget(self.video_format_value)
         video_widget = create_hover_widget(video_layout, "Video Format: Format string for video filenames.")
@@ -388,7 +498,7 @@ class PreanalysisPage(QWizardPage):
         mask_layout = QHBoxLayout()
         mask_layout.setAlignment(Qt.AlignLeft)
         mask_label = QLabel("Mask Format:")
-        self.mask_format_value = constructors.FormatEditorWidget("Mask Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.mask_format_value = constructors.FormatEditorWidget("Mask Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='mask')
         mask_layout.addWidget(mask_label)
         mask_layout.addWidget(self.mask_format_value)
         mask_widget = create_hover_widget(mask_layout, "Mask Format: Format string for mask filenames.")
@@ -560,7 +670,7 @@ class AnalysisPage(QWizardPage):
         image_layout = QHBoxLayout()
         image_layout.setAlignment(Qt.AlignLeft)
         image_label = QLabel("Image Format:")
-        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.tif", type='image')
         image_layout.addWidget(image_label)
         image_layout.addWidget(self.image_format_value)
         image_widget = create_hover_widget(image_layout, "Image Format: Format string for image filenames.")
@@ -568,7 +678,7 @@ class AnalysisPage(QWizardPage):
         queryloc_layout = QHBoxLayout()
         queryloc_layout.setAlignment(Qt.AlignLeft)
         queryloc_label = QLabel("Query Loc Format:")
-        self.queryloc_format_value = constructors.FormatEditorWidget("Queryloc Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}", queryloc=True)
+        self.queryloc_format_value = constructors.FormatEditorWidget("Queryloc Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.csv", type='queryloc')
         queryloc_layout.addWidget(queryloc_label)
         queryloc_layout.addWidget(self.queryloc_format_value)
         queryloc_widget = create_hover_widget(queryloc_layout, "Query Loc Format: Filename format used to locate the reference location (query).")
@@ -576,7 +686,7 @@ class AnalysisPage(QWizardPage):
         video_layout = QHBoxLayout()
         video_layout.setAlignment(Qt.AlignLeft)
         video_label = QLabel("Video Format:")
-        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}{Year}{Month}{Day}{VidNum}{Modality}")
+        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='video')
         video_layout.addWidget(video_label)
         video_layout.addWidget(self.video_format_value)
         video_widget = create_hover_widget(video_layout, "Video Format: Format string for video filenames.")
@@ -657,9 +767,9 @@ class AdvancedSetupPage(QWizardPage):
             'You can edit any configuration field from here. For a more simple setup, go back and select "Simple Setup"\n'
             'Tip: Expand window for better visibility')
 
-        with open("config_files/advanced_config_JSON.json", "r") as f:
+        with open(r"ocvl/function/gui/master_config_files/advanced_config_JSON.json", "r") as f:
             advanced_config_json = json.load(f)
-        with open("config_files/master_JSON.json", "r") as f:
+        with open(r"ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
             self.master_json = json.load(f)
 
         scroll_area = QScrollArea()
@@ -687,134 +797,268 @@ class ReviewPage(QWizardPage):
         self.saved_file_path = None
         self.generated_config = None
 
-        self.layout = QVBoxLayout(self)
-        self.label = QLabel()
-        self.label.setWordWrap(True)
+        # Scroll container
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
 
-        self.label2 = QLabel()
-        self.label2.setWordWrap(True)
+        self.container = QWidget()
+        self.scroll.setWidget(self.container)
 
-        self.label3 = QLabel()
-        self.label3.setWordWrap(True)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.addWidget(self.scroll)
 
-        self.label4 = QLabel()
-        self.label4.setWordWrap(True)
-
-        self.label5 = QLabel()
-        self.label5.setWordWrap(True)
-
-        self.layout.addWidget(self.label)
-        self.layout.addWidget(self.label2)
-        self.layout.addWidget(self.label3)
-        self.layout.addWidget(self.label4)
-        self.layout.addWidget(self.label5)
-
-        self.layout.addStretch()
+        self.container_layout = QVBoxLayout(self.container)
 
     def nextId(self):
         return 8
 
-    def initializePage(self):
-        wizard = self.wizard()
+    # ---------- helpers: consistent formatting ----------
+    def _fmt_value(self, v):
+        """Human-friendly rendering of values for the review UI."""
+        if v is None:
+            return "null"
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, (int, float, str)):
+            return str(v)
+        if isinstance(v, (list, tuple)):
+            # render one item per line if long; inline if short
+            if len(v) <= 3 and all(isinstance(x, (int, float, str)) for x in v):
+                return "[" + ", ".join(self._fmt_value(x) for x in v) + "]"
+            return "\n• " + "\n• ".join(self._fmt_value(x) for x in v)
+        # fallback to JSON-ish for unusual objects
+        return str(v)
 
-        if wizard.page(1).adv_button.isChecked():
-            self.label.setText(
-                "Advanced setup selected.\n\nPlease review your inputs on the previous page before continuing.")
-            self.generated_config = None  # Don't regenerate config in advanced mode
+    def _mk_field(self, title, value):
+        lab = QLabel(f"<b>{title}:</b> {self._fmt_value(value)}")
+        lab.setWordWrap(True)
+        lab.setStyleSheet(
+            "QLabel { padding: 3px 6px; margin: 2px 0; border-left: 3px solid #007ACC; }"
+        )
+        return lab
+
+    def _mk_section(self, title):
+        lab = QLabel(title.upper())
+        f = lab.font();
+        f.setBold(True);
+        lab.setFont(f)
+        lab.setStyleSheet("QLabel { font-size: 14px; margin: 10px 0 4px 0; }")
+        return lab
+
+    def _titleize(self, key):
+        return str(key).replace("_", " ").title()
+
+    # ---------- schema-walking renderers ----------
+    def _render_by_template(self, template_node, data_node, header_name=None):
+        """
+        Render using the 'template' that defined the page (keeps exact key order).
+        Dict in template -> section; non-dict -> leaf (primitive) field.
+        """
+        if header_name is not None:
+            self.container_layout.addWidget(self._mk_section(header_name))
+
+        # If template is a dict: walk keys in order
+        if isinstance(template_node, dict):
+            for k, tmpl_child in template_node.items():
+                # Skip top-level metadata fields we already printed
+                if header_name is None and k in ("version", "description"):
+                    continue
+
+                pretty = self._titleize(k)
+                data_child = None if not isinstance(data_node, dict) else data_node.get(k, None)
+
+                if isinstance(tmpl_child, dict):
+                    # subsection (even if data_child is empty/None, still show header to match UI)
+                    self._render_by_template(tmpl_child, data_child if isinstance(data_child, dict) else {}, pretty)
+                else:
+                    # leaf: show scalar value taken from data_node (or template default if missing)
+                    value = data_child if data_child is not None else tmpl_child
+                    self.container_layout.addWidget(self._mk_field(pretty, value))
             return
 
-        # Simple mode: generate config with only simple-mode configurable elements
-        config = {
-            "version": wizard.page(2).version_value.text(),
-            "description": wizard.page(2).description_value.text(),
-            "preanalysis": {
-                "image_format": wizard.page(3).image_format_value.get_value(),
-                "video_format": wizard.page(3).video_format_value.get_value(),
-                "mask_format": wizard.page(3).mask_format_value.get_value(),
-                "recursive_search" : wizard.page(3).recursive_search_tf.get_value(),
-                "pipeline_params": {
-                    "modalities": wizard.page(3).modalities_list_creator.get_list(),
-                    "alignment_reference_modality" : wizard.page(3).alignment_ref_value.get_value(),
-                    "group_by": None if wizard.page(3).groupby_value.get_value() == "null" else wizard.page(3).groupby_value.get_value(),
-                }
-            },
-            "analysis": {
-                "image_format": wizard.page(4).image_format_value.get_value(),
-                "queryloc_format": wizard.page(4).queryloc_format_value.get_value(),
-                "video_format": wizard.page(4).video_format_value.get_value(),
-                "recursive_search": wizard.page(4).recursive_search_tf.get_value(),
-                "analysis_params": {
-                    "modalities": wizard.page(4).modalities_list_creator.get_list()
+        # If template is not a dict, it's a primitive leaf and should have been handled above.
+
+    def _render_pruned_template(self, template_node, data_node):
+        """
+        Make a pruned copy of 'template_node' that only keeps keys present in data_node.
+        Preserves order from the template.
+        """
+        if not isinstance(template_node, dict) or not isinstance(data_node, dict):
+            return data_node  # primitive (or mismatched) – just return data as-is
+
+        pruned = {}
+        for k, tmpl_child in template_node.items():
+            if k in data_node:
+                dv = data_node[k]
+                if isinstance(tmpl_child, dict) and isinstance(dv, dict):
+                    pruned[k] = self._render_pruned_template(tmpl_child, dv)
+                else:
+                    pruned[k] = tmpl_child
+        return pruned
+
+    # ---------- SIMPLE ----------
+    def _display_simple_mode(self, cfg, wiz):
+        # (unchanged from your version if you like) – but still benefits from _fmt_value
+        if "version" in cfg:
+            self.container_layout.addWidget(self._mk_field("Version", cfg["version"]))
+        if "description" in cfg:
+            self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
+
+        if "preanalysis" in cfg:
+            pre = cfg["preanalysis"]
+            self.container_layout.addWidget(self._mk_section("Pre-Analysis"))
+            for title, k in [("Image Format", "image_format"),
+                             ("Video Format", "video_format"),
+                             ("Mask Format", "mask_format"),
+                             ("Recursive Search", "recursive_search")]:
+                if k in pre:
+                    self.container_layout.addWidget(self._mk_field(title, pre[k]))
+            if "pipeline_params" in pre:
+                params = pre["pipeline_params"]
+                self.container_layout.addWidget(self._mk_section("Pipeline Parameters"))
+                for title, k in [("Modalities", "modalities"),
+                                 ("Alignment Reference Modality", "alignment_reference_modality"),
+                                 ("Group By", "group_by")]:
+                    if k in params:
+                        self.container_layout.addWidget(self._mk_field(title, params[k]))
+
+        if "analysis" in cfg:
+            ana = cfg["analysis"]
+            self.container_layout.addWidget(self._mk_section("Analysis"))
+            for title, k in [("Image Format", "image_format"),
+                             ("Queryloc Format", "queryloc_format"),
+                             ("Video Format", "video_format"),
+                             ("Recursive Search", "recursive_search")]:
+                if k in ana:
+                    self.container_layout.addWidget(self._mk_field(title, ana[k]))
+            if "analysis_params" in ana:
+                params = ana["analysis_params"]
+                self.container_layout.addWidget(self._mk_section("Analysis Params"))
+                if "modalities" in params:
+                    self.container_layout.addWidget(self._mk_field("Modalities", params["modalities"]))
+
+    # ---------- ADVANCED ----------
+    def _display_advanced_mode(self, cfg, wiz):
+        # Header fields first
+        if "version" in cfg:
+            self.container_layout.addWidget(self._mk_field("Version", cfg["version"]))
+        if "description" in cfg:
+            self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
+
+        # Use the SAME template that built Advanced (preserves visual order)
+        with open(
+                r"ocvl/function/gui/master_config_files/advanced_config_JSON.json",
+                "r") as f:
+            advanced_template = json.load(f)
+
+        # Render recursively; nested dicts become sections; primitives become leaf rows
+        self._render_by_template(advanced_template, cfg)
+
+    # ---------- IMPORT ----------
+    def _display_import_mode(self, cfg, wiz):
+        if "version" in cfg:
+            self.container_layout.addWidget(self._mk_field("Version", cfg["version"]))
+        if "description" in cfg:
+            self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
+
+        # Start from the master template, then prune to only the keys actually present in the imported file
+        with open(r"ocvl/function/gui/master_config_files/master_JSON.json",
+                  "r") as f:
+            master_template = json.load(f)
+
+        imported = self.wizard().page(0).imported_config or {}
+        pruned_template = self._render_pruned_template(master_template, imported)
+
+        self._render_by_template(pruned_template, cfg)
+
+    # ---------- main flow ----------
+    def initializePage(self):
+        wiz = self.wizard()
+
+        # Clear previous render (keep layout)
+        while self.container_layout.count():
+            item = self.container_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        # Build the config (unchanged logic)
+        if wiz.page(1).adv_button.isChecked():
+            # Advanced
+            advanced_widget = wiz.page(5).advanced_widget
+            master_json = wiz.page(5).master_json
+            self.generated_config = generate_json(advanced_widget, master_json)
+        elif wiz.page(0).import_button.isChecked():
+            # Import editor
+            import_config_widget = wiz.page(7).form_widget
+            master_json = wiz.page(5).master_json
+            self.generated_config = generate_json(import_config_widget, master_json, skip_disabled=False)
+        else:
+            # Simple (you already build this struct explicitly)
+            self.generated_config = {
+                "version": wiz.page(2).version_value.text(),
+                "description": wiz.page(2).description_value.text(),
+                "preanalysis": {
+                    "image_format": wiz.page(3).image_format_value.get_value(),
+                    "video_format": wiz.page(3).video_format_value.get_value(),
+                    "mask_format": wiz.page(3).mask_format_value.get_value(),
+                    "recursive_search": wiz.page(3).recursive_search_tf.get_value(),
+                    "pipeline_params": {
+                        "modalities": wiz.page(3).modalities_list_creator.get_list(),
+                        "alignment_reference_modality": wiz.page(3).alignment_ref_value.get_value(),
+                        "group_by": None if wiz.page(3).groupby_value.get_value() == "null" else wiz.page(3).groupby_value.get_value(),
+                    }
+                },
+                "analysis": {
+                    "image_format": wiz.page(4).image_format_value.get_value(),
+                    "queryloc_format": wiz.page(4).queryloc_format_value.get_value(),
+                    "video_format": wiz.page(4).video_format_value.get_value(),
+                    "recursive_search": wiz.page(4).recursive_search_tf.get_value(),
+                    "analysis_params": {
+                        "modalities": wiz.page(4).modalities_list_creator.get_list()
+                    }
                 }
             }
-        }
 
-        self.generated_config = config
+        # ----- Render by PATH -----
+        try:
+            if wiz.page(1).adv_button.isChecked():
+                self._display_advanced_mode(self.generated_config, wiz)
+            elif wiz.page(0).import_button.isChecked():
+                self._display_import_mode(self.generated_config, wiz)
+            else:
+                self._display_simple_mode(self.generated_config, wiz)
+        except Exception as e:
+            err = QLabel(f"Error rendering review: {e}")
+            err.setStyleSheet("color: red; font-weight: bold;")
+            self.container_layout.addWidget(err)
 
-        # Show summary to user
-        summary_text1 = f"Version: {config['version']}\n" \
-                       f"Description: {config['description']}\n"
-
-        summary_text2 = f"Image Format: {config['preanalysis']['image_format']}\n" \
-                       f"Video Format: {config['preanalysis']['video_format']}\n" \
-                       f"Mask Format: {config['preanalysis']['mask_format']}\n" \
-                       f"Recursive Search: {config['preanalysis']['recursive_search']}\n" \
-                       f"Modalities: {config['preanalysis']['pipeline_params']['modalities']}\n" \
-                       f"Alignment Reference Modality : {config['preanalysis']['pipeline_params']['alignment_reference_modality']}\n" \
-                       f"Group By: {config['preanalysis']['pipeline_params']['group_by']}\n"
-
-        summary_text3 = f"Image Format: {config['analysis']['image_format']}\n" \
-                       f"QueryLoc Format: {config['analysis']['queryloc_format']}\n" \
-                       f"Video Format: {config['analysis']['video_format']}\n" \
-                       f"Recursive Search: {config['analysis']['recursive_search']}\n" \
-                       f"Modalities: {config['analysis']['analysis_params']['modalities']}"
-
-        self.label.setText(
-            "Please review the following configurations before clicking 'Save >':\n\n" + summary_text1)
-        self.label2.setText('Pre-Analysis')
-        self.label2.setFont(bold)
-        self.label3.setText(summary_text2)
-        self.label4.setText('Analysis')
-        self.label4.setFont(bold)
-        self.label5.setText(summary_text3)
+        self.container_layout.addStretch()
 
     def validatePage(self):
-        wizard = self.wizard()
-
-        if wizard.page(1).adv_button.isChecked():
-            # Advanced mode: generate config from widgets directly
-            advanced_widget = wizard.page(5).advanced_widget
-            master_json = wizard.page(5).master_json
-            config = generate_json(advanced_widget, master_json)
-        else:
-            # Simple mode: use the generated config from initializePage
-            config = self.generated_config
-            if not config:
-                self.label.setText("No configuration data available")
-                return False
+        """Save the generated configuration to a file (unchanged)."""
+        if not self.generated_config:
+            QMessageBox.warning(self, "Error", "No configuration data available")
+            return False
 
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getSaveFileName(
-            wizard,
-            "Save Configuration File",
-            "",
-            "JSON Files (*.json);;All Files (*)"
+            self, "Save Configuration File", "", "JSON Files (*.json);;All Files (*)"
         )
 
         if file_path:
             if not file_path.endswith('.json'):
                 file_path += '.json'
-
             try:
                 with open(file_path, 'w') as f:
-                    json.dump(config, f, indent=2)
+                    json.dump(self.generated_config, f, indent=2)
                 self.saved_file_path = file_path
                 return True
             except Exception as e:
-                self.label.setText(f"Failed to save file:\n{str(e)}")
+                QMessageBox.warning(self, "Error", f"Failed to save file:\n{str(e)}")
                 return False
         else:
-            self.label.setText("No file selected. Please choose a path to save the configuration.")
+            QMessageBox.warning(self, "Error", "No file selected. Please choose a path to save the configuration.")
             return False
 
 
@@ -844,7 +1088,7 @@ class ImportEditorPage(QWizardPage):
         intro_page = wizard.page(0)
 
         if hasattr(intro_page, 'imported_config') and intro_page.imported_config:
-            with open("config_files/master_JSON.json", "r") as f:
+            with open(r"ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
                 master_json = json.load(f)
 
             self.form_widget = build_form_from_template(master_json, intro_page.imported_config)
@@ -859,52 +1103,8 @@ class ImportEditorPage(QWizardPage):
             error_label.setAlignment(Qt.AlignCenter)
             self.layout.addWidget(error_label)
 
-    def validatePage(self):
-        if not self.form_widget:
-            QMessageBox.warning(self, "Error", "No configuration to save")
-            return False
-
-        # Get the master template
-        with open("config_files/master_JSON.json", "r") as f:
-            master_json = json.load(f)
-
-        wizard = self.wizard()
-        intro_page = wizard.page(0)
-
-        # Generate the JSON from the form
-        config = generate_json(self.form_widget, master_json)
-
-        if not config:
-            QMessageBox.warning(self, "Error", "No configuration data to save")
-            return False
-
-        # Show save file dialog
-        file_dialog = QFileDialog()
-        file_path, _ = file_dialog.getSaveFileName(
-            self,
-            "Save Configuration File",
-            "",
-            "JSON Files (*.json);;All Files (*)"
-        )
-
-        if file_path:
-            if not file_path.endswith('.json'):
-                file_path += '.json'
-
-            try:
-                with open(file_path, 'w') as f:
-                    json.dump(config, f, indent=2)
-                self.saved_file_path = file_path
-                return True
-            except Exception as e:
-                QMessageBox.warning(self, "Error", f"Failed to save file:\n{str(e)}")
-                return False
-
-        QMessageBox.warning(self, "Error", "No file selected")
-        return False
-
     def nextId(self):
-        return 8
+        return 6
 
 class EndPage(QWizardPage):
     def __init__(self, parent=None):
