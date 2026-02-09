@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools >= 80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "f-cell"
+version = "0.3.7"
+readme = "README.md"
+description = "A software library for reproducible analysis of optoretinograms."
+authors = [
+  { name="Rob F Cooper", email="robert.cooper@marquette.edu" },
+  { name="Niko Rios", email="niko.rios@marquette.edu" },
+]
+license = "GPL-3.0"
+license-files = ["LICENSE.md"]
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "matplotlib>=3.10.3",
+    "scipy>=1.17.0",
+    "numba>=0.6.1",
+    "numpy>=2.1",
+    "pandas>=2.0",
+    "SimpleITK>=2.1.1",
+    "setuptools>=80.9.0",
+    "scikit-learn>=1.0.2",
+    "ssqueezepy>=0.6.3",
+    "pynufft>=2022.2.3",
+    "joblib>=1.1.0",
+    "scikit-image>=0.19.2",
+    "Pillow>=9.1.1",
+    "opencv-contrib-python>=4.3",
+    "parse>=1.2.0",
+    "parse-type>=0.6.4",
+    "colorama>=0.4.6",
+    "pymatreader>=1.0.0",
+    "parse_type>=0.6.4",
+    "tifffile>=2025.5.10",
+    "PySide6>=6.9.0",
+    "file-tag-parser>=0.2.5.3",
+    "tqdm>=4.67.1"
+]
+
+[project.urls]
+Homepage = "https://github.com/OCVL/F-Cell"
