@@ -2,13 +2,12 @@ import os
 import re
 
 from PySide6.QtGui import QAction, QPixmap, QFontMetrics, QDoubleValidator, QIntValidator
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QToolButton,
-                               QLabel, QComboBox, QTextEdit, QLineEdit, QPushButton, QRadioButton, QHBoxLayout,
-                               QButtonGroup, QCheckBox, QSizePolicy, QDialog,
+from PySide6.QtWidgets import (QVBoxLayout, QToolButton,
+                               QLabel, QComboBox, QTextEdit, QLineEdit, QPushButton, QRadioButton,
+                               QButtonGroup, QSizePolicy, QDialog,
                                QDialogButtonBox, QFileDialog, QSplitter, QListWidget,
-                               QInputDialog, QMenu, QMessageBox, QFrame, QGridLayout, QListWidgetItem)
+                               QInputDialog, QMenu, QMessageBox, QGridLayout, QListWidgetItem)
 from PySide6.QtCore import Qt, QSize, Signal
-
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QCheckBox
 
 class OptionalField(QWidget):

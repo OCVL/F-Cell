@@ -1,6 +1,7 @@
 import sys
 from PySide6.QtWidgets import QApplication
-import wizard_creator
+
+from ocvl.function.gui import wizard_creator
 
 if __name__ == "__main__":
     app = QApplication(sys.argv + ['-platform', 'windows:darkmode=2'])

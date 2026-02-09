@@ -1,8 +1,5 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout,
-                               QLabel, QPushButton, QHBoxLayout,
-                               QScrollArea, QMainWindow, QFileDialog, QMessageBox)
-from PySide6.QtCore import Qt
-import json, constructors
+from PySide6.QtWidgets import (QWidget)
+
 
 class version_layer(QWidget):
     def __init__(self, parent=None):

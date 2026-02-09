@@ -1,10 +1,5 @@
-import json
-import sys
-import re
-
-from constructors import *
-from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget, QWizardPage, QScrollArea, QMainWindow, \
-    QApplication
+from ocvl.function.gui.constructors import *
+from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget
 from PySide6.QtCore import Qt
 
 def format_label(key: str) -> str:

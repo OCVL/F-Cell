@@ -1,16 +1,13 @@
 import json
-import sys
 
 from PySide6 import QtGui
-from PySide6.QtGui import QFont, QMovie
-from PySide6.QtWidgets import QWizard
-import constructors
-from import_generation import *
-#from ocvl.function.utility.dataset import parse_metadata
-import tempfile
+from PySide6.QtGui import QFont, Qt
+from PySide6.QtWidgets import QWizard, QWidget, QSizePolicy, QWizardPage, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, \
+    QRadioButton, QButtonGroup, QFileDialog, QMessageBox, QFrame, QLineEdit
+from ocvl.function.gui import constructors
+from ocvl.function.gui import import_generation
+from ocvl.function.gui.import_generation import build_form_from_template, generate_json
 
-bold = QtGui.QFont()
-bold.setBold(True)
 
 class TextColor:
     BOLD_START = '\033[1m'
@@ -52,6 +49,9 @@ class HoverWidget(QWidget):
         self.tooltip_label.setText(self.placeholder_text)
 
 class MainWizard(QWizard):
+    bold = QtGui.QFont()
+    bold.setBold(True)
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -474,7 +474,7 @@ class PreanalysisPage(QWizardPage):
             return wrapper
 
         splitter1 = QLabel("Formats:")
-        splitter1.setFont(bold)
+        splitter1.setFont(MainWizard.bold)
 
         # Image Format
         image_layout = QHBoxLayout()
@@ -513,7 +513,7 @@ class PreanalysisPage(QWizardPage):
         recursive_widget = create_hover_widget(recursive_layout, "Recursive Search: If enabled, subfolders will be searched recursively.")
 
         splitter2 = QLabel("Pipeline Parameters:")
-        splitter2.setFont(bold)
+        splitter2.setFont(MainWizard.bold)
 
         # Modalities
         self.modalities_layout = QHBoxLayout()
