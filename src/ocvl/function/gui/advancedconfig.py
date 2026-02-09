@@ -1,10 +1,11 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout,
-                               QLabel, QPushButton, QHBoxLayout,
-                               QScrollArea, QMainWindow, QFileDialog, QMessageBox, QCheckBox)
+                               QLabel, QHBoxLayout,
+                               QScrollArea, QFileDialog, QMessageBox)
 from PySide6.QtCore import Qt
 import json
 
-from ocvl.function.gui import constructors
+from src.ocvl.function.gui import constructors
+
 
 class version_layer(QWidget):
     def __init__(self, parent=None):

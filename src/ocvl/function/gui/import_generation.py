@@ -1,4 +1,4 @@
-from ocvl.function.gui.constructors import *
+from src.ocvl.function.gui.constructors import *
 from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget
 from PySide6.QtCore import Qt
 

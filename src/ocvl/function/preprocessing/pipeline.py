@@ -23,24 +23,21 @@ from pathlib import Path, PurePath
 import cv2
 import numpy as np
 import multiprocessing as mp
-from tkinter import *
 from tkinter import filedialog, messagebox
 import matplotlib as mpl
-from PySide6.QtCore import QCoreApplication
-from PySide6.QtWidgets import QMessageBox, QWidget, QApplication
 from file_tag_parser.tags.file_tag_parser import FileTagParser
 from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from scipy.ndimage import gaussian_filter
 import pandas as pd
 import tifffile as tiff
 
-from ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
+from src.ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
-from ocvl.function.utility.dataset import  preprocess_dataset, initialize_and_load_dataset
-from ocvl.function.utility.json_format_constants import  DataTags, MetaTags, PreAnalysisPipeline, AcquisiParams, \
+from src.ocvl.function.utility.dataset import  preprocess_dataset, initialize_and_load_dataset
+from src.ocvl.function.utility.json_format_constants import  DataTags, MetaTags, PreAnalysisPipeline, AcquisiParams, \
     ConfigFields, Analysis
-from ocvl.function.utility.log_formatter import LogFormatter
-from ocvl.function.utility.resources import save_video
+from src.ocvl.function.utility.log_formatter import LogFormatter
+from src.ocvl.function.utility.resources import save_video
 
 
 def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
@@ -413,7 +410,7 @@ if __name__ == "__main__":
     streamlogger.setLevel(logging.INFO)
     streamlogger.setFormatter(LogFormatter())
 
-    filelogger = logging.FileHandler("fcell_preanalysis_log.txt",mode="w")
+    filelogger = logging.FileHandler("fcell_preanalysis_log.txt", mode="w")
     filelogger.setLevel(logging.DEBUG)
     filelogger.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"))
 

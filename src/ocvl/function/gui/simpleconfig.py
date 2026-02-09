@@ -1536,8 +1536,8 @@ class analysis_display_params_indiv_summary_layer(QWidget):
         }
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout,
-                               QLabel, QPushButton, QHBoxLayout,
-                               QScrollArea, QMainWindow, QFileDialog, QMessageBox)
+                               QLabel, QHBoxLayout,
+                               QScrollArea, QFileDialog, QMessageBox)
 from PySide6.QtCore import Qt
 import json, constructors
 

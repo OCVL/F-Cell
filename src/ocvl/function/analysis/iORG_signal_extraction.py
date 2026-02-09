@@ -10,10 +10,10 @@ from numpy.polynomial import Polynomial
 from scipy.spatial import Delaunay
 from skimage.morphology import disk
 
-from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
-from ocvl.function.display.iORG_data_display import display_iORGs
-from ocvl.function.utility.dataset import Dataset
-from ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
+from src.ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals
+from src.ocvl.function.display.iORG_data_display import display_iORGs
+from src.ocvl.function.utility.dataset import Dataset
+from src.ocvl.function.utility.json_format_constants import SegmentParams, NormParams, ExclusionParams, STDParams, \
     SummaryParams, PreAnalysisPipeline, DebugParams, DisplayParams, Analysis
 from scipy.spatial.distance import pdist
 

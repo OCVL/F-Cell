@@ -27,7 +27,6 @@ dependencies = [
     "SimpleITK>=2.1.1",
     "setuptools>=80.9.0",
     "scikit-learn>=1.0.2",
-    "ssqueezepy>=0.6.3",
     "pynufft>=2022.2.3",
     "joblib>=1.1.0",
     "scikit-image>=0.19.2",

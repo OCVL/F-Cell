@@ -1,9 +1,8 @@
-import logging
 from pathlib import Path
 
 import pandas as pd
 
-from ocvl.function.utility.resources import load_video, save_video
+from src.ocvl.function.utility.resources import load_video, save_video
 
 
 

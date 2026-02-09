@@ -4,9 +4,8 @@ from PySide6 import QtGui
 from PySide6.QtGui import QFont, Qt
 from PySide6.QtWidgets import QWizard, QWidget, QSizePolicy, QWizardPage, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, \
     QRadioButton, QButtonGroup, QFileDialog, QMessageBox, QFrame, QLineEdit
-from ocvl.function.gui import constructors
-from ocvl.function.gui import import_generation
-from ocvl.function.gui.import_generation import build_form_from_template, generate_json
+from src.ocvl.function.gui import constructors
+from src.ocvl.function.gui.import_generation import build_form_from_template, generate_json
 
 
 class TextColor:
@@ -619,7 +618,6 @@ class AnalysisPage(QWizardPage):
         self.setTitle("Analysis Pipeline Setup")
         self.setSubTitle('Configure analysis pipeline below')
 
-        from PySide6.QtCore import QEvent
         from PySide6.QtWidgets import QFrame, QSizePolicy
 
         bold = QFont()

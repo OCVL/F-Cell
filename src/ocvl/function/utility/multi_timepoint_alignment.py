@@ -1,14 +1,14 @@
 from pathlib import Path
 from tkinter import *
-from tkinter import filedialog, ttk, messagebox
+from tkinter import filedialog
 
 import cv2
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from ocvl.function.preprocessing.improc import relativize_image_stack, optimizer_stack_align
-from ocvl.function.utility.resources import save_tiff_stack
+from src.ocvl.function.preprocessing.improc import optimizer_stack_align
+from src.ocvl.function.utility.resources import save_tiff_stack
 
 if __name__ == "__main__":
 

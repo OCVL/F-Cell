@@ -4,9 +4,8 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 from matplotlib.collections import FillBetweenPolyCollection
 from matplotlib.lines import Line2D
-from matplotlib.patches import Polygon
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from ocvl.function.utility.json_format_constants import DisplayParams, MetricTags
+from src.ocvl.function.utility.json_format_constants import DisplayParams, MetricTags
 
 
 def _update_plot_colors(data_color):
