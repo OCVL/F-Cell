@@ -1,5 +1,9 @@
 # 𝑓(Cell) - Function of the Cell
 
+|         |                                                                                                      |
+|---------|------------------------------------------------------------------------------------------------------|
+| Package | [![PyPI Latest Release](https://img.shields.io/pypi/v/f-cell.svg)](https://pypi.org/project/f-cell/) |
+
 ## Introduction:
 This repository is where the OCVL does most of its optoretinography (abbreviated to ORG) software development. This software will always be open source, and available to any researcher using it for non-profit work. For the moment, the software is designed around intensity-based optoretinography, or iORG processing. That means that it is capable of processing/analyzing data from any en-face device that produces videos (not volumes), such as scanning laser ophthalmoscopes or line-scan ophthalmoscopes, and their adaptive optics variants (e.g. AO-SLO/AO-LSO/AO-FiO).
 
