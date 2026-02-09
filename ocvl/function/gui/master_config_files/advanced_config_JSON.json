@@ -1,6 +1,6 @@
 {
-  "version": "0.2",
-  "description": "The pipeline and analysis JSON for the OCVL's MEAOSLO.",
+  "version": "1.2.3.4.5",
+  "description": "A cunningly created pipeline and analysis JSON.",
   "preanalysis": {
     "image_format": "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}",
     "video_format": "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}",

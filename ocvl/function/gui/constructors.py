@@ -933,29 +933,29 @@ class FormatElementsEditor(QDialog):
     def update_tooltip(self, item):
         """Update tooltip box when hovering over available or selected elements."""
         tooltips = {
-            ":.1": "Format specifier for decimal precision (e.g., :.1 for 1 decimal place)",
-            "Day": "Calendar day (1-31)",
-            "Eye": "Eye designation (OD/OS for right/left eye)",
-            "FOV_Height": "Field of view height in pixels",
-            "FOV_Width": "Field of view width in pixels",
-            "IDnum": "Unique identifier number for the image",
-            "LocX": "X-coordinate location",
-            "LocY": "Y-coordinate location",
-            "Modality": "Imaging modality (e.g., OCT, Fundus)",
-            "Month": "Calendar month in numerical format (1-12)",
-            "VidNum": "Video number identifier",
-            "Year": "Calendar year (4 digits)",
+            ":.1": "Fixed length specifier for fields (e.g. Year:.4 means that Year will always have four characters)",
+            "Day": "The calendar day (numerical).",
+            "Eye": "Eye (OD/OS for right/left eye).",
+            "FOV_Height": "The imaging field of view height.",
+            "FOV_Width": "The imaging field of view width.",
+            "IDnum": "A unique identifier for the image.",
+            "LocX": "X-coordinate location.",
+            "LocY": "Y-coordinate location.",
+            "Modality": "Imaging modality (e.g., OCT, Fundus).",
+            "Month": "The calendar month (numerical).",
+            "VidNum": "Video number identifier.",
+            "Year": "The calendar year (numerical).",
         }
 
         if not item:
-            self.tooltip_label.setText("Hover over an element to see its description")
+            self.tooltip_label.setText("Hover over an element to see its description!")
             return
 
         # Check if this is from the selected list (has internal data)
         if hasattr(item, 'data') and item.data(Qt.UserRole):
             internal_text = item.data(Qt.UserRole)
             if internal_text.startswith("{Added Text:"):
-                self.tooltip_label.setText("Static text that will appear literally in the filename")
+                self.tooltip_label.setText("Static text that will always appear in the filename.")
                 return
             elif internal_text.startswith("{") and internal_text.endswith("}"):
                 # Format element - extract the base name

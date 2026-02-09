@@ -37,7 +37,7 @@ class description_layer(QWidget):
         collapsable_layout.setSpacing(30)
 
         label = QLabel("Description:")
-        self.description_value = constructors.FreetextBox("The pipeline and analysis JSON for the OCVL's MEAOSLO.")
+        self.description_value = constructors.FreetextBox("A cunningly created pipeline and analysis JSON.")
 
         collapsable_layout.addWidget(label)
         collapsable_layout.addWidget(self.description_value)
@@ -458,14 +458,14 @@ class preanalysis_pipeline_params_maskroi_layer(QWidget):
 
         r_layout = QHBoxLayout()
         r_layout.setSpacing(30)
-        r_label = QLabel("R:")
+        r_label = QLabel("Starting Row:")
         self.r_value = constructors.FreetextBox("0")
         r_layout.addWidget(r_label)
         r_layout.addWidget(self.r_value)
 
         c_layout = QHBoxLayout()
         c_layout.setSpacing(30)
-        c_label = QLabel("C:")
+        c_label = QLabel("Starting Column:")
         self.c_value = constructors.FreetextBox("0")
         c_layout.addWidget(c_label)
         c_layout.addWidget(self.c_value)

@@ -110,7 +110,7 @@ class MainWizard(QWizard):
 class IntroPage(QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setTitle("Welcome to the MEAO Configuration File Generator!")
+        self.setTitle("Welcome to the Marquette Engineering Adaptive Optics (MEAO) Configuration File Generator!")
         self.setSubTitle('To begin, choose if you wish to import an existing config file, or create a new one\n'
                          '• Note: Importing an existing config file will bring you to "advanced" setup')
 
@@ -767,9 +767,9 @@ class AdvancedSetupPage(QWizardPage):
             'You can edit any configuration field from here. For a more simple setup, go back and select "Simple Setup"\n'
             'Tip: Expand window for better visibility')
 
-        with open(r"ocvl/function/gui/master_config_files/advanced_config_JSON.json", "r") as f:
+        with open(r"master_config_files/advanced_config_JSON.json", "r") as f:
             advanced_config_json = json.load(f)
-        with open(r"ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
+        with open(r"master_config_files/master_JSON.json", "r") as f:
             self.master_json = json.load(f)
 
         scroll_area = QScrollArea()
@@ -1088,7 +1088,7 @@ class ImportEditorPage(QWizardPage):
         intro_page = wizard.page(0)
 
         if hasattr(intro_page, 'imported_config') and intro_page.imported_config:
-            with open(r"ocvl/function/gui/master_config_files/master_JSON.json", "r") as f:
+            with open(r"master_config_files/master_JSON.json", "r") as f:
                 master_json = json.load(f)
 
             self.form_widget = build_form_from_template(master_json, intro_page.imported_config)
