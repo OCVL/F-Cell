@@ -36,6 +36,7 @@ WIDGET_FACTORY = {
     "summaryComboBox": lambda config=None: DropdownMenu(default="null", options=["mean", "median"]),
     "typeComboBox": lambda config=None: DropdownMenu(default="null", options=["stim-relative", "absolute"]),
     "unitsComboBox": lambda config=None: DropdownMenu(default="null", options=["time", "frames"]),
+    "normComboBox": lambda config=None: DropdownMenu(default="score", options=["mean", "median", "none"]),
     "standardizationMethodComboBox": lambda config=None: DropdownMenu(default="null",
                                                           options=["mean_stddev", "stddev", "linear_stddev",
                                                                    "linear_vast", "relative_change", "none"]),

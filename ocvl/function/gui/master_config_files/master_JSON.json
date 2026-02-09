@@ -205,7 +205,7 @@
       },
       "normalization": {
         "method": {
-          "type": "score"
+          "type": "normComboBox"
         },
         "rescaled": {
           "type": "trueFalse"

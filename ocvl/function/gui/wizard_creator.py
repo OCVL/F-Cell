@@ -480,7 +480,7 @@ class PreanalysisPage(QWizardPage):
         image_layout = QHBoxLayout()
         image_layout.setAlignment(Qt.AlignLeft)
         image_label = QLabel("Image Format:")
-        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.tif", type='image')
+        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='image')
         image_layout.addWidget(image_label)
         image_layout.addWidget(self.image_format_value)
         image_widget = create_hover_widget(image_layout, "Image Format: Format string for image filenames.")
@@ -489,7 +489,7 @@ class PreanalysisPage(QWizardPage):
         video_layout = QHBoxLayout()
         video_layout.setAlignment(Qt.AlignLeft)
         video_label = QLabel("Video Format:")
-        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='video')
+        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='video')
         video_layout.addWidget(video_label)
         video_layout.addWidget(self.video_format_value)
         video_widget = create_hover_widget(video_layout, "Video Format: Format string for video filenames.")
@@ -498,7 +498,7 @@ class PreanalysisPage(QWizardPage):
         mask_layout = QHBoxLayout()
         mask_layout.setAlignment(Qt.AlignLeft)
         mask_label = QLabel("Mask Format:")
-        self.mask_format_value = constructors.FormatEditorWidget("Mask Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='mask')
+        self.mask_format_value = constructors.FormatEditorWidget("Mask Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='mask')
         mask_layout.addWidget(mask_label)
         mask_layout.addWidget(self.mask_format_value)
         mask_widget = create_hover_widget(mask_layout, "Mask Format: Format string for mask filenames.")
@@ -670,7 +670,7 @@ class AnalysisPage(QWizardPage):
         image_layout = QHBoxLayout()
         image_layout.setAlignment(Qt.AlignLeft)
         image_label = QLabel("Image Format:")
-        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.tif", type='image')
+        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='image')
         image_layout.addWidget(image_label)
         image_layout.addWidget(self.image_format_value)
         image_widget = create_hover_widget(image_layout, "Image Format: Format string for image filenames.")
@@ -678,7 +678,7 @@ class AnalysisPage(QWizardPage):
         queryloc_layout = QHBoxLayout()
         queryloc_layout.setAlignment(Qt.AlignLeft)
         queryloc_label = QLabel("Query Loc Format:")
-        self.queryloc_format_value = constructors.FormatEditorWidget("Queryloc Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.csv", type='queryloc')
+        self.queryloc_format_value = constructors.FormatEditorWidget("Queryloc Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='queryloc')
         queryloc_layout.addWidget(queryloc_label)
         queryloc_layout.addWidget(self.queryloc_format_value)
         queryloc_widget = create_hover_widget(queryloc_layout, "Query Loc Format: Filename format used to locate the reference location (query).")
@@ -686,7 +686,7 @@ class AnalysisPage(QWizardPage):
         video_layout = QHBoxLayout()
         video_layout.setAlignment(Qt.AlignLeft)
         video_label = QLabel("Video Format:")
-        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi", type='video')
+        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='video')
         video_layout.addWidget(video_label)
         video_layout.addWidget(self.video_format_value)
         video_widget = create_hover_widget(video_layout, "Video Format: Format string for video filenames.")
@@ -1112,28 +1112,14 @@ class EndPage(QWizardPage):
         self.setTitle("Generation Complete!")
         self.setSubTitle("JSON configuration file has been created")
 
-        # GIF setup
-        self.image = QLabel()
-        self.image.setAlignment(Qt.AlignCenter)
-        movie = QMovie("images/spincat.gif")
-        self.image.setMovie(movie)
-        movie.start()
-
         # Path label
         self.path_label = QLabel()
         self.path_label.setWordWrap(True)
         self.path_label.setAlignment(Qt.AlignCenter)
 
-        # Center the GIF using an HBox layout
-        image_layout = QHBoxLayout()
-        image_layout.addStretch()
-        image_layout.addWidget(self.image)
-        image_layout.addStretch()
-
         # Main layout
         layout = QVBoxLayout(self)
         layout.addWidget(self.path_label)
-        layout.addLayout(image_layout)
         layout.addStretch()
 
     def initializePage(self):
