@@ -400,19 +400,18 @@ def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", 
     plt.imshow(image, cmap='gray')
     ax.set_axis_off()
 
-    if ax_params.get(DisplayParams.XMIN, None) and ax_params.get(DisplayParams.XMAX, None) and ax_params.get(
-            DisplayParams.XSTEP, None):
-        histbins = np.arange(start=ax_params.get(DisplayParams.XMIN),
-                             stop=ax_params.get(DisplayParams.XMAX),
-                             step=ax_params.get(DisplayParams.XSTEP))
-    else:
+    starting = ax_params.get(DisplayParams.XMIN, np.nanpercentile(values, 1))
+    stopping = ax_params.get(DisplayParams.XMAX, np.nanpercentile(values, 99))
+    if starting is None:
         starting = np.nanpercentile(values, 1)
+    if stopping is None:
         stopping = np.nanpercentile(values, 99)
+
+    stepping = ax_params.get(DisplayParams.XSTEP, (stopping - starting) / 100)
+    if stepping is None:
         stepping = (stopping - starting) / 100
-        if stepping != 0:
-            histbins = np.arange(start=starting, stop=stopping, step=stepping)
-        else:
-            histbins = np.array([0, 1])
+
+    histbins = np.arange(start=starting, stop=stopping, step=stepping)
 
     normmap = mpl.colors.Normalize(vmin=histbins[0], vmax=histbins[-1], clip=True)
     mapper = plt.cm.ScalarMappable(cmap=plt.get_cmap(ax_params.get(DisplayParams.CMAP, "viridis")),

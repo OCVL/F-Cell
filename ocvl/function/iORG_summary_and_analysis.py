@@ -1332,3 +1332,5 @@ if __name__ == "__main__":
             sys.exit(2)
 
         allData_db = iORG_summary_and_analysis(pName, Path(json_fName))
+
+    input("Press any key to exit...")

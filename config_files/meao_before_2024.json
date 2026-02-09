@@ -167,10 +167,6 @@
         "control": false,
         "relative": false,
         "axes": {
-          "xmin": null,
-          "xmax": null,
-          "ymin": null,
-          "ymax": null,
           "cmap": "plasma"
         }
       },
@@ -181,9 +177,9 @@
         "org_video": false,
         "cross_group": true,
         "axes": {
-          "xmin": null,
+          "xmin": 2,
           "xstep": null,
-          "xmax": null,
+          "xmax": 3,
           "cmap": "plasma",
           "legend": true
         }

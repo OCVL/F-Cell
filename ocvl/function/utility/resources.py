@@ -62,7 +62,7 @@ def load_video(video_path, video_field=None):
                 return None
 
             i = 1
-            with tqdm(total=num_frames,bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.WHITE, Fore.GREEN, Fore.WHITE)), unit="frm") as pbar:
+            with tqdm(total=num_frames-1,bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.WHITE, Fore.GREEN, Fore.WHITE)), unit="frm") as pbar:
                 while vid.isOpened():
                     ret, frm = vid.read()
                     if ret:
@@ -71,6 +71,7 @@ def load_video(video_path, video_field=None):
                         pbar.update(1)
                         pbar.set_description(f"Loading frame {i}")
                     else:
+                        pbar.set_description(f"Successfully loaded dataset")
                         break
 
             vid.release()
