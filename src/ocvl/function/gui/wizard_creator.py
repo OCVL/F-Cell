@@ -20,6 +20,7 @@ class TextColor:
     YELLOW = '\033[93m'
     RED = '\033[91m'
 
+
 def _clear_layout(layout):
     while layout and layout.count():
         item = layout.takeAt(0)
@@ -30,11 +31,14 @@ def _clear_layout(layout):
         elif item.layout():
             _clear_layout(item.layout())
 
+
 def has_modality(format_string):
     return "{Modality}" in format_string if format_string else False
 
+
 class HoverWidget(QWidget):
-    def __init__(self, tooltip_text, tooltip_label, placeholder_text="Hover over a field to see its description", *args, **kwargs):
+    def __init__(self, tooltip_text, tooltip_label, placeholder_text="Hover over a field to see its description", *args,
+                 **kwargs):
         super().__init__(*args, **kwargs)
         self.tooltip_text = tooltip_text
         self.tooltip_label = tooltip_label
@@ -46,6 +50,7 @@ class HoverWidget(QWidget):
 
     def leaveEvent(self, event):
         self.tooltip_label.setText(self.placeholder_text)
+
 
 class MainWizard(QWizard):
     bold = QtGui.QFont()
@@ -231,6 +236,7 @@ class IntroPage(QWizardPage):
             return 7
         return 1
 
+
 class SelectionPage(QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -281,7 +287,6 @@ class SelectionPage(QWizardPage):
             wrapper.leaveEvent = lambda event: self.tooltip_label.setText(placeholder)
             return wrapper
 
-
         # Label
         label = QLabel("Choose type of generation:")
         center_layout.addWidget(label)
@@ -331,7 +336,6 @@ class SelectionPage(QWizardPage):
 
         center_layout.addLayout(button_layout)
 
-
         # Add to outer layout
         outer_layout.addLayout(center_layout)
 
@@ -346,6 +350,7 @@ class SelectionPage(QWizardPage):
         elif self.adv_button.isChecked():
             return 5
         return 2
+
 
 class VerDescriptionPage(QWizardPage):
     def __init__(self, parent=None):
@@ -410,7 +415,8 @@ class VerDescriptionPage(QWizardPage):
         self.description_value.setFixedWidth(400)
         description_layout.addWidget(description_label)
         description_layout.addWidget(self.description_value)
-        description_widget = create_hover_widget(description_layout, "Description: A brief explanation of what this configuration does.")
+        description_widget = create_hover_widget(description_layout,
+                                                 "Description: A brief explanation of what this configuration does.")
 
         # Add to layout
         main_layout.addWidget(version_widget, alignment=Qt.AlignLeft)
@@ -479,7 +485,9 @@ class PreanalysisPage(QWizardPage):
         image_layout = QHBoxLayout()
         image_layout.setAlignment(Qt.AlignLeft)
         image_label = QLabel("Image Format:")
-        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='image')
+        self.image_format_value = constructors.FormatEditorWidget("Image Format:",
+                                                                  "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}",
+                                                                  type='image')
         image_layout.addWidget(image_label)
         image_layout.addWidget(self.image_format_value)
         image_widget = create_hover_widget(image_layout, "Image Format: Format string for image filenames.")
@@ -488,7 +496,9 @@ class PreanalysisPage(QWizardPage):
         video_layout = QHBoxLayout()
         video_layout.setAlignment(Qt.AlignLeft)
         video_label = QLabel("Video Format:")
-        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='video')
+        self.video_format_value = constructors.FormatEditorWidget("Video Format:",
+                                                                  "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}",
+                                                                  type='video')
         video_layout.addWidget(video_label)
         video_layout.addWidget(self.video_format_value)
         video_widget = create_hover_widget(video_layout, "Video Format: Format string for video filenames.")
@@ -497,7 +507,9 @@ class PreanalysisPage(QWizardPage):
         mask_layout = QHBoxLayout()
         mask_layout.setAlignment(Qt.AlignLeft)
         mask_label = QLabel("Mask Format:")
-        self.mask_format_value = constructors.FormatEditorWidget("Mask Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='mask')
+        self.mask_format_value = constructors.FormatEditorWidget("Mask Format:",
+                                                                 "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}",
+                                                                 type='mask')
         mask_layout.addWidget(mask_label)
         mask_layout.addWidget(self.mask_format_value)
         mask_widget = create_hover_widget(mask_layout, "Mask Format: Format string for mask filenames.")
@@ -509,7 +521,8 @@ class PreanalysisPage(QWizardPage):
         self.recursive_search_tf = constructors.TrueFalseSelector(False)
         recursive_layout.addWidget(recursive_label)
         recursive_layout.addWidget(self.recursive_search_tf)
-        recursive_widget = create_hover_widget(recursive_layout, "Recursive Search: If enabled, subfolders will be searched recursively.")
+        recursive_widget = create_hover_widget(recursive_layout,
+                                               "Recursive Search: If enabled, subfolders will be searched recursively.")
 
         splitter2 = QLabel("Pipeline Parameters:")
         splitter2.setFont(MainWizard.bold)
@@ -521,7 +534,8 @@ class PreanalysisPage(QWizardPage):
         self.modalities_list_creator = constructors.ListEditorWidget()
         self.modalities_layout.addWidget(modalities_label)
         self.modalities_layout.addWidget(self.modalities_list_creator)
-        modalities_widget = create_hover_widget(self.modalities_layout, "Modalities: List of imaging modalities (requires '{Modality}' in at least one format string to edit).")
+        modalities_widget = create_hover_widget(self.modalities_layout,
+                                                "Modalities: List of imaging modalities (requires '{Modality}' in at least one format string to edit).")
 
         # Alignment Reference
         alignment_layout = QHBoxLayout()
@@ -530,7 +544,8 @@ class PreanalysisPage(QWizardPage):
         self.alignment_ref_value = constructors.AlignmentModalitySelector(self.modalities_list_creator, "null")
         alignment_layout.addWidget(alignment_label)
         alignment_layout.addWidget(self.alignment_ref_value)
-        alignment_widget = create_hover_widget(alignment_layout, "Alignment Reference Modality: Reference modality used for alignment (Note at least one modality must be entered to edit).")
+        alignment_widget = create_hover_widget(alignment_layout,
+                                               "Alignment Reference Modality: Reference modality used for alignment (Note at least one modality must be entered to edit).")
 
         # Group By
         groupby_layout = QHBoxLayout()
@@ -545,7 +560,8 @@ class PreanalysisPage(QWizardPage):
         )
         groupby_layout.addWidget(groupby_label)
         groupby_layout.addWidget(self.groupby_value)
-        groupby_widget = create_hover_widget(groupby_layout, "Group By: Field used to group sessions across selected elements (optional, available options include those in format strings).")
+        groupby_widget = create_hover_widget(groupby_layout,
+                                             "Group By: Field used to group sessions across selected elements (optional, available options include those in format strings).")
 
         for key, widget in [("image_format", self.image_format_value),
                             ("video_format", self.video_format_value),
@@ -668,7 +684,9 @@ class AnalysisPage(QWizardPage):
         image_layout = QHBoxLayout()
         image_layout.setAlignment(Qt.AlignLeft)
         image_label = QLabel("Image Format:")
-        self.image_format_value = constructors.FormatEditorWidget("Image Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='image')
+        self.image_format_value = constructors.FormatEditorWidget("Image Format:",
+                                                                  "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}",
+                                                                  type='image')
         image_layout.addWidget(image_label)
         image_layout.addWidget(self.image_format_value)
         image_widget = create_hover_widget(image_layout, "Image Format: Format string for image filenames.")
@@ -676,15 +694,20 @@ class AnalysisPage(QWizardPage):
         queryloc_layout = QHBoxLayout()
         queryloc_layout.setAlignment(Qt.AlignLeft)
         queryloc_label = QLabel("Query Loc Format:")
-        self.queryloc_format_value = constructors.FormatEditorWidget("Queryloc Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='queryloc')
+        self.queryloc_format_value = constructors.FormatEditorWidget("Queryloc Format:",
+                                                                     "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}",
+                                                                     type='queryloc')
         queryloc_layout.addWidget(queryloc_label)
         queryloc_layout.addWidget(self.queryloc_format_value)
-        queryloc_widget = create_hover_widget(queryloc_layout, "Query Loc Format: Filename format used to locate the reference location (query).")
+        queryloc_widget = create_hover_widget(queryloc_layout,
+                                              "Query Loc Format: Filename format used to locate the reference location (query).")
 
         video_layout = QHBoxLayout()
         video_layout.setAlignment(Qt.AlignLeft)
         video_label = QLabel("Video Format:")
-        self.video_format_value = constructors.FormatEditorWidget("Video Format:", "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}", type='video')
+        self.video_format_value = constructors.FormatEditorWidget("Video Format:",
+                                                                  "{IDnum}_{Year}{Month}{Day}_{VidNum}_{Modality}",
+                                                                  type='video')
         video_layout.addWidget(video_label)
         video_layout.addWidget(self.video_format_value)
         video_widget = create_hover_widget(video_layout, "Video Format: Format string for video filenames.")
@@ -695,7 +718,8 @@ class AnalysisPage(QWizardPage):
         self.recursive_search_tf = constructors.TrueFalseSelector(False)
         recursive_layout.addWidget(recursive_label)
         recursive_layout.addWidget(self.recursive_search_tf)
-        recursive_widget = create_hover_widget(recursive_layout, "Recursive Search: If enabled, subfolders will be searched recursively.")
+        recursive_widget = create_hover_widget(recursive_layout,
+                                               "Recursive Search: If enabled, subfolders will be searched recursively.")
 
         splitter2 = QLabel("Pipeline Parameters:")
         splitter2.setFont(bold)
@@ -706,7 +730,8 @@ class AnalysisPage(QWizardPage):
         self.modalities_list_creator = constructors.ListEditorWidget()
         self.modalities_layout.addWidget(modalities_label)
         self.modalities_layout.addWidget(self.modalities_list_creator)
-        modalities_widget = create_hover_widget(self.modalities_layout, "Modalities: List of imaging modalities (requires '{Modality}' in at least one format string to edit).")
+        modalities_widget = create_hover_widget(self.modalities_layout,
+                                                "Modalities: List of imaging modalities (requires '{Modality}' in at least one format string to edit).")
 
         for key, widget in [("image_format", self.image_format_value),
                             ("video_format", self.video_format_value),
@@ -753,9 +778,9 @@ class AnalysisPage(QWizardPage):
         any_has_modality = image_has_modality or queryloc_has_modality or video_has_modality
         self.modalities_list_creator.setEnabled(any_has_modality)
 
-
     def nextId(self):
         return 6
+
 
 class AdvancedSetupPage(QWizardPage):
     def __init__(self, parent=None):
@@ -785,6 +810,7 @@ class AdvancedSetupPage(QWizardPage):
 
     def nextId(self):
         return 6
+
 
 class ReviewPage(QWizardPage):
     def __init__(self, parent=None):
@@ -817,18 +843,37 @@ class ReviewPage(QWizardPage):
             return "null"
         if isinstance(v, bool):
             return "true" if v else "false"
-        if isinstance(v, (int, float, str)):
+        if isinstance(v, (int, float)):
             return str(v)
+        if isinstance(v, str):
+            return v
+        if isinstance(v, dict):
+            # Format nested dicts as indented key-value pairs instead of Python dict string
+            if not v:
+                return "{}"
+            lines = ["{"]
+            for k, val in v.items():
+                formatted_val = self._fmt_value(val)
+                # Keep it simple - just indent nested values
+                if '\n' in formatted_val:
+                    lines.append(f"  {k}: {formatted_val.replace(chr(10), chr(10) + '  ')}")
+                else:
+                    lines.append(f"  {k}: {formatted_val}")
+            lines.append("}")
+            return "\n".join(lines)
         if isinstance(v, (list, tuple)):
             # render one item per line if long; inline if short
             if len(v) <= 3 and all(isinstance(x, (int, float, str)) for x in v):
                 return "[" + ", ".join(self._fmt_value(x) for x in v) + "]"
             return "\n• " + "\n• ".join(self._fmt_value(x) for x in v)
-        # fallback to JSON-ish for unusual objects
+        # fallback to str for unusual objects
         return str(v)
 
     def _mk_field(self, title, value):
-        lab = QLabel(f"<b>{title}:</b> {self._fmt_value(value)}")
+        formatted = self._fmt_value(value)
+        # Convert newlines to HTML breaks for proper display
+        formatted = formatted.replace('\n', '<br>')
+        lab = QLabel(f"<b>{title}:</b> {formatted}")
         lab.setWordWrap(True)
         lab.setStyleSheet(
             "QLabel { padding: 3px 6px; margin: 2px 0; border-left: 3px solid #007ACC; }"
@@ -865,12 +910,18 @@ class ReviewPage(QWizardPage):
                 pretty = self._titleize(k)
                 data_child = None if not isinstance(data_node, dict) else data_node.get(k, None)
 
-                if isinstance(tmpl_child, dict):
+                # FIX: Check if tmpl_child is a subsection dict or a leaf field dict
+                # Leaf fields have a "type" key (e.g., {"type": "freeFloat"})
+                # Subsections don't have a "type" key
+                is_subsection = isinstance(tmpl_child, dict) and "type" not in tmpl_child
+
+                if is_subsection:
                     # subsection (even if data_child is empty/None, still show header to match UI)
                     self._render_by_template(tmpl_child, data_child if isinstance(data_child, dict) else {}, pretty)
                 else:
-                    # leaf: show scalar value taken from data_node (or template default if missing)
-                    value = data_child if data_child is not None else tmpl_child
+                    # leaf: show scalar value taken from data_node
+                    # If data_child is None, show None (which _fmt_value will render as "null")
+                    value = data_child
                     self.container_layout.addWidget(self._mk_field(pretty, value))
             return
 
@@ -888,9 +939,14 @@ class ReviewPage(QWizardPage):
         for k, tmpl_child in template_node.items():
             if k in data_node:
                 dv = data_node[k]
-                if isinstance(tmpl_child, dict) and isinstance(dv, dict):
+                # FIX: Check if tmpl_child is a subsection or a leaf field
+                # Leaf fields have a "type" key, subsections don't
+                is_subsection = isinstance(tmpl_child, dict) and "type" not in tmpl_child
+
+                if is_subsection and isinstance(dv, dict):
                     pruned[k] = self._render_pruned_template(tmpl_child, dv)
                 else:
+                    # For leaf fields, keep the template dict (with "type" key)
                     pruned[k] = tmpl_child
         return pruned
 
@@ -960,7 +1016,7 @@ class ReviewPage(QWizardPage):
             self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
 
         # Start from the master template, then prune to only the keys actually present in the imported file
-        with open(r"ocvl/function/gui/master_config_files/master_JSON.json",
+        with open(r"master_config_files/master_JSON.json",
                   "r") as f:
             master_template = json.load(f)
 
@@ -1004,7 +1060,8 @@ class ReviewPage(QWizardPage):
                     "pipeline_params": {
                         "modalities": wiz.page(3).modalities_list_creator.get_list(),
                         "alignment_reference_modality": wiz.page(3).alignment_ref_value.get_value(),
-                        "group_by": None if wiz.page(3).groupby_value.get_value() == "null" else wiz.page(3).groupby_value.get_value(),
+                        "group_by": None if wiz.page(3).groupby_value.get_value() == "null" else wiz.page(
+                            3).groupby_value.get_value(),
                     }
                 },
                 "analysis": {
@@ -1103,6 +1160,7 @@ class ImportEditorPage(QWizardPage):
 
     def nextId(self):
         return 6
+
 
 class EndPage(QWizardPage):
     def __init__(self, parent=None):
