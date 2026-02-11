@@ -5,3 +5,9 @@ venv
 **/.idea/misc.xml
 **/.idea/workspace.xml
 **/.idea/tasks.xml
+build
+dist
+src/ocvl/function/fcell_log.txt
+src/ocvl/function/fcell_analysis_log.txt
+src/ocvl/function/preprocessing/fcell_preanalysis_log.txt
+src/f_cell.egg-info/

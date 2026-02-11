@@ -1,0 +1,460 @@
+#  Copyright (c) 2025. Robert F Cooper
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+import datetime
+import json
+import logging
+import os
+import sys
+from itertools import repeat
+from pathlib import Path, PurePath
+import cv2
+import numpy as np
+import multiprocessing as mp
+from tkinter import filedialog, messagebox
+import matplotlib as mpl
+from file_tag_parser.tags.file_tag_parser import FileTagParser
+from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
+from scipy.ndimage import gaussian_filter
+import pandas as pd
+import tifffile as tiff
+
+from src.ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
+    optimizer_stack_align
+from src.ocvl.function.utility.dataset import  preprocess_dataset, initialize_and_load_dataset
+from src.ocvl.function.utility.json_format_constants import  DataTags, MetaTags, PreAnalysisPipeline, AcquisiParams, \
+    ConfigFields, Analysis
+from src.ocvl.function.utility.log_formatter import LogFormatter
+from src.ocvl.function.utility.resources import save_video
+
+
+def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
+    """
+    The main entry point for running the pre-analysis pipeline for iORGs. This function performs all of the
+    stages described in the F(Cell) wiki, only taking in the root path for pre-analysis, as well as the path of the
+    configuration file.
+
+    :param preanalysis_path: The folder path that will be searched for the pre-analysis pipeline.
+    :param config_path: The file path to the .json configuration.
+    :return: The database of all data analyzed.
+    """
+    mpl.use('qtagg')
+
+    dt = datetime.datetime.now()
+    now_timestamp = dt.strftime("%Y%m%d_%H")
+
+    logger = logging.getLogger("ORG_Logger")
+
+
+    # Grab all the folders/data here.
+    filename_parser = FileTagParser.from_json(config_path, PreAnalysisPipeline.NAME)
+    dat_form = filename_parser.json_dict
+    allData = filename_parser.parse_path(preanalysis_path)
+
+    # If loading the file fails, tell the user, and return what data we could parse.
+    if allData.empty or allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
+        logger.warning("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
+        return allData
+
+
+    with mp.Pool(processes=int(np.round(mp.cpu_count()/2 ))) as pool:
+
+        preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME)
+        pipeline_params = preanalysis_dat_format.get(PreAnalysisPipeline.PARAMS)
+        modes_of_interest = pipeline_params.get(PreAnalysisPipeline.MODALITIES)
+        # If we didn't pick a modality that's of interest, then pick them all.
+        if AcquisiParams.MODALITY in allData.columns:
+            if modes_of_interest is None:
+                modes_of_interest = allData[AcquisiParams.MODALITY].unique().tolist()
+                logger.warning("NO MODALITIES SELECTED! Processing all....")
+        else:
+            modes_of_interest = [""]
+
+        alignment_ref_mode = pipeline_params.get(PreAnalysisPipeline.ALIGNMENT_REF_MODE)
+
+        if alignment_ref_mode is not None and alignment_ref_mode not in modes_of_interest:
+            modes_of_interest.append(alignment_ref_mode)
+
+        output_folder = pipeline_params.get(PreAnalysisPipeline.OUTPUT_FOLDER)
+        if output_folder is None:
+            output_folder = PurePath("Functional Pipeline_"+now_timestamp)
+        else:
+            output_folder = PurePath(output_folder+"_"+now_timestamp)
+
+        metadata_params = None
+        if preanalysis_dat_format.get(MetaTags.METATAG) is not None:
+            metadata_params = preanalysis_dat_format.get(MetaTags.METATAG)
+            metadata_form = metadata_params.get(DataFormat.METADATA)
+
+        acquisition = dict()
+
+        # Group files together based on location, modality, and video number
+        for mode in modes_of_interest:
+            modevids = allData.loc[allData[DataTags.MODALITY] == mode]
+            ref_modevids = allData.loc[allData[DataTags.MODALITY] == alignment_ref_mode]
+
+            vidnums = np.unique(modevids[DataTags.VIDEO_ID].to_numpy())
+            for num in vidnums:
+                # Find the rows associated with this video number, and
+                # extract the rows corresponding to this acquisition.
+                acquisition = modevids.loc[modevids[DataTags.VIDEO_ID] == num]
+                ref_acquisition = ref_modevids.loc[ref_modevids[DataTags.VIDEO_ID] == num]
+
+                if (acquisition[DataFormat.FORMAT_TYPE] == DataFormat.MASK).sum() <= 1 and \
+                        (acquisition[DataFormat.FORMAT_TYPE] == DataFormat.METADATA).sum() <= 1 and \
+                        (acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO).sum() == 1:
+
+                    video_info = acquisition.loc[acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO]
+                    ref_video_info = ref_acquisition.loc[ref_acquisition[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO]
+
+                    pre_filter = (allData[DataTags.MODALITY] == mode)
+                    dataset, _ = initialize_and_load_dataset(folder=allData.loc[video_info.index, AcquisiPaths.BASE_PATH].values[0],
+                                                             vidID=num, prefilter=pre_filter, database=allData, params=preanalysis_dat_format)
+
+                    dataset = dataset[0]
+
+                    if dataset is not None:
+                        # Run the preprocessing pipeline on this dataset, with params specified by the json.
+                        # When done, put it into the database.
+                        if alignment_ref_mode is not None and mode != alignment_ref_mode:
+
+                            pre_filter = (allData[DataTags.MODALITY] == alignment_ref_mode)
+                            ref_dataset, _ = initialize_and_load_dataset(folder=allData.loc[ref_video_info.index, AcquisiPaths.BASE_PATH].values[0],
+                                                                         vidID=num, prefilter=pre_filter, database=allData,
+                                                                         params=preanalysis_dat_format)
+
+                            logger.info("Preprocessing dataset using reference video for alignment...")
+                            allData.loc[video_info.index, AcquisiPaths.DATASET] = preprocess_dataset(dataset, pipeline_params, ref_dataset[0])
+                            print()
+                        else:
+                            logger.info("Preprocessing dataset...")
+                            allData.loc[video_info.index, AcquisiPaths.DATASET] = preprocess_dataset(dataset, pipeline_params)
+                            print()
+
+                    else:
+                        logger.warning("Unable to load dataset specified for vidnum: "+num)
+                else:
+                    logger.warning("Detected more than one video or mask associated with vidnum: "+num)
+
+
+        # Remove all entries without associated datasets.
+        allData.drop(allData[allData[AcquisiPaths.DATASET].isnull()].index, inplace=True)
+
+        if allData.empty:
+            logger.error("Failed to match any datasets with the provided configuration. Check your configuration to ensure it matches the data in the folder you selected.")
+            sys.exit(4)
+
+        grouping = pipeline_params.get(PreAnalysisPipeline.GROUP_BY)
+        if grouping is not None:
+            for row in allData.itertuples():
+                allData.loc[row.Index, PreAnalysisPipeline.GROUP_BY] = grouping.format_map(row._asdict())
+
+            groups = allData[PreAnalysisPipeline.GROUP_BY].unique().tolist()
+        else:
+            groups =[""] # If we don't have any groups, then just make the list an empty string.
+
+        for group in groups:
+            if group != "":
+                group_datasets = allData.loc[allData[PreAnalysisPipeline.GROUP_BY] == group]
+            else:
+                group_datasets = allData
+
+            group_folder = output_folder.joinpath(group)
+
+
+            ref_xforms=[]
+            dist_ref_idx=0
+            if alignment_ref_mode is not None:
+                logger.info("Selecting ideal central frame for REFERENCE mode and location: " + mode)
+                ref_modes = group_datasets.loc[group_datasets[DataTags.MODALITY] == alignment_ref_mode]
+
+                vidnums = ref_modes[DataTags.VIDEO_ID].to_numpy()
+                datasets = ref_modes[AcquisiPaths.DATASET].to_list()
+                if not datasets:
+                    continue
+                max_image_size = np.max(np.vstack([data.avg_image_data.shape for data in datasets]), axis=0)
+                avg_images = np.zeros(np.hstack((max_image_size, len(datasets))))
+                for d, data in enumerate(datasets):
+                    datsize = data.avg_image_data.shape
+                    avg_images[0:datsize[0], 0:datsize[1], d] = data.avg_image_data
+
+                dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
+                                                                            repeat(None),
+                                                                            np.arange(len(datasets)),
+                                                                            repeat(0.3)))
+                shift_info = dist_res.get()
+
+                # Determine the average
+                avg_loc_dist = np.zeros(len(shift_info))
+                f = 0
+                for allshifts in shift_info:
+                    allshifts = np.stack(allshifts)
+                    allshifts **= 2
+                    allshifts = np.sum(allshifts, axis=1)
+                    avg_loc_dist[f] = np.mean(np.sqrt(allshifts))  # Find the average distance to this reference.
+                    f += 1
+
+                avg_loc_idx = np.argsort(avg_loc_dist)
+                dist_ref_idx = avg_loc_idx[0]
+
+                logger.info("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
+
+                central_dataset = datasets[dist_ref_idx]
+
+                # Gaussian blur the data first before aligning, if requested
+                gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
+                align_dat = avg_images.copy()
+                if gausblur is not None and gausblur != 0.0:
+                    for f in range(avg_images.shape[-1]):
+                        align_dat[..., f] = gaussian_filter(avg_images[..., f], sigma=gausblur)
+
+                # Align the stack of average images from all datasets
+                align_dat, ref_xforms, inliers, avg_masks = optimizer_stack_align(align_dat,
+                                                                                  (align_dat > 0),
+                                                                                  dist_ref_idx,
+                                                                                  determine_initial_shifts=True,
+                                                                                  dropthresh=0.0,
+                                                                                  transformtype=pipeline_params.get(PreAnalysisPipeline.INTER_STACK_XFORM, "affine"))
+
+            for mode in modes_of_interest:
+
+                modevids = group_datasets.loc[group_datasets[DataTags.MODALITY] == mode]
+
+                vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
+                datasets = modevids[AcquisiPaths.DATASET].to_list()
+                if not datasets:
+                    continue
+                max_image_size = np.max(np.vstack([data.avg_image_data.shape for data in datasets]), axis=0)
+                avg_images = np.zeros( np.hstack( (max_image_size, len(datasets)) ) )
+                for d, data in enumerate(datasets):
+                    datsize = data.avg_image_data.shape
+                    avg_images[0:datsize[0], 0:datsize[1],  d] = data.avg_image_data
+
+                data_filenames = [data.video_path.stem for data in datasets]
+
+                if alignment_ref_mode is None:
+                    logger.info("Selecting ideal central frame for mode and location: "+mode)
+
+                    dist_res = pool.starmap_async(simple_image_stack_align, zip(repeat(avg_images),
+                                                                                repeat(None),
+                                                                                np.arange(len(datasets)),
+                                                                                repeat(0.3)))
+                    shift_info = dist_res.get()
+
+                    # Determine the average
+                    avg_loc_dist = np.zeros(len(shift_info))
+                    f = 0
+                    for allshifts in shift_info:
+                        allshifts = np.stack(allshifts)
+                        allshifts **= 2
+                        allshifts = np.sum(allshifts, axis=1)
+                        avg_loc_dist[f] = np.mean(np.sqrt(allshifts))  # Find the average distance to this reference.
+                        f += 1
+
+                    avg_loc_idx = np.argsort(avg_loc_dist)
+                    dist_ref_idx = avg_loc_idx[0]
+
+                    logger.info("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
+
+                    central_dataset = datasets[dist_ref_idx]
+
+                    # Gaussian blur the data first before aligning, if requested
+                    gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
+                    align_dat = avg_images.copy()
+                    if gausblur is not None and gausblur != 0.0:
+                        for f in range(avg_images.shape[-1]):
+                            align_dat[...,f] = gaussian_filter(avg_images[...,f], sigma=gausblur)
+
+                    # Align the stack of average images from all datasets
+                    align_dat, ref_xforms, inliers, avg_masks  = optimizer_stack_align(align_dat,
+                                                                                        (align_dat > 0),
+                                                                                        dist_ref_idx,
+                                                                                        determine_initial_shifts=True,
+                                                                                        dropthresh=0.0, transformtype=pipeline_params.get(PreAnalysisPipeline.INTER_STACK_XFORM, "affine"))
+                else:
+                    central_dataset = datasets[dist_ref_idx]
+
+                # Determine the filename for the superaverage using the central-most dataset.
+                pipelined_dat_format = dat_form.get(Analysis.NAME)
+                if pipelined_dat_format is not None:
+                    pipe_im_form = pipelined_dat_format.get(DataFormat.IMAGE)
+                    if pipe_im_form is not None:
+                        pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
+                    else:
+                        pipe_im_fname = "    "
+                else:
+                    pipe_im_fname = "    "
+
+                # Make sure our output folder exists.
+                central_dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder).mkdir(parents=True,
+                                                                                               exist_ok=True)
+
+                logger.info("Outputting data...")
+                for dataset, xform in zip(datasets, ref_xforms):
+
+                    # Make sure our output folder exists.
+                    dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder).mkdir(parents=True, exist_ok=True)
+
+                    (rows, cols) = dataset.video_data.shape[0:2]
+
+                    if pipelined_dat_format is not None:
+                        pipe_vid_form = pipelined_dat_format.get(DataFormat.VIDEO)
+                        pipe_mask_form = pipelined_dat_format.get(DataFormat.MASK)
+                        pipe_meta_form = pipelined_dat_format.get(MetaTags.METATAG)
+
+                        if pipe_vid_form is not None:
+                            pipe_vid_fname = pipe_vid_form.format_map(dataset.metadata)
+                        if pipe_mask_form is not None:
+                            pipe_mask_fname = pipe_mask_form.format_map(dataset.metadata)
+                        if pipe_meta_form is not None:
+                            pipe_meta_form = pipe_meta_form.get(DataFormat.METADATA)
+                            if pipe_meta_form is not None:
+                                pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
+                            else:
+                                pipe_meta_fname = Path(pipe_vid_form.format_map(dataset.metadata)).with_suffix(".csv")
+
+
+                    og_dtype = dataset.video_data.dtype
+                    vid_data = np.zeros( np.hstack( (max_image_size, dataset.num_frames) ), dtype=og_dtype )
+                    mask_dat = np.zeros( np.hstack( (max_image_size, dataset.num_frames) ), dtype=og_dtype)
+
+
+                    for i in range(dataset.num_frames):  # Make all of the data in our dataset relative as well.
+                        tmp = np.zeros(max_image_size)
+                        tmp[0:rows, 0:cols] = dataset.video_data[..., i].astype("float32")
+                        tmp[np.round(tmp) == 0] = np.nan
+                        tmp = cv2.warpAffine(tmp, xform,(max_image_size[1], max_image_size[0]),
+                                             flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
+                        tmp[np.isnan(tmp)] = 0
+                        vid_data[..., i] = tmp.astype(og_dtype)
+
+                        tmp = np.zeros(max_image_size)
+                        tmp[0:rows, 0:cols] = dataset.mask_data[..., i].astype("float32")
+                        tmp[np.round(tmp) == 0] = np.nan
+                        tmp = cv2.warpAffine(tmp, xform,(max_image_size[1], max_image_size[0]),
+                                             flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+                        tmp[np.isnan(tmp)] = 0
+                        mask_dat[..., i] = tmp.astype(og_dtype)
+
+                    out_meta = pd.DataFrame(dataset.framestamps, columns=["FrameStamps"])
+                    out_meta.to_csv(dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, pipe_meta_fname), index=False)
+                    croprect = save_video(dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, pipe_vid_fname), vid_data,
+                                          framerate=dataset.framerate)
+
+                # Apply the transforms to the unfiltered, cropped, etc. trimmed dataset, and output them to an ImageJ-compatible tif stack
+                stackmeta_for_IJ = {'Labels': data_filenames}
+
+                stackfname = central_dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, Path(pipe_im_fname[0:-4] + "_STK.tif"))
+                avg_images = avg_images.astype("float32")
+                with tiff.TiffWriter(stackfname, imagej=True) as tif_writer:
+
+                    for f in range(avg_images.shape[-1]):
+                        if inliers[f]:
+                            avg_images[...,f] = cv2.warpAffine(avg_images[...,f], ref_xforms[f],
+                                                        (avg_images.shape[1], avg_images.shape[0]),
+                                                        flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                                                        borderValue=np.nan)
+                        else:
+                            avg_images[..., f] = np.nan
+                        tif_writer.write(avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3], f], contiguous=True, metadata=stackmeta_for_IJ)
+
+                # Z Project each of our image types
+                avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images.astype("uint8"))
+
+                # Save the (now pipelined) datasets. First, we need to figure out if the user has a preferred
+                # pipeline filename structure.
+                cv2.imwrite(central_dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, pipe_im_fname),
+                            avg_avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3]])
+
+            # Outputs the metadata for the group to the group folder
+            group_datasets.to_csv(dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder, group + "_group_info.csv"), index=False)
+
+
+        out_json = Path(config_path).stem + "_" + now_timestamp + ".json"
+        out_json = dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(output_folder, out_json)
+
+        audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
+                           ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
+                           PreAnalysisPipeline.NAME : preanalysis_dat_format}
+
+        with open(out_json, 'w') as f:
+            json.dump(audit_json_dict, f, indent=2)
+
+
+    logging.debug("PK FIRE")
+    return allData
+
+if __name__ == "__main__":
+    mp.freeze_support()
+
+    pName = None
+    json_fName = Path()
+
+    # Set up our logger.
+    logger = logging.getLogger("ORG_Logger")
+    logger.propagate = False
+
+    streamlogger = logging.StreamHandler()
+    streamlogger.setLevel(logging.INFO)
+    streamlogger.setFormatter(LogFormatter())
+
+    filelogger = logging.FileHandler("fcell_preanalysis_log.txt", mode="w")
+    filelogger.setLevel(logging.DEBUG)
+    filelogger.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"))
+
+    logger.addHandler(streamlogger)
+    logger.addHandler(filelogger)
+    logger.setLevel(logging.INFO)
+
+    pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
+    if not pName:
+        sys.exit(1)
+
+    # We should be 3 levels up from here. Kinda jank, will need to change eventually
+    conf_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+
+    json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=conf_path,
+                                            filetypes=[("JSON Configuration Files", "*.json")])
+    if not json_fName:
+        sys.exit(2)
+
+    allData_db = preanalysis_pipeline(pName, Path(json_fName))
+
+    while allData_db is None or allData_db.empty or allData_db[allData_db[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
+        if allData_db[allData_db[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
+            tryagain = messagebox.askretrycancel("No videos detected.",
+                                                 "No video data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if not tryagain:
+                sys.exit(3)
+
+        if allData_db.empty:
+            tryagain = messagebox.askretrycancel("No data detected.",
+                                                 "No data detected in folder using patterns detected in json. \nSelect new config/folders (retry) or exit? (cancel)")
+            if tryagain:
+                sys.exit(3)
+
+        pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
+        if not pName:
+            sys.exit(1)
+
+        # We should be 3 levels up from here. Kinda jank, will need to change eventually
+        conf_path = Path(os.path.dirname(__file__)).parent.parent.joinpath("config_files")
+
+        json_fName = filedialog.askopenfilename(title="Select the configuration json file.", initialdir=conf_path,
+                                                filetypes=[("JSON Configuration Files", "*.json")])
+        if not json_fName:
+            sys.exit(2)
+
+        allData_db = preanalysis_pipeline(pName, Path(json_fName))

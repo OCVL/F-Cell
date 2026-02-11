@@ -1,0 +1,508 @@
+{
+  "version": {
+    "type": "freeText"
+  },
+  "description": {
+    "type": "freeText"
+  },
+  "raw" : {
+	"video_format": {
+      "type": "formatEditor",
+      "format_type" : "video",
+      "save": true
+    },
+	"metadata" : {
+      "type": {
+        "type": "freeText"
+      },
+	  "metadata_format": {
+        "type": "formatEditor",
+        "format_type" : "meta"
+      },
+	  "fields_to_load": {
+        "timestamps": {
+          "type": "freeText"
+        },
+		"stimulus_train": {
+          "type": "freeText"
+        }
+      }
+	}
+  },
+  "preanalysis": {
+    "image_format": {
+      "type": "formatEditor",
+      "format_type" : "image",
+      "save": true
+    },
+    "video_format": {
+      "type": "formatEditor",
+      "format_type" : "video",
+      "save": true
+    },
+    "mask_format": {
+      "type": "formatEditor",
+      "format_type" : "mask",
+      "save": true
+    },
+    "metadata": {
+      "type": {
+        "type": "freeText"
+      },
+      "metadata_format": {
+        "type": "formatEditor",
+        "format_type" : "meta"
+      },
+      "fields_to_load": {
+        "framestamps": {
+          "type": "freeText"
+        }
+      }
+    },
+    "recursive_search": {
+      "type": "trueFalse"
+    },
+    "pipeline_params": {
+      "gaus_blur": {
+        "type": "freeNumber"
+      },
+      "mask_roi": {
+        "r": {
+          "type": "freeNumber"
+        },
+        "c": {
+          "type": "freeNumber"
+        },
+        "width": {
+          "type": "freeNumber"
+        },
+        "height": {
+          "type": "freeNumber"
+        }
+      },
+      "modalities": {
+        "type": "listEditor",
+        "save": true,
+        "dependencies": {
+          "needed" : ["image_format", "video_format", "mask_format"],
+          "parent" : "preanalysis"
+        }
+      },
+      "alignment_reference_modality": {
+        "type": "comboBox",
+        "save" : true,
+        "dependencies": {
+          "needed" : "modalities",
+          "parent" : "pipeline_params"
+        }
+      },
+      "output_folder": {
+        "type": "openFolder"
+      },
+      "group_by": {
+        "type": "groupbyEditor",
+        "save" : true,
+        "dependencies": {
+          "needed" : ["image_format", "video_format", "mask_format"],
+          "parent" : "preanalysis"
+        }
+      },
+      "correct_torsion": {
+        "type": "trueFalse"
+      },
+      "intra_stack_xform": {
+        "type": "affineRigidSelector"
+      },
+      "inter_stack_xform": {
+        "type": "affineRigidSelector"
+      },
+      "flat_field": {
+        "type": "trueFalse"
+      },
+	  "custom": {
+		  "dewarp" : "freeText"
+	  },
+      "trim": {
+        "start_frm": {
+          "type": "freeNumber"
+        },
+        "end_frm": {
+          "type": "freeNumber"
+        }
+      }
+    }
+  },
+  "analysis": {
+    "image_format": {
+      "type": "formatEditor",
+      "format_type" : "image",
+      "save": true
+    },
+    "queryloc_format": {
+      "type": "formatEditor",
+      "format_type" : "queryloc",
+      "save": true
+    },
+    "video_format": {
+      "type": "formatEditor",
+      "format_type" : "video",
+      "save": true
+    },
+    "metadata": {
+      "type": {
+        "type": "freeText"
+      },
+      "metadata_format": {
+        "type": "formatEditor",
+        "format_type" : "meta"
+      },
+      "stimulus_sequence": {
+          "type": "freeText"
+      },
+      "fields_to_load": {
+        "framestamps": {
+          "type": "freeText"
+        }
+      }
+    },
+    "recursive_search": {
+      "type": "trueFalse"
+    },
+    "control": {
+      "location": {
+        "type": "freeText"
+      },
+      "folder_name": {
+        "type": "freeText"
+      }
+    },
+    "analysis_params": {
+      "modalities": {
+        "type": "listEditor",
+        "save" : true,
+        "dependencies": {
+          "needed" : ["image_format", "video_format", "queryloc_format"],
+          "parent" : "analysis"
+        }
+      },
+      "output_folder": {
+        "type": "openFolder"
+      },
+      "output_subfolder": {
+        "type": "trueFalse"
+      },
+      "output_subfolder_method": {
+        "type": "outputSubfolderMethodComboBox"
+      },
+      "output_indiv_stdize_orgs": {
+        "type": "trueFalse"
+      },
+      "output_sum_pop_orgs": {
+        "type": "trueFalse"
+      },
+      "output_sum_indiv_orgs": {
+        "type": "trueFalse"
+      },
+      "normalization": {
+        "method": {
+          "type": "normComboBox"
+        },
+        "rescaled": {
+          "type": "trueFalse"
+        },
+        "rescale_mean": {
+          "type": "freeNumber"
+        },
+        "rescale_std": {
+          "type": "freeNumber"
+        }
+      },
+      "segmentation": {
+        "refine_to_ref": {
+          "type": "trueFalse"
+        },
+        "refine_to_vid": {
+          "type": "trueFalse"
+        },
+        "radius": {
+          "type": "freeText"
+        },
+        "shape": {
+          "type": "shapeComboBox"
+        },
+        "summary": {
+          "type": "summaryComboBox"
+        },
+        "pixelwise": {
+          "type": "trueFalse"
+        }
+      },
+      "exclusion_criteria": {
+        "type": {
+          "type": "typeComboBox"
+        },
+        "units": {
+          "type": "unitsComboBox"
+        },
+        "start": {
+          "type": "freeNumber"
+        },
+        "stop": {
+          "type": "freeNumber"
+        },
+        "fraction": {
+          "type": "freeNumber"
+        }
+      },
+      "standardization": {
+        "method": {
+          "type": "standardizationMethodComboBox"
+        },
+        "type": {
+          "type": "typeComboBox"
+        },
+        "units": {
+          "type": "unitsComboBox"
+        },
+        "start": {
+          "type": "freeNumber"
+        }
+      },
+      "summary": {
+        "method": {
+          "type": "summaryMethodComboBox"
+        },
+        "control": {
+          "type": "controlComboBox"
+        },
+        "metrics": {
+          "type": {
+            "type": "listEditor"
+          },
+          "measured": {
+            "type": "freeText"
+          },
+          "units": {
+            "type": "freeText"
+          },
+          "prestim": {
+            "type": "rangeSelector"
+          },
+          "poststim": {
+            "type": "rangeSelector"
+          }
+        },
+        "indiv_cutoff": {
+          "type": "freeNumber"
+        }
+      },
+      "gaus_blur": {
+        "type": "freeNumber"
+      },
+      "mask_roi": {
+        "r": {
+          "type": "freeNumber"
+        },
+        "c": {
+          "type": "freeNumber"
+        },
+        "width": {
+          "type": "freeNumber"
+        },
+        "height": {
+          "type": "freeNumber"
+        }
+      }
+    },
+    "debug": {
+      "output_norm_video": {
+        "type": "trueFalse"
+      },
+      "plot_refine_to_ref": {
+        "type": "trueFalse"
+      },
+      "plot_refine_to_vid": {
+        "type": "trueFalse"
+      },
+      "plot_pop_extracted_orgs": {
+        "type": "trueFalse"
+      },
+      "plot_pop_stdize_orgs": {
+        "type": "trueFalse"
+      },
+      "plot_indiv_stdize_orgs": {
+        "type": "trueFalse"
+      },
+      "plot_valid_cells": {
+        "type": "trueFalse"
+      },
+      "stimulus": {
+        "type": "trueFalse"
+      },
+      "control": {
+        "type": "trueFalse"
+      },
+      "axes": {
+        "xmin": {
+          "type": "freeNumber"
+        },
+        "xmax": {
+          "type": "freeNumber"
+        },
+        "ymin": {
+          "type": "freeNumber"
+        },
+        "ymax": {
+          "type": "freeNumber"
+        },
+        "cmap": {
+          "type": "cmapSelector"
+        },
+        "legend": {
+          "type": "trueFalse"
+        }
+      }
+    },
+    "display_params": {
+      "pop_summary_overlap": {
+        "stimulus": {
+          "type": "trueFalse"
+        },
+        "control": {
+          "type": "trueFalse"
+        },
+        "relative": {
+          "type": "trueFalse"
+        },
+        "pooled": {
+          "type": "trueFalse"
+        },
+        "cross_group": {
+          "type": "trueFalse"
+        },
+        "annotations": {
+          "type": "trueFalse"
+        },
+        "axes": {
+          "xmin": {
+            "type": "freeNumber"
+          },
+          "xmax": {
+            "type": "freeNumber"
+          },
+          "ymin": {
+            "type": "freeNumber"
+          },
+          "ymax": {
+            "type": "freeNumber"
+          },
+          "cmap": {
+            "type": "cmapSelector"
+          },
+          "legend": {
+            "type": "trueFalse"
+          }
+        }
+      },
+      "pop_summary_seq": {
+        "stimulus": {
+          "type": "trueFalse"
+        },
+        "relative": {
+          "type": "trueFalse"
+        },
+        "num_in_seq": {
+          "type": "freeNumber"
+        },
+        "axes": {
+          "xmin": {
+            "type": "freeNumber"
+          },
+          "xmax": {
+            "type": "freeNumber"
+          },
+          "ymin": {
+            "type": "freeNumber"
+          },
+          "ymax": {
+            "type": "freeNumber"
+          },
+          "cmap": {
+            "type": "cmapSelector"
+          },
+          "legend": {
+            "type": "trueFalse"
+          }
+        }
+      },
+      "indiv_summary_overlap": {
+        "stimulus": {
+          "type": "trueFalse"
+        },
+        "control": {
+          "type": "trueFalse"
+        },
+        "relative": {
+          "type": "trueFalse"
+        },
+        "axes": {
+          "xmin": {
+            "type": "freeNumber"
+          },
+          "xmax": {
+            "type": "freeNumber"
+          },
+          "ymin": {
+            "type": "freeNumber"
+          },
+          "ymax": {
+            "type": "freeNumber"
+          },
+          "cmap": {
+            "type": "cmapSelector"
+          }
+        }
+      },
+      "indiv_summary": {
+        "histogram": {
+          "type": "trueFalse"
+        },
+        "cumulative_histogram": {
+          "type": "trueFalse"
+        },
+        "map_overlay": {
+          "type": "trueFalse"
+        },
+        "org_video": {
+          "type": "trueFalse"
+        },
+        "cross_group": {
+          "type": "trueFalse"
+        },
+        "axes": {
+          "xmin": {
+            "type": "freeNumber"
+          },
+          "xstep": {
+            "type": "freeNumber"
+          },
+          "xmax": {
+            "type": "freeNumber"
+          },
+          "cmap": {
+            "type": "cmapSelector"
+          },
+          "legend": {
+            "type": "trueFalse"
+          }
+        }
+      },
+      "saveas": {
+        "type": "saveasSelector"
+      },
+      "pause_per_folder": {
+        "type": "trueFalse"
+      }
+    }
+  }
+}
