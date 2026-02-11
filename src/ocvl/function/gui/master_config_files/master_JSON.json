@@ -64,20 +64,20 @@
     },
     "pipeline_params": {
       "gaus_blur": {
-        "type": "freeNumber"
+        "type": "freeFloat"
       },
       "mask_roi": {
         "r": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         },
         "c": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         },
         "width": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         },
         "height": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         }
       },
       "modalities": {
@@ -211,10 +211,10 @@
           "type": "trueFalse"
         },
         "rescale_mean": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         },
         "rescale_std": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         }
       },
       "segmentation": {
@@ -245,13 +245,13 @@
           "type": "unitsComboBox"
         },
         "start": {
-          "type": "freeNumber"
+          "type": "freeInt"
         },
         "stop": {
-          "type": "freeNumber"
+          "type": "freeInt"
         },
         "fraction": {
-          "type": "freeNumber"
+          "type": "freeInt"
         }
       },
       "standardization": {
@@ -265,7 +265,7 @@
           "type": "unitsComboBox"
         },
         "start": {
-          "type": "freeNumber"
+          "type": "freeInt"
         }
       },
       "summary": {
@@ -293,24 +293,24 @@
           }
         },
         "indiv_cutoff": {
-          "type": "freeNumber"
+          "type": "freeInt"
         }
       },
       "gaus_blur": {
-        "type": "freeNumber"
+        "type": "freeFloat"
       },
       "mask_roi": {
         "r": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         },
         "c": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         },
         "width": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         },
         "height": {
-          "type": "freeNumber"
+          "type": "freeFloat"
         }
       }
     },
@@ -344,16 +344,16 @@
       },
       "axes": {
         "xmin": {
-          "type": "freeNumber"
+          "type": "freeInt"
         },
         "xmax": {
-          "type": "freeNumber"
+          "type": "freeInt"
         },
         "ymin": {
-          "type": "freeNumber"
+          "type": "freeInt"
         },
         "ymax": {
-          "type": "freeNumber"
+          "type": "freeInt"
         },
         "cmap": {
           "type": "cmapSelector"
@@ -385,16 +385,16 @@
         },
         "axes": {
           "xmin": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "xmax": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "ymin": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "ymax": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "cmap": {
             "type": "cmapSelector"
@@ -412,20 +412,20 @@
           "type": "trueFalse"
         },
         "num_in_seq": {
-          "type": "freeNumber"
+          "type": "freeInt"
         },
         "axes": {
           "xmin": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "xmax": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "ymin": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "ymax": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "cmap": {
             "type": "cmapSelector"
@@ -447,16 +447,16 @@
         },
         "axes": {
           "xmin": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "xmax": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "ymin": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "ymax": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "cmap": {
             "type": "cmapSelector"
@@ -481,13 +481,13 @@
         },
         "axes": {
           "xmin": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "xstep": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "xmax": {
-            "type": "freeNumber"
+            "type": "freeInt"
           },
           "cmap": {
             "type": "cmapSelector"

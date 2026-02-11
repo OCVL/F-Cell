@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QVBoxLayout, QToolButton,
 from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QCheckBox
 
+
 class OptionalField(QWidget):
     def __init__(self, widget, default_checked=True):
         super().__init__()
@@ -34,6 +35,11 @@ class OptionalField(QWidget):
         return self.checkbox.isChecked()
 
     def get_widget(self):
+        return self.inner_widget
+
+    # FIX: Add field_widget property for compatibility with import_generation.py
+    @property
+    def field_widget(self):
         return self.inner_widget
 
 
@@ -171,8 +177,10 @@ class ColorMapSelectorDialog(QDialog):
         selected_button = self.button_group.checkedButton()
         return selected_button.text() if selected_button else None
 
+
 class ListEditorWidget(QWidget):
     itemsChanged = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -216,6 +224,7 @@ class ListEditorWidget(QWidget):
         self.items = val
         self.update_label()
         self.itemsChanged.emit()
+
 
 class ListEditorDialog(QDialog):
     def __init__(self, items, parent=None):
@@ -1155,7 +1164,6 @@ class GroupByFormatEditorWidget(FormatEditorWidget):
         # Remove any empty strings that might have been added
         elements.discard('')
 
-
         return sorted(elements)
 
     def update_format_sources(self, image_format, video_format, mask_format):
@@ -1191,7 +1199,7 @@ class GroupByFormatEditorWidget(FormatEditorWidget):
         dialog.available_list.addItems(dialog.available_elements)
 
         if dialog.exec() == QDialog.Accepted:
-            new_format= dialog.get_format_string()
+            new_format = dialog.get_format_string()
             # Store empty string as "null" if the format is empty
             self.return_text = "null" if not new_format else new_format
             self.current_format = "null" if not new_format else new_format
@@ -1209,6 +1217,7 @@ class GroupByFormatEditorWidget(FormatEditorWidget):
             self.current_format = val
             self.return_text = val
             self.format_label.setText(val)
+
 
 class TrueFalseSelector(QWidget):
     def __init__(self, default_value=None, parent=None):
@@ -1279,6 +1288,7 @@ class AffineRigidSelector(QWidget):
             self.true_button.setChecked(True)
         else:
             self.false_button.setChecked(True)
+
 
 class DropdownMenu(QWidget):
     def __init__(self, default="", options=None, parent=None):
@@ -1779,6 +1789,7 @@ class AlignmentModalitySelector(QWidget):
         """Set the current modality"""
         self.comboBox.setCurrentText(value if value else "null")
 
+
 class freeFloat(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1798,11 +1809,12 @@ class freeFloat(QWidget):
         else:
             text = self.textbox.text()
 
-        # Return placeholder text if the field is empty
-        if text == "null" or "":
+        # FIX: Corrected logic - check if text is empty or "null"
+        if not text or text == "null":
             return None
-        elif text:
+        else:
             return text
+
 
 class freeInt(QWidget):
     def __init__(self, parent=None):
@@ -1823,14 +1835,15 @@ class freeInt(QWidget):
         else:
             text = self.textbox.text()
 
-        # Return placeholder text if the field is empty
-        if text == "null" or "":
+        # FIX: Corrected logic - check if text is empty or "null"
+        if not text or text == "null":
             return None
-        elif text:
+        else:
             return text
 
+
 class rangeSelector(QWidget):
-    def __init__(self, def_min = None, def_max = None, parent=None):
+    def __init__(self, def_min=None, def_max=None, parent=None):
         super().__init__(parent)
 
         main_layout = QHBoxLayout(self)
