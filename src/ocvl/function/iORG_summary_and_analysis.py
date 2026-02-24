@@ -1220,10 +1220,14 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     out_json = Path(config_path).stem + "_ran_at_" + start_timestamp + ".json"
                     out_json = result_path.joinpath(out_json)
 
+                    toml_version = importlib.metadata.version("f-cell")
+
                     audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
                                        ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
                                        PreAnalysisPipeline.NAME: preanalysis_dat_format,
                                        Analysis.NAME: analysis_dat_format}
+
+                    audit_json_dict["runtime-version"] = toml_version
 
                     with open(out_json, 'w') as f:
                         json.dump(audit_json_dict, f, indent=2)

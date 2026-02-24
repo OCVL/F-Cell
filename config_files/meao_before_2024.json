@@ -32,7 +32,8 @@
         "width": -1,
         "height": -1
       },
-      "modalities": ["760nm"],
+      "alignment_reference_modality": "760nm",
+      "modalities": ["760nm", "CalculatedSplit"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
@@ -45,10 +46,10 @@
   "analysis": {
     "image_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_ALL_ACQ_AVG.tif",
     "queryloc_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_ALL_ACQ_AVG_{QueryLoc:s?}coords.csv",
-    "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_piped.avi",
+    "video_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_extract_reg_cropped_piped.avi",
     "metadata": {
       "type": "text_file",
-      "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}{:.1}_extract_reg_cropped_piped.csv",
+      "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_extract_reg_cropped_piped.csv",
       "fields_to_load": {
         "framestamps": "FrameStamps"
       }

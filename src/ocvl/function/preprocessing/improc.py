@@ -418,7 +418,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
     pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)), unit="frm")
 
     for f in pbar:
-        pbar.set_description(f"Refining frame {f} of {num_frames}")
+        pbar.set_description(f"Refining frame {f+1} of {num_frames}")
 
         eroded_mask[..., f] = binary_erosion(mask_stack[..., f], structure=np.ones((21, 21)))
 
@@ -455,7 +455,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
     pbar = tqdm(range(num_frames), bar_format=("%s{l_bar}%s{bar}%s{r_bar}" % (Fore.GREEN, Fore.GREEN, Fore.GREEN)), unit="frm")
 
     for f in pbar:
-        pbar.set_description( f"Aligning frame {f} of {num_frames}")
+        pbar.set_description( f"Aligning frame {f+1} of {num_frames}")
 
         if transformtype == "rigid":
             xForm = sitk.Euler2DTransform()

@@ -14,6 +14,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import datetime
+import importlib.metadata
 import json
 import logging
 import os
@@ -334,7 +335,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                     for i in range(dataset.num_frames):  # Make all of the data in our dataset relative as well.
                         tmp = np.zeros(max_image_size)
                         tmp[0:rows, 0:cols] = dataset.video_data[..., i].astype("float32")
-                        tmp[np.round(tmp) == 0] = np.nan
+                        tmp[tmp == 0] = np.nan
                         tmp = cv2.warpAffine(tmp, xform,(max_image_size[1], max_image_size[0]),
                                              flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
                         tmp[np.isnan(tmp)] = 0
@@ -385,9 +386,11 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
         out_json = Path(config_path).stem + "_" + now_timestamp + ".json"
         out_json = dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(output_folder, out_json)
 
-        audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
-                           ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
-                           PreAnalysisPipeline.NAME : preanalysis_dat_format}
+        toml_version = importlib.metadata.version("f-cell")
+
+        # Export the full json used.
+        audit_json_dict = dat_form
+        audit_json_dict["runtime-version"] = toml_version
 
         with open(out_json, 'w') as f:
             json.dump(audit_json_dict, f, indent=2)
