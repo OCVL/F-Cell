@@ -14,10 +14,12 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import gc
+import importlib
 import json
 import os
 import multiprocessing as mp
 import sys
+import tomllib
 import warnings
 from pathlib import Path, PurePath
 from tkinter import filedialog,  messagebox
@@ -1220,14 +1222,23 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     out_json = Path(config_path).stem + "_ran_at_" + start_timestamp + ".json"
                     out_json = result_path.joinpath(out_json)
 
-                    toml_version = importlib.metadata.version("f-cell")
+                    if "f-cell" in sys.modules:
+                        version = importlib.metadata.version("f-cell")
+                    else:
+                        # If it's not in the modules, then assume we're running this for debugging, testing, or otherwise locally.
+                        try:
+                            with open(".../../../pyproject.toml", "rb") as f:
+                                toml_dict = tomllib.load(f)
+                                version = toml_dict["project"].get("version", "unknown")
+                        except FileNotFoundError:
+                            version = "unknown"
 
                     audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
                                        ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
                                        PreAnalysisPipeline.NAME: preanalysis_dat_format,
                                        Analysis.NAME: analysis_dat_format}
 
-                    audit_json_dict["runtime-version"] = toml_version
+                    audit_json_dict["runtime-version"] = version
 
                     with open(out_json, 'w') as f:
                         json.dump(audit_json_dict, f, indent=2)

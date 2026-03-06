@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "f-cell"
-version = "0.3.7"
+version = "0.3.11"
 readme = "README.md"
 description = "A software library for reproducible analysis of optoretinograms."
 authors = [

@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import sys
+import tomllib
 from itertools import repeat
 from pathlib import Path, PurePath
 import cv2
@@ -212,8 +213,6 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
                 logger.info("Determined most central dataset with video number: " + str(vidnums[dist_ref_idx]) + ".")
 
-                central_dataset = datasets[dist_ref_idx]
-
                 # Gaussian blur the data first before aligning, if requested
                 gausblur = pipeline_params.get(PreAnalysisPipeline.GAUSSIAN_BLUR)
                 align_dat = avg_images.copy()
@@ -294,38 +293,44 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                     if pipe_im_form is not None:
                         pipe_im_fname = pipe_im_form.format_map(central_dataset.metadata)
                     else:
-                        pipe_im_fname = "    "
+                        pipe_im_fname = mode+"_ALL_AVG"
                 else:
-                    pipe_im_fname = "    "
+                    pipe_im_fname = mode+"_ALL_AVG"
 
                 # Make sure our output folder exists.
                 central_dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder).mkdir(parents=True,
                                                                                                exist_ok=True)
 
-                logger.info("Outputting data...")
+                logger.info("Outputting:")
                 for dataset, xform in zip(datasets, ref_xforms):
-
+                    logger.info(dataset.video_path)
                     # Make sure our output folder exists.
                     dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(group_folder).mkdir(parents=True, exist_ok=True)
 
                     (rows, cols) = dataset.video_data.shape[0:2]
 
                     if pipelined_dat_format is not None:
-                        pipe_vid_form = pipelined_dat_format.get(DataFormat.VIDEO)
-                        pipe_mask_form = pipelined_dat_format.get(DataFormat.MASK)
-                        pipe_meta_form = pipelined_dat_format.get(MetaTags.METATAG)
+                        pipe_vid_form = pipelined_dat_format.get(DataFormat.VIDEO, preanalysis_dat_format.get(DataFormat.VIDEO))
+                        pipe_mask_form = pipelined_dat_format.get(DataFormat.MASK, preanalysis_dat_format.get(DataFormat.MASK))
+                        pipe_meta_form = pipelined_dat_format.get(MetaTags.METATAG, preanalysis_dat_format.get(MetaTags.METATAG))
+                    else:
+                        logger.warning("No analysis configuration found. All analysis-ready data will have the same filenames as the processed data.")
+                        pipe_vid_form = preanalysis_dat_format.get(DataFormat.VIDEO)
+                        pipe_mask_form = preanalysis_dat_format.get(DataFormat.MASK)
+                        pipe_meta_form = preanalysis_dat_format.get(MetaTags.METATAG)
 
-                        if pipe_vid_form is not None:
-                            pipe_vid_fname = pipe_vid_form.format_map(dataset.metadata)
-                        if pipe_mask_form is not None:
-                            pipe_mask_fname = pipe_mask_form.format_map(dataset.metadata)
+                    if pipe_vid_form is not None:
+                        pipe_vid_fname = pipe_vid_form.format_map(dataset.metadata)
+                    else:
+                        logger.critical("Unable to determine output video format.")
+                        return
+
+                    if pipe_meta_form is not None:
+                        pipe_meta_form = pipe_meta_form.get(DataFormat.METADATA)
                         if pipe_meta_form is not None:
-                            pipe_meta_form = pipe_meta_form.get(DataFormat.METADATA)
-                            if pipe_meta_form is not None:
-                                pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
-                            else:
-                                pipe_meta_fname = Path(pipe_vid_form.format_map(dataset.metadata)).with_suffix(".csv")
-
+                            pipe_meta_fname = pipe_meta_form.format_map(dataset.metadata)
+                        else:
+                            pipe_meta_fname = Path(pipe_vid_form.format_map(dataset.metadata)).with_suffix(".csv")
 
                     og_dtype = dataset.video_data.dtype
                     vid_data = np.zeros( np.hstack( (max_image_size, dataset.num_frames) ), dtype=og_dtype )
@@ -369,7 +374,8 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
                                                         borderValue=np.nan)
                         else:
                             avg_images[..., f] = np.nan
-                        tif_writer.write(avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3], f], contiguous=True, metadata=stackmeta_for_IJ)
+                        tif_writer.write(avg_images[croprect[0]:croprect[1], croprect[2]:croprect[3], f], contiguous=True,
+                                         metadata=stackmeta_for_IJ)
 
                 # Z Project each of our image types
                 avg_avg_images, avg_avg_mask = weighted_z_projection(avg_images.astype("uint8"))
@@ -386,11 +392,20 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
         out_json = Path(config_path).stem + "_" + now_timestamp + ".json"
         out_json = dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(output_folder, out_json)
 
-        toml_version = importlib.metadata.version("f-cell")
+        if "f-cell" in sys.modules:
+            version = importlib.metadata.version("f-cell")
+        else:
+            # If it's not in the modules, then assume we're running this for debugging, testing, or otherwise locally.
+            try:
+                with open("../../../../pyproject.toml", "rb") as f:
+                    toml_dict = tomllib.load(f)
+                    version = toml_dict["project"].get("version", "unknown")
+            except FileNotFoundError:
+                version = "unknown"
 
         # Export the full json used.
         audit_json_dict = dat_form
-        audit_json_dict["runtime-version"] = toml_version
+        audit_json_dict["runtime-version"] = version
 
         with open(out_json, 'w') as f:
             json.dump(audit_json_dict, f, indent=2)
@@ -461,3 +476,4 @@ if __name__ == "__main__":
             sys.exit(2)
 
         allData_db = preanalysis_pipeline(pName, Path(json_fName))
+        input("Press any key to exit...")
