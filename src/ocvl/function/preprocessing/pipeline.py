@@ -179,7 +179,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
             dist_ref_idx=0
             if alignment_ref_mode is not None:
                 logger.info("Selecting ideal central frame for REFERENCE mode and location: " + mode)
-                ref_modes = group_datasets.loc[group_datasets[DataTags.MODALITY] == alignment_ref_mode]
+                ref_modes = group_datasets.loc[group_datasets[DataTags.MODALITY] == alignment_ref_mode].sort_values(by=[DataTags.VIDEO_ID])
 
                 vidnums = ref_modes[DataTags.VIDEO_ID].to_numpy()
                 datasets = ref_modes[AcquisiPaths.DATASET].to_list()
@@ -231,7 +231,7 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
 
             for mode in modes_of_interest:
 
-                modevids = group_datasets.loc[group_datasets[DataTags.MODALITY] == mode]
+                modevids = group_datasets.loc[group_datasets[DataTags.MODALITY] == mode].sort_values(by=[DataTags.VIDEO_ID])
 
                 vidnums = modevids[DataTags.VIDEO_ID].to_numpy()
                 datasets = modevids[AcquisiPaths.DATASET].to_list()
