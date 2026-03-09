@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from src.ocvl.function.preprocessing.improc import optimizer_stack_align
-from src.ocvl.function.utility.resources import save_tiff_stack
+from ocvl.function.preprocessing.improc import optimizer_stack_align
+from ocvl.function.utility.resources import save_tiff_stack
 
 if __name__ == "__main__":
 

@@ -33,13 +33,19 @@ from scipy.ndimage import gaussian_filter
 import pandas as pd
 import tifffile as tiff
 
-from src.ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
+from ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
-from src.ocvl.function.utility.dataset import  preprocess_dataset, initialize_and_load_dataset
-from src.ocvl.function.utility.json_format_constants import  DataTags, MetaTags, PreAnalysisPipeline, AcquisiParams, \
+from ocvl.function.utility.dataset import  preprocess_dataset, initialize_and_load_dataset
+from ocvl.function.utility.json_format_constants import  DataTags, MetaTags, PreAnalysisPipeline, AcquisiParams, \
     ConfigFields, Analysis
-from src.ocvl.function.utility.log_formatter import LogFormatter
-from src.ocvl.function.utility.resources import save_video
+from ocvl.function.utility.log_formatter import LogFormatter
+from ocvl.function.utility.resources import save_video
+
+# hooksconfig = {
+#     "matplotlib": {
+#         "backends": ["QtAgg", "SVG"],
+#     },
+# },
 
 
 def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
@@ -435,6 +441,19 @@ if __name__ == "__main__":
     logger.addHandler(streamlogger)
     logger.addHandler(filelogger)
     logger.setLevel(logging.INFO)
+
+    if "f-cell" in sys.modules:
+        version = importlib.metadata.version("f-cell")
+    else:
+        # If it's not in the modules, then assume we're running this for debugging, testing, or otherwise locally.
+        try:
+            with open("../../../../pyproject.toml", "rb") as f:
+                toml_dict = tomllib.load(f)
+                version = toml_dict["project"].get("version", "unknown")
+        except FileNotFoundError:
+            version = "unknown"
+
+    logger.info("F-Cell, version: " + version)
 
     pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
     if not pName:

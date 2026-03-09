@@ -13,12 +13,12 @@ import pandas as pd
 from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from scipy.ndimage import gaussian_filter
 
-from src.ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection, \
+from ocvl.function.preprocessing.improc import optimizer_stack_align, dewarp_2D_data, flat_field, weighted_z_projection, \
     norm_video
-from src.ocvl.function.utility.json_format_constants import DataTags, MetaTags, AcquisiParams, \
+from ocvl.function.utility.json_format_constants import DataTags, MetaTags, AcquisiParams, \
     PreAnalysisPipeline, \
     Analysis, NormParams, DebugParams, DisplayParams, SegmentParams
-from src.ocvl.function.utility.resources import load_video, save_video, save_tiff_stack
+from ocvl.function.utility.resources import load_video, save_video, save_tiff_stack
 
 stimseq_fName = None
 

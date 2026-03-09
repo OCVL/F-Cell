@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-from src.ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align, weighted_z_projection
-from src.ocvl.function.utility.resources import load_video
+from ocvl.function.preprocessing.improc import dewarp_2D_data, optimizer_stack_align, weighted_z_projection
+from ocvl.function.utility.resources import load_video
 
 if __name__ == "__main__":
 

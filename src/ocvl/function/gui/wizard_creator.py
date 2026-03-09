@@ -4,8 +4,8 @@ from PySide6 import QtGui
 from PySide6.QtGui import QFont, Qt
 from PySide6.QtWidgets import QWizard, QWidget, QSizePolicy, QWizardPage, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, \
     QRadioButton, QButtonGroup, QFileDialog, QMessageBox, QFrame, QLineEdit
-from src.ocvl.function.gui import constructors
-from src.ocvl.function.gui.import_generation import build_form_from_template, generate_json
+from ocvl.function.gui import constructors
+from ocvl.function.gui.import_generation import build_form_from_template, generate_json
 
 
 class TextColor:

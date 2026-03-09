@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.ocvl.function.utility.resources import load_video, save_video
+from ocvl.function.utility.resources import load_video, save_video
 
 
 

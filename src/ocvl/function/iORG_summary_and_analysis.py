@@ -36,18 +36,18 @@ from datetime import datetime
 from matplotlib.lines import Line2D
 from scipy.stats import t
 
-from src.ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
-from src.ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
-from src.ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
+from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
+from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
+from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
-from src.ocvl.function.utility.dataset import initialize_and_load_dataset, Stages, \
+from ocvl.function.utility.dataset import initialize_and_load_dataset, Stages, \
     obtain_analysis_output_path
-from src.ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataTags, \
+from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataTags, \
     AcquisiParams, \
     SummaryParams, ControlParams, DisplayParams, \
     MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
-from src.ocvl.function.utility.log_formatter import LogFormatter
-from src.ocvl.function.utility.resources import  save_video
+from ocvl.function.utility.log_formatter import LogFormatter
+from ocvl.function.utility.resources import  save_video
 
 def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     """

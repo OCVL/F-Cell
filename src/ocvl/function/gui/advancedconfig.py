@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt
 import json
 
-from src.ocvl.function.gui import constructors
+from ocvl.function.gui import constructors
 
 
 class version_layer(QWidget):

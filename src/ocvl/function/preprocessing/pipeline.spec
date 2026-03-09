@@ -3,16 +3,16 @@
 
 a = Analysis(
     ['pipeline.py'],
-    pathex=[],
+    pathex=['C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\analysis', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\display', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\gui', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\preprocessing', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\utility', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function'],
     binaries=[],
     datas=[],
     hiddenimports=[],
     hookspath=[],
-    hooksconfig={
-		"matplotlib": {
-			"backends":["QtAgg","SVG"],
-		},
-	},
+    hooksconfig = {
+    "matplotlib": {
+        "backends": ["QtAgg", "SVG"],
+        },
+    },
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
