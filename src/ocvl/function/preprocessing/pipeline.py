@@ -18,6 +18,7 @@ import importlib.metadata
 import json
 import logging
 import os
+import platform
 import sys
 import tomllib
 from itertools import repeat
@@ -27,6 +28,7 @@ import numpy as np
 import multiprocessing as mp
 from tkinter import filedialog, messagebox
 import matplotlib as mpl
+
 from file_tag_parser.tags.file_tag_parser import FileTagParser
 from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from scipy.ndimage import gaussian_filter
@@ -40,12 +42,6 @@ from ocvl.function.utility.json_format_constants import  DataTags, MetaTags, Pre
     ConfigFields, Analysis
 from ocvl.function.utility.log_formatter import LogFormatter
 from ocvl.function.utility.resources import save_video
-
-# hooksconfig = {
-#     "matplotlib": {
-#         "backends": ["QtAgg", "SVG"],
-#     },
-# },
 
 
 def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
@@ -441,6 +437,13 @@ if __name__ == "__main__":
     logger.addHandler(streamlogger)
     logger.addHandler(filelogger)
     logger.setLevel(logging.INFO)
+
+    if platform.system() == "Windows":
+        import win32api
+        info = win32api.GetFileVersionInfo(Path(__file__).resolve(), '\\')
+        ms = info['FileVersionMS']
+        ls = info['FileVersionLS']
+        version = f"{win32api.HIWORD(ms)}.{win32api.LOWORD(ms)}.{win32api.HIWORD(ls)}.{win32api.LOWORD(ls)}"
 
     if "f-cell" in sys.modules:
         version = importlib.metadata.version("f-cell")

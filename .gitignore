@@ -11,3 +11,9 @@ src/ocvl/function/fcell_log.txt
 src/ocvl/function/fcell_analysis_log.txt
 src/ocvl/function/preprocessing/fcell_preanalysis_log.txt
 src/f_cell.egg-info/
+src/configs.ini
+src/ocvl/function/analysis_vinfo.txt
+src/ocvl/function/gui_vinfo.txt
+src/ocvl/function/preprocessing/pipe_vinfo.txt
+src/ocvl/function/configs.ini
+src/ocvl/function/gui/gui_vinfo.txt

@@ -3,10 +3,10 @@
 
 a = Analysis(
     ['pipeline.py'],
-    pathex=['C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\analysis', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\display', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\gui', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\preprocessing', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function\\\\utility', 'C:\\\\Users\\\\rober\\\\Documents\\\\F-Cell_OCVL\\\\src\\\\ocvl\\\\function'],
+    pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['ocvl'],
     hookspath=[],
     hooksconfig = {
     "matplotlib": {
@@ -36,6 +36,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    version='pipe_vinfo.txt',
 )
 coll = COLLECT(
     exe,

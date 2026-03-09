@@ -5,7 +5,7 @@ a = Analysis(
     ['iORG_summary_and_analysis.py'],
     pathex=[],
     binaries=[],
-    datas=[('../../.venv/Lib/site-packages/ssqueezepy/configs.ini','ssqueezepy')],
+    datas=[('configs.ini','ssqueezepy')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={
@@ -36,6 +36,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    version='analysis_vinfo.txt',
 )
 coll = COLLECT(
     exe,
