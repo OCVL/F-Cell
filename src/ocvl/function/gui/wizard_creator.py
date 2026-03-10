@@ -999,13 +999,13 @@ class ReviewPage(QWizardPage):
         if "description" in cfg:
             self.container_layout.addWidget(self._mk_field("Description", cfg["description"]))
 
-        # Use the SAME template that built Advanced (preserves visual order)
+
         with open(
-                r"ocvl/function/gui/master_config_files/advanced_config_JSON.json",
+                r"master_config_files/advanced_config_JSON.json",
                 "r") as f:
             advanced_template = json.load(f)
 
-        # Render recursively; nested dicts become sections; primitives become leaf rows
+
         self._render_by_template(advanced_template, cfg)
 
     # ---------- IMPORT ----------
