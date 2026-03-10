@@ -727,14 +727,15 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
     if trim is not None:
         start_frm = int(trim.get("start_frm",0))
         end_frm = int(trim.get("end_frm",-1))
-        if end_frm == -1:
-            end_frm = np.amax(dataset.framestamps)+1
-        goodinds = np.argwhere((dataset.framestamps <= end_frm) & (dataset.framestamps >= start_frm)).flatten()
-        dataset.framestamps = dataset.framestamps[goodinds]
-        dataset.video_data = dataset.video_data[..., goodinds]
-        dataset.mask_data = dataset.mask_data[..., goodinds]
-        dataset.num_frames = dataset.video_data.shape[-1]
-        logger.info(f"Trimmed dataset to {start_frm} and {end_frm}.")
+        if start_frm != 0 or end_frm != -1:
+            if end_frm == -1:
+                end_frm = np.amax(dataset.framestamps) + 1
+            goodinds = np.argwhere((dataset.framestamps <= end_frm) & (dataset.framestamps >= start_frm)).flatten()
+            dataset.framestamps = dataset.framestamps[goodinds]
+            dataset.video_data = dataset.video_data[..., goodinds]
+            dataset.mask_data = dataset.mask_data[..., goodinds]
+            dataset.num_frames = dataset.video_data.shape[-1]
+            logger.info(f"Trimmed dataset to {start_frm} and {end_frm}.")
 
 
     align_dat = reference_dataset.video_data.copy()
@@ -770,10 +771,11 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
         width = mask_roi.get("width")
         height = mask_roi.get("height")
 
-        # Everything outside the roi should be cropped
-        align_dat = align_dat[r:r + height, c:c + width, :]
-        mask_dat = mask_dat[r:r + height, c:c + width, :]
-        logger.info(f"Masked a {width}x{height} region with a top left corner of ({c},{r}) for alignment.")
+        if r != 0 or c != 0 or width != -1 or height != -1:
+            # Everything outside the roi should be cropped
+            align_dat = align_dat[r:r + height, c:c + width, :]
+            mask_dat = mask_dat[r:r + height, c:c + width, :]
+            logger.info(f"Masked a {width}x{height} region with a top left corner of ({c},{r}) for alignment.")
 
 
     # Finally, correct for residual torsion if requested
@@ -811,6 +813,7 @@ def preprocess_dataset(dataset, params, reference_dataset=None):
 
 
 def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
+    logger = logging.getLogger("ORG_Logger")
 
     norm_params = analysis_params.get(NormParams.NAME, dict())
     norm_scope = norm_params.get(NormParams.SCOPE, "frame") # Default: Standardizes the video to each frame's mean and stddev
@@ -829,17 +832,29 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
         for f in range(dataset.video_data.shape[-1]):
             dataset.video_data[..., f] = gaussian_filter(dataset.video_data[..., f], sigma=gausblur)
         dataset.video_data *= dataset.mask_data
+        logger.info(f"Gaussian blurred the dataset with a {gausblur} sigma kernel.")
 
     # Normalize the video to reduce the influence of framewide intensity changes, if requested.
     if norm_scope == "frame" and norm_method != "none":
         dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
                                         rescaled=rescale_norm,
                                         rescale_mean=res_mean, rescale_std=res_stddev)
+        if rescale_norm:
+            logger.info(f"Normalized the video using the {norm_method} method, without rescaling.")
+        else:
+            match norm_method:
+                case "mean":
+                    logger.info(f"Normalized the video using the {norm_method} method, with rescaling to a mean of {res_mean}.")
+                case "score":
+                    logger.info(f"Normalized the video using the {norm_method} method, with rescaling to a mean of {res_mean} and std dev of {res_stddev}.")
+                case "median":
+                    logger.info(f"Normalized the video using the {norm_method} method, with rescaling to a median of {res_mean}.")
 
     if debug_params.get(DebugParams.OUTPUT_NORM_VIDEO, False):
         result_folder.mkdir(parents=True, exist_ok=True)
         save_tiff_stack(result_folder.joinpath(dataset.video_path.stem + "_" + norm_method + "_norm.tif"),
                         dataset.video_data)
+        logger.info("Output the normalized video to: "+result_folder)
 
     return dataset
 

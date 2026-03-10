@@ -447,7 +447,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
     #ref_im = sitk.Normalize(ref_im)
     dims = ref_im.GetDimension()
 
-    imreg_method.SetMetricFixedMask(sitk.GetImageFromArray(eroded_mask[..., reference_idx]))
+    imreg_method.SetMetricFixedMask(sitk.GetImageFromArray(eroded_mask[..., reference_idx].astype("float32")))
 
     xforms = [None] * num_frames
     inliers = np.zeros(num_frames, dtype=bool)
@@ -470,7 +470,7 @@ def optimizer_stack_align(im_stack, mask_stack, reference_idx, determine_initial
 
         moving_im = sitk.GetImageFromArray(im_stack[..., f].astype("float32"))
         #moving_im = sitk.Normalize(moving_im)
-        imreg_method.SetMetricMovingMask(sitk.GetImageFromArray(eroded_mask[..., f]))
+        imreg_method.SetMetricMovingMask(sitk.GetImageFromArray(eroded_mask[..., f].astype("float32")))
 
         outXform = imreg_method.Execute(ref_im, moving_im)
 
