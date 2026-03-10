@@ -391,6 +391,9 @@ def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", 
     if params is None:
         params = dict()
 
+    if np.all(np.isnan(values)):
+        return
+
     ax_params = params.get(DisplayParams.AXES, dict())
 
     fig=plt.figure(figure_label)
@@ -409,6 +412,8 @@ def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", 
     stepping = ax_params.get(DisplayParams.XSTEP, (stopping - starting) / 100)
     if stepping is None:
         stepping = (stopping - starting) / 100
+    if stepping == 0.0:
+        return
 
     histbins = np.arange(start=starting, stop=stopping, step=stepping)
 

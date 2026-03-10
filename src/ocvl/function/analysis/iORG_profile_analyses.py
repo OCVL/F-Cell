@@ -272,17 +272,11 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         poststim_window_idx = np.flatnonzero(np.isin(framestamps, desired_poststim_frms))
 
 
-        if np.all(~finite_data) or len(desired_prestim_frms) == 0 or len(desired_poststim_frms)==0 or \
-            len(poststim_window_idx) == 0 or len(prestim_window_idx) == 0:
+        if np.all(~finite_data) or desired_prestim_frms.size == 0 or desired_poststim_frms.size==0 or \
+            poststim_window_idx.size == 0 or prestim_window_idx.size == 0 or prestim_window_idx is None or poststim_window_idx is None:
             return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
                    np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan), \
                    np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
-
-        if prestim_window_idx is None:
-            prestim_window_idx = np.zeros((1,))
-
-        if poststim_window_idx is None:
-            poststim_window_idx = np.arange(1, temporal_signals.shape[1])
 
         chunk_size = 250
         if pool is None:
@@ -311,13 +305,17 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         prestim_val = np.nanmedian(prestim, axis=1)
 
         # This only smooths the signal if spline_smooth is defined.
-        if spline_smooth is not None:
+        if spline_smooth is not None and poststim.size != 1 and poststim.shape[1] != 1:
             if spline_smooth == "auto": # This is found automatically using the Generalized Cross Validation, per scipy.
                 spline_smooth = None
             for c in range(poststim.shape[0]):
                 poststim[c,:] = make_smoothing_spline(poststim_frms, poststim[c,:], lam=spline_smooth)(poststim_frms)
 
-        poststim_val = np.nanquantile(poststim, [amplitude_percentile], axis=1).flatten()
+
+            poststim_val = np.nanquantile(poststim, [amplitude_percentile], axis=1).flatten()
+
+        else:
+            poststim_val = poststim[:, 0]
 
         # ** Amplitude **
         amplitude = np.abs(poststim_val - prestim_val)
@@ -338,17 +336,23 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         # Copy data to our shared array.
         np_temporal_signals[:] = temporal_signals[:]
 
+        # If we are considering multiple frames, then we can interpolate to determine the precise implicit times.
+        if desired_poststim_frms.size > 1:
+            res = pool.imap(_interp_implicit, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                           repeat(temporal_signals.shape), repeat(temporal_signals.dtype), repeat(framestamps),
+                                           repeat(desired_poststim_frms), repeat(framerate),
+                                           prestim_val, poststim_val, amplitude),
+                                           chunksize=chunk_size)
 
-        res = pool.imap(_interp_implicit, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
-                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype), repeat(framestamps),
-                                       repeat(desired_poststim_frms), repeat(framerate),
-                                       prestim_val, poststim_val, amplitude),
-                                       chunksize=chunk_size)
+            for i, amp_imp, halfamp_imp, au in res:
+                amp_implicit_time[i] = (amp_imp- desired_poststim_frms[0]) / framerate
+                halfamp_implicit_time[i] = (halfamp_imp - desired_poststim_frms[0]) / framerate
+                auc[i] = au
 
-        for i, amp_imp, halfamp_imp, au in res:
-            amp_implicit_time[i] = (amp_imp- desired_poststim_frms[0]) / framerate
-            halfamp_implicit_time[i] = (halfamp_imp - desired_poststim_frms[0]) / framerate
-            auc[i] = au
+        # Otherwise, its just the poststim frame we chose.
+        else:
+            amp_implicit_time = np.full_like(amplitude, desired_poststim_frms / framerate)
+            halfamp_implicit_time = amp_implicit_time / 2
 
         shared_block.close()
         shared_block.unlink()

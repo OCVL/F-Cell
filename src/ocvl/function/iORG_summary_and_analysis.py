@@ -689,13 +689,24 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 metrics_poststim = stim_dataset.stimtrain_frame_stamps[0] + metrics_poststim
 
                             # Make the list of indices that should correspond to pre and post stimulus
-                            metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
-                            metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
+                            if len(metrics_prestim) > 1:
+                                metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
+                            else:
+                                metrics_prestim = np.int32(metrics_prestim[0])
+
+                            if len(metrics_poststim) > 1:
+                                metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
+                            else:
+                                metrics_poststim = np.int32(metrics_poststim[0])
 
                             amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, _, _ = iORG_signal_metrics(stim_dataset.summarized_iORGs[q][stim_dataset.framestamps],
                                                                                                                      stim_dataset.framestamps, stim_dataset.framerate,
                                                                                                                      metrics_prestim, metrics_poststim, the_pool,
                                                                                                                      smooth_factor, amp_percentile)
+
+                            if metrics_poststim.size == 1 and metrics_measured_to == "stim-relative":
+                                amp_implicit_time[0] -= stim_dataset.stimtrain_frame_stamps[0] / stim_dataset.framerate
+                                halfamp_implicit_time[0] -= stim_dataset.stimtrain_frame_stamps[0] / stim_dataset.framerate
 
                             for metric in metrics_type:
                                 if metric == "aur":
@@ -835,14 +846,25 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             metrics_poststim = stimtrain[0] + metrics_poststim
 
                         # Make the list of indices that should correspond to pre and post stimulus
-                        metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
-                        metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
+                        if len(metrics_prestim) > 1:
+                            metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
+                        else:
+                            metrics_prestim = np.int32(metrics_prestim[0])
+
+                        if len(metrics_poststim) > 1:
+                            metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
+                        else:
+                            metrics_poststim = np.int32(metrics_poststim[0])
 
 
                         amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, prestim_idx, poststim_idx = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,
                                                                                                                  pooled_framerate,
                                                                                                                  metrics_prestim, metrics_poststim, the_pool,
                                                                                                                      smooth_factor, amp_percentile)
+
+                        if metrics_poststim.size == 1 and metrics_measured_to == "stim-relative":
+                            amp_implicit_time[0] -= stim_dataset.stimtrain_frame_stamps[0] / stim_dataset.framerate
+                            halfamp_implicit_time[0] -= stim_dataset.stimtrain_frame_stamps[0] / stim_dataset.framerate
 
                         for metric in metrics_type:
                             if metric == "aur":
@@ -1348,4 +1370,4 @@ if __name__ == "__main__":
 
         allData_db = iORG_summary_and_analysis(pName, Path(json_fName))
 
-    input("Press any key to exit...")
+    input(Style.BRIGHT + Fore.LIGHTBLUE_EX + "Press any key to exit...")
