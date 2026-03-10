@@ -95,6 +95,13 @@ if __name__ == "__main__":
             shutil.rmtree("./dist/pipeline")
             shutil.rmtree("./dist/json_generator")
 
+            os.remove("./ocvl/function/preprocessing/pipe_vinfo.txt")
+            os.remove("./ocvl/function/configs.ini")
+            os.remove("./ocvl/function/analysis_vinfo.txt")
+            os.remove("./ocvl/function/gui/gui_vinfo.txt")
+
+
+
 
 
     except FileNotFoundError:
