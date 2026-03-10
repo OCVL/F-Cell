@@ -18,6 +18,7 @@ import importlib
 import json
 import os
 import multiprocessing as mp
+import shutil
 import sys
 import tomllib
 import warnings
@@ -28,6 +29,7 @@ import colorama
 import cv2
 import numpy as np
 import pandas as pd
+from colorama import Style, Fore
 from file_tag_parser.tags.file_tag_parser import FileTagParser
 from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
 from matplotlib import pyplot as plt
@@ -36,6 +38,7 @@ from datetime import datetime
 from matplotlib.lines import Line2D
 from scipy.stats import t
 
+import ocvl.function
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
@@ -1222,26 +1225,20 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     out_json = Path(config_path).stem + "_ran_at_" + start_timestamp + ".json"
                     out_json = result_path.joinpath(out_json)
 
-                    if "f-cell" in sys.modules:
-                        version = importlib.metadata.version("f-cell")
-                    else:
-                        # If it's not in the modules, then assume we're running this for debugging, testing, or otherwise locally.
-                        try:
-                            with open(".../../../pyproject.toml", "rb") as f:
-                                toml_dict = tomllib.load(f)
-                                version = toml_dict["project"].get("version", "unknown")
-                        except FileNotFoundError:
-                            version = "unknown"
 
                     audit_json_dict = {ConfigFields.VERSION: dat_form.get(ConfigFields.VERSION, "none"),
                                        ConfigFields.DESCRIPTION: dat_form.get(ConfigFields.DESCRIPTION, "none"),
                                        PreAnalysisPipeline.NAME: preanalysis_dat_format,
                                        Analysis.NAME: analysis_dat_format}
 
-                    audit_json_dict["runtime-version"] = version
+                    audit_json_dict["runtime-version"] = ocvl.function.__version__
 
                     with open(out_json, 'w') as f:
                         json.dump(audit_json_dict, f, indent=2)
+
+                    # Save the log file to the result file.
+                    runlog = "analysis_runlog_" + start_timestamp + ".txt"
+                    shutil.copyfile("fcell_analysis_log.txt", result_path.joinpath(runlog))
 
         # Save the group-comparison figures to the result folder, if requested.
         plt.show(block=False)
@@ -1306,6 +1303,9 @@ if __name__ == "__main__":
     logger.addHandler(streamlogger)
     logger.addHandler(filelogger)
     logger.setLevel(logging.INFO)
+
+    print(Style.BRIGHT + Fore.LIGHTBLUE_EX + "\u222B-Cell Analysis")
+    logger.info( "Package Version: " + ocvl.function.__version__)
 
     pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
     if not pName:

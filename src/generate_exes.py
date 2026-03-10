@@ -16,6 +16,10 @@ if __name__ == "__main__":
             v_tuple = tuple(map(int, (version.split('.') + ['0'] * 4)[:4]))
 
 
+            # Update our _version.py with the newest version info.
+            with open("./ocvl/function/_version.py", "w") as vf:
+                vf.write("__version__=\""+version+"\"")
+
             fileinfo = FixedFileInfo(filevers=v_tuple, prodvers=v_tuple)
 
             name = StringStruct("CompanyName", "OCVL")
@@ -74,13 +78,23 @@ if __name__ == "__main__":
                 '--noconfirm'
             ])
 
+            shutil.rmtree("./dist/f-cell", ignore_errors=True)
             os.makedirs("./dist/f-cell", exist_ok=True)
             shutil.move("./dist/pipeline/pipeline.exe", "./dist/f-cell/pre_analysis_pipeline.exe")
-            shutil.move("./dist/iORG_summary_and_analysis/iORG_summary_and_analysis.exe", "./dist/f-cell/f-cell_analysis.exe")
-            shutil.move("./dist/json_generator/json_generator.exe", "./dist/f-cell/f-cell_config_generator.exe")
+            shutil.move("./dist/iORG_summary_and_analysis/iORG_summary_and_analysis.exe", "./dist/f-cell/analysis.exe")
+            shutil.move("./dist/json_generator/json_generator.exe", "./dist/f-cell/config_generator.exe")
+            print("Copying pipeline files to f-cell directory...")
             shutil.copytree("./dist/pipeline/_internal", "./dist/f-cell/_internal", dirs_exist_ok=True)
+            print("Copying analysis files to f-cell directory...")
             shutil.copytree("./dist/iORG_summary_and_analysis/_internal", "./dist/f-cell/_internal", dirs_exist_ok=True)
+            print("Copying config generator files to f-cell directory...")
             shutil.copytree("./dist/json_generator/_internal", "./dist/f-cell/_internal", dirs_exist_ok=True)
+            shutil.copytree("./ocvl/function/gui/master_config_files", "./dist/f-cell/master_config_files", dirs_exist_ok=True)
+            print("Cleaning up...")
+            shutil.rmtree("./dist/iORG_summary_and_analysis")
+            shutil.rmtree("./dist/pipeline")
+            shutil.rmtree("./dist/json_generator")
+
 
 
     except FileNotFoundError:

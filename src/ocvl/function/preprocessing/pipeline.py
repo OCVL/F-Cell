@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import platform
+import shutil
 import sys
 import tomllib
 from itertools import repeat
@@ -28,6 +29,7 @@ import numpy as np
 import multiprocessing as mp
 from tkinter import filedialog, messagebox
 import matplotlib as mpl
+from colorama import Fore, Style
 
 from file_tag_parser.tags.file_tag_parser import FileTagParser
 from file_tag_parser.tags.json_format_constants import DataFormat, AcquisiPaths
@@ -35,6 +37,8 @@ from scipy.ndimage import gaussian_filter
 import pandas as pd
 import tifffile as tiff
 
+
+import ocvl.function
 from ocvl.function.preprocessing.improc import weighted_z_projection, simple_image_stack_align, \
     optimizer_stack_align
 from ocvl.function.utility.dataset import  preprocess_dataset, initialize_and_load_dataset
@@ -394,23 +398,16 @@ def preanalysis_pipeline(preanalysis_path = None, config_path = Path()):
         out_json = Path(config_path).stem + "_" + now_timestamp + ".json"
         out_json = dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(output_folder, out_json)
 
-        if "f-cell" in sys.modules:
-            version = importlib.metadata.version("f-cell")
-        else:
-            # If it's not in the modules, then assume we're running this for debugging, testing, or otherwise locally.
-            try:
-                with open("../../../../pyproject.toml", "rb") as f:
-                    toml_dict = tomllib.load(f)
-                    version = toml_dict["project"].get("version", "unknown")
-            except FileNotFoundError:
-                version = "unknown"
-
         # Export the full json used.
         audit_json_dict = dat_form
-        audit_json_dict["runtime-version"] = version
+        audit_json_dict["runtime-version"] = ocvl.function.__version__
 
         with open(out_json, 'w') as f:
             json.dump(audit_json_dict, f, indent=2)
+
+        # Save the log file to the result file.
+        runlog = "preanalysis_runlog_"+now_timestamp+".txt"
+        shutil.copyfile("fcell_preanalysis_log.txt", dataset.metadata[AcquisiPaths.BASE_PATH].joinpath(output_folder, runlog))
 
 
     logging.debug("PK FIRE")
@@ -438,25 +435,8 @@ if __name__ == "__main__":
     logger.addHandler(filelogger)
     logger.setLevel(logging.INFO)
 
-    if platform.system() == "Windows":
-        import win32api
-        info = win32api.GetFileVersionInfo(Path(__file__).resolve(), '\\')
-        ms = info['FileVersionMS']
-        ls = info['FileVersionLS']
-        version = f"{win32api.HIWORD(ms)}.{win32api.LOWORD(ms)}.{win32api.HIWORD(ls)}.{win32api.LOWORD(ls)}"
-
-    if "f-cell" in sys.modules:
-        version = importlib.metadata.version("f-cell")
-    else:
-        # If it's not in the modules, then assume we're running this for debugging, testing, or otherwise locally.
-        try:
-            with open("../../../../pyproject.toml", "rb") as f:
-                toml_dict = tomllib.load(f)
-                version = toml_dict["project"].get("version", "unknown")
-        except FileNotFoundError:
-            version = "unknown"
-
-    logger.info("F-Cell, version: " + version)
+    print(Style.BRIGHT + Fore.LIGHTBLUE_EX + "\u222B-Cell Pre Analysis Pipeline")
+    logger.info( "Package Version: " + ocvl.function.__version__)
 
     pName = filedialog.askdirectory(title="Select the folder containing all videos of interest.", initialdir=pName)
     if not pName:

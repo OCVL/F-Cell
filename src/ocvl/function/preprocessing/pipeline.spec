@@ -6,7 +6,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['ocvl'],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig = {
     "matplotlib": {
