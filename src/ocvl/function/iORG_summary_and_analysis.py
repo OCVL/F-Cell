@@ -669,7 +669,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                     seq_rel_label = "Query file " + query_loc_names[q] + "Stimulus relative to control iORG via " + sum_control +" temporal sequence"
                                     folder_display_dict[str(subject_IDs[0]) + "_" + folder.name + "_" + mode + "_pop_iORG_" + sum_method + "_sequential_relative_" + query_loc_names[q] + "coords_" + start_timestamp] = seq_rel_label
 
-                                    display_iORG_pop_summary_seq(stim_framestamps, stim_dataset.summarized_iORGs[q], vidnum_seq[v], stim_dataset.stimtrain_frame_stamps,
+                                    display_iORG_pop_summary_seq(stim_framestamps, stim_dataset.summarized_iORGs[q], vidnum_seq[v],
+                                                                 stim_dataset.stimtrain_frame_stamps,
                                                                  stim_dataset.framerate, sum_method, seq_rel_label,
                                                                  pop_seq_params)
                                     plt.show(block=False)
@@ -1027,7 +1028,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                                     for c in range(stim_iORG_signals[q].shape[1]):
                                         display_iORG_pop_summary(all_frmstmp, allcell_iORG_summary[c, :], stim_iORG_summary[q][c, :], None,
-                                                             all_frmstmp, control_pop_iORG_summary_pooled[q],
+                                                             all_frmstmp, control_pop_iORG_summary_pooled[q][np.newaxis, :],
                                                              stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                              figure_label=overlap_label, params=indiv_overlap_params)
 
