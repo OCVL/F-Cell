@@ -256,7 +256,7 @@ def _summary_avg(params):
 
 def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
                         desired_prestim_frms=None, desired_poststim_frms=None, pool=None,
-                        spline_smooth=None, amplitude_percentile=0.99):
+                        spline_smooth=None, amplitude_percentile=0.99, all_poststim_frms=None):
 
     if temporal_signals.ndim == 1:
         temporal_signals = temporal_signals[None, :]
@@ -267,10 +267,9 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
         warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
-        # Find the indexes of the framestamps corresponding to our pre and post stim frames;
+        # Find the indexes of the framestamps corresponding to the analyzed pre and post stim frames;
         prestim_window_idx = np.flatnonzero(np.isin(framestamps, desired_prestim_frms))
         poststim_window_idx = np.flatnonzero(np.isin(framestamps, desired_poststim_frms))
-
 
         if np.all(~finite_data) or desired_prestim_frms.size == 0 or desired_poststim_frms.size==0 or \
             poststim_window_idx.size == 0 or prestim_window_idx.size == 0 or prestim_window_idx is None or poststim_window_idx is None:
@@ -305,15 +304,15 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         prestim_val = np.nanmedian(prestim, axis=1)
 
         # This only smooths the signal if spline_smooth is defined.
-        if spline_smooth is not None and poststim.size != 1 and poststim.shape[1] != 1:
+        if spline_smooth is not None:
             if spline_smooth == "auto": # This is found automatically using the Generalized Cross Validation, per scipy.
                 spline_smooth = None
             for c in range(poststim.shape[0]):
                 poststim[c,:] = make_smoothing_spline(poststim_frms, poststim[c,:], lam=spline_smooth)(poststim_frms)
 
 
+        if poststim.size != 1 and poststim.shape[1] != 1:
             poststim_val = np.nanquantile(poststim, [amplitude_percentile], axis=1).flatten()
-
         else:
             poststim_val = poststim[:, 0]
 
@@ -337,22 +336,18 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         np_temporal_signals[:] = temporal_signals[:]
 
         # If we are considering multiple frames, then we can interpolate to determine the precise implicit times.
-        if desired_poststim_frms.size > 1:
-            res = pool.imap(_interp_implicit, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
-                                           repeat(temporal_signals.shape), repeat(temporal_signals.dtype), repeat(framestamps),
-                                           repeat(desired_poststim_frms), repeat(framerate),
-                                           prestim_val, poststim_val, amplitude),
-                                           chunksize=chunk_size)
+        # if desired_poststim_frms.size > 1:
+        res = pool.imap(_interp_implicit, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype), repeat(framestamps),
+                                       repeat(all_poststim_frms), repeat(desired_poststim_frms), repeat(framerate),
+                                       prestim_val, poststim_val, amplitude),
+                                       chunksize=chunk_size)
 
-            for i, amp_imp, halfamp_imp, au in res:
-                amp_implicit_time[i] = (amp_imp- desired_poststim_frms[0]) / framerate
-                halfamp_implicit_time[i] = (halfamp_imp - desired_poststim_frms[0]) / framerate
-                auc[i] = au
+        for i, amp_imp, halfamp_imp, au in res:
+            amp_implicit_time[i] = (amp_imp- all_poststim_frms[0]) / framerate
+            halfamp_implicit_time[i] = (halfamp_imp - all_poststim_frms[0]) / framerate
+            auc[i] = au
 
-        # Otherwise, its just the poststim frame we chose.
-        else:
-            amp_implicit_time = np.full_like(amplitude, desired_poststim_frms / framerate)
-            halfamp_implicit_time = amp_implicit_time / 2
 
         shared_block.close()
         shared_block.unlink()
@@ -472,62 +467,61 @@ def pooled_variance(data, axis=1):
     return np.sum(datavar*datacount) / np.sum(datacount), np.sum(datamean*datacount) / np.sum(datacount)
 
 def _interp_implicit(params):
-    (i, mem_name, signal_shape, the_dtype, framestamps,
+    (i, mem_name, signal_shape, the_dtype, framestamps, all_poststim_frms,
      desired_poststim_frms, framerate, prestim_val, poststim_val, amplitude) = params
 
     shared_block = shared_memory.SharedMemory(name=mem_name)
     temporal_signals = np.ndarray(signal_shape, dtype=the_dtype, buffer=shared_block.buf)
 
     finite_iORG = np.isfinite(temporal_signals[i, :])
-    if np.sum(finite_iORG) > 1:
-        valid_auc = True
+    auc = np.nan
+    amp_implicit_time = np.nan
+    halfamp_implicit_time = np.nan
 
-        finite_data = temporal_signals[i, finite_iORG]
-        finite_frms = framestamps[finite_iORG]
+    if np.sum(finite_iORG) > 1:
+        valid_auc = False # If we don't have any data past the desired_poststim_frm, we can't analyze auc. Assume no
+
+        finite_window_data = temporal_signals[i, finite_iORG]
+        finite_window_frms = framestamps[finite_iORG]
 
         # if we're missing an *end* framestamp in our window, interpolate to find the value there,
         # and add it temporarily to our signal to make sure things like AUR work correctly.
-        if not np.any(finite_frms == desired_poststim_frms[-1]):
-            inter_val = np.interp(desired_poststim_frms[-1], finite_frms, finite_data)
+        if desired_poststim_frms.size > 1 and not np.any(finite_window_frms == desired_poststim_frms[-1]):
+            inter_val = np.interp(desired_poststim_frms[-1], finite_window_frms, finite_window_data)
             # Find where to insert the interpolant and its framestamp
-            if np.any(finite_frms > desired_poststim_frms[-1]):
-                next_highest = np.argmax(finite_frms > desired_poststim_frms[-1])
-                finite_data = np.insert(finite_data, next_highest, inter_val)
-                finite_frms = np.insert(finite_frms, next_highest, desired_poststim_frms[-1])
-            else: # If we don't have any data past the desired_poststim_frm, we can't analyze auc.
-                valid_auc=False
+            if np.any(finite_window_frms > desired_poststim_frms[-1]):
+                next_highest = np.argmax(finite_window_frms > desired_poststim_frms[-1])
+                finite_window_data = np.insert(finite_window_data, next_highest, inter_val)
+                finite_window_frms = np.insert(finite_window_frms, next_highest, desired_poststim_frms[-1])
+                valid_auc = True
 
-        poststim_window_idx = np.flatnonzero(np.isin(finite_frms, desired_poststim_frms))
+        all_poststim_idx = np.flatnonzero(np.isin(finite_window_frms, all_poststim_frms))
+        poststim_window_idx = np.flatnonzero(np.isin(finite_window_frms, desired_poststim_frms))
 
-        finite_data = finite_data[poststim_window_idx]
-        finite_frms = finite_frms[poststim_window_idx]
+        finite_post_data = finite_window_data[all_poststim_idx]
+        finite_post_frms = finite_window_frms[all_poststim_idx]
 
-        if finite_frms.size > 1:
+        finite_window_data = finite_window_data[poststim_window_idx]
+        finite_window_frms = finite_window_frms[poststim_window_idx]
+
+        if finite_window_frms.size > 1:
             if valid_auc:
-                auc = np.trapezoid(finite_data, x=finite_frms / framerate)
-            else:
-                auc = np.nan
+                auc = np.trapezoid(finite_window_data, x=finite_window_frms / framerate)
 
-            amp_val_interp = Akima1DInterpolator(finite_frms, finite_data - poststim_val, method="makima")
-            halfamp_val_interp = Akima1DInterpolator(finite_frms, finite_data - ((amplitude / 2) + prestim_val),
-                                                     method="makima")
-
+            amp_val_interp = Akima1DInterpolator(finite_window_frms, finite_window_data - poststim_val, method="makima")
 
             if amp_val_interp.roots().size != 0:
                 amp_implicit_time = amp_val_interp.roots()[0]
-            else:
-                amp_implicit_time = np.nan
+        elif finite_window_frms.size == 1:
+            amp_implicit_time = finite_window_frms[0]
 
+        if finite_post_frms.size > 1:
 
+            halfamp_val_interp = Akima1DInterpolator(finite_post_frms, finite_post_data - ((amplitude / 2) + prestim_val),
+                                                     method="makima")
             if halfamp_val_interp.roots().size != 0:
                 halfamp_implicit_time = halfamp_val_interp.roots()[0]
-            else:
-                halfamp_implicit_time = np.nan
-        else:
-            shared_block.close()
-            return i, np.nan, np.nan, np.nan
-    else:
-        shared_block.close()
-        return i, np.nan, np.nan, np.nan
+
+    shared_block.close()
 
     return i, amp_implicit_time, halfamp_implicit_time, auc
