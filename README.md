@@ -62,4 +62,6 @@ The configuration file uses a json file format. At the moment, its creation is m
 The [wiki](https://github.com/OCVL/F-Cell/wiki) containing instructions on how to use the pipeline as well as how to write a configuration file is currently under construction, but keep an eye for more instructions in March.
 
 ### Attribution:
-In the future, if you use this software you will be able to cite a paper referring to this repository. In the meantime, please cite Gaffney et. al., "Intensity-based optoretinography reveals sub-clinical deficits in cone function in retinitis pigmentosa", 2024 - the algorithms and software used in that paper encapsulate those seen here, and this software was used for that paper.
+If you use this software for your work, please cite us! The current citation is:
+
+Cooper RF, Gaffney M, Brennan BD, Rios N. “ƒ(Cell): Software for reproducible analysis of optoretinograms.” 2026 Translational Vision Science & Technolology. In Press.
