@@ -839,7 +839,7 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
         dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
                                         rescaled=rescale_norm,
                                         rescale_mean=res_mean, rescale_std=res_stddev)
-        if rescale_norm:
+        if not rescale_norm:
             logger.info(f"Normalized the video using the {norm_method} method, without rescaling.")
         else:
             match norm_method:
