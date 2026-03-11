@@ -1227,7 +1227,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label() and obj is not line):
                                 child.set_label(None)
 
-                        plt.legend()
+                        handles, labels = plt.gca().get_legend_handles_labels()
+                        if labels:
+                            plt.legend()
+
                         plt.draw()
                         for ext in saveas_ext:
                             tryagain = True
