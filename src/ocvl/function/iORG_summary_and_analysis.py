@@ -1026,11 +1026,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                         indiv_overlap_params.get(DisplayParams.DISP_CONTROL, False) or \
                                         indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, False):
 
-                                    for c in range(stim_iORG_signals[q].shape[1]):
-                                        display_iORG_pop_summary(all_frmstmp, allcell_iORG_summary[c, :], stim_iORG_summary[q][c, :], None,
-                                                             all_frmstmp, control_pop_iORG_summary_pooled[q][np.newaxis, :],
-                                                             stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
-                                                             figure_label=overlap_label, params=indiv_overlap_params)
+                                    display_iORG_pop_summary(all_frmstmp, allcell_iORG_summary, stim_iORG_summary[q], None,
+                                                         all_frmstmp, control_pop_iORG_summary_pooled[q][np.newaxis, :],
+                                                         stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
+                                                         figure_label=overlap_label, params=indiv_overlap_params)
 
                             if analysis_params.get(Analysis.OUTPUT_SUM_INDIV_ORGS, False):
                                 result_datafolder = result_path.joinpath("iORG_Data")

@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -10,6 +12,8 @@ from ocvl.function.utility.json_format_constants import DisplayParams, MetricTag
 
 def _update_plot_colors(data_color):
 
+    logger = logging.getLogger("ORG_Logger")
+
     the_lines = plt.gca().get_lines()
     the_patches = plt.gca().patches
     if data_color is not None:
@@ -19,34 +23,39 @@ def _update_plot_colors(data_color):
             # Span all of our patches over this colormap.
             normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_patches), clip=True)
             mapper = plt.cm.ScalarMappable(cmap=data_color, norm=normmap)
-            for l, patch in enumerate(the_patches):
-                if patch.get_label(): # Only do this for labelled patches.
-                    # Get our patches' alphas so that we can respect them
-                    edgealpha = patch.get_edgecolor()[-1]
-                    facealpha = patch.get_facecolor()[-1]
+            if len(the_patches) <= 100:
+                for l, patch in enumerate(the_patches):
+                    if patch.get_label(): # Only do this for labelled patches.
+                        # Get our patches' alphas so that we can respect them
+                        edgealpha = patch.get_edgecolor()[-1]
+                        facealpha = patch.get_facecolor()[-1]
 
-                    patch.set_facecolor(mapper.to_rgba(l)[0:3] + (facealpha,))
-                    patch.set_edgecolor(mapper.to_rgba(l)[0:3] + (edgealpha,))
+                        patch.set_facecolor(mapper.to_rgba(l)[0:3] + (facealpha,))
+                        patch.set_edgecolor(mapper.to_rgba(l)[0:3] + (edgealpha,))
+            else:
+                logger.warning(f"Unable to adjust patch colors. Too many patches! Must be less than 100, had {len(the_patches)}")
 
             # Span all of our lines over this colormap.
             normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
             mapper = plt.cm.ScalarMappable(cmap=data_color, norm=normmap)
-            for l, line in enumerate(the_lines):
-                # Update this line's color in line with how many lines are on the plot.
-                line.set_color(mapper.to_rgba(l))
+            if len(the_lines) <= 100:
+                for l, line in enumerate(the_lines):
+                    # Update this line's color in line with how many lines are on the plot.
+                    line.set_color(mapper.to_rgba(l))
 
-                # Also update everything that is associated with this line, making sure to preserve the alpha.
-                for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label() and obj is not line):
+                    # Also update everything that is associated with this line, making sure to preserve the alpha.
+                    for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label() and obj is not line):
 
-                    if child.get_alpha() is None:
-                        alphy = 0.9
-                    else:
-                        alphy = child.get_alpha()
-                    if isinstance(child, Line2D):
-                        child.set_color(mapper.to_rgba(l)[0:3] + (alphy,))
-                    elif isinstance(child, FillBetweenPolyCollection):
-                        child.set_facecolor(mapper.to_rgba(l)[0:3] + (alphy,))
-
+                        if child.get_alpha() is None:
+                            alphy = 0.9
+                        else:
+                            alphy = child.get_alpha()
+                        if isinstance(child, Line2D):
+                            child.set_color(mapper.to_rgba(l)[0:3] + (alphy,))
+                        elif isinstance(child, FillBetweenPolyCollection):
+                            child.set_facecolor(mapper.to_rgba(l)[0:3] + (alphy,))
+            else:
+                logger.warning(f"Unable to adjust line colors. Too many lines! Must be less than 100, had {len(the_lines)}")
 
         # If the color is something included in matplotlib, then set all lines equal to that.
         elif data_color in mpl.colors.CSS4_COLORS or data_color in mpl.colors.BASE_COLORS:
@@ -139,7 +148,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if disp_stim:
         dispinds = np.isfinite(stim_pop_summary)
         plt.title(sum_method.upper()+"-summarized iORGs\n(Stimulus acquisitions)")
-        plt.plot(stim_framestamps[dispinds] / framerate, stim_pop_summary[dispinds], label=str(stim_vidnum))
+        plt.plot(stim_framestamps.transpose()/ framerate, stim_pop_summary.transpose(), label=str(stim_vidnum))
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method.upper())
 
@@ -166,7 +175,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if disp_cont and plt.gca().get_title() != (sum_method.upper()+"-summarized iORGs\n(Control acquisitions)"):  # The last bit ensures we don't spam the subplots with control data.
         plt.title(sum_method.upper()+"-summarized iORGs\n(Control acquisitions)")
         for r in range(control_pop_iORG_summary.shape[0]):
-            plt.plot(control_framestamps[r] / framerate, control_pop_iORG_summary[r, control_framestamps[r]], label=str(control_vidnums[r]))
+            plt.plot(control_framestamps[r] / framerate,
+                     control_pop_iORG_summary[r, control_framestamps[r]], label=str(control_vidnums[r]))
 
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method.upper())
@@ -184,9 +194,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         plt.subplot(1, how_many, ind)
         ind += 1
     if disp_rel:
-        dispinds = np.isfinite(relative_pop_summary)
         plt.title(sum_method.upper()+"-summarized stimulus iORGs relative\nto control via " + sum_control)
-        plt.plot(stim_framestamps[dispinds] / framerate, relative_pop_summary[dispinds],
+        plt.plot(stim_framestamps.transpose() / framerate, relative_pop_summary.transpose(),
                  label=str(stim_vidnum))
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method.upper())
