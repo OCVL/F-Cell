@@ -72,13 +72,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
     logger = logging.getLogger("ORG_Logger")
 
-    # root = Tk()
-    # root.lift()
-    # w = 1
-    # h = 1
-    # x = root.winfo_screenwidth() / 4
-    # y = root.winfo_screenheight() / 4
-    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
 
     # Grab all the folders/data here.
     filename_parser = FileTagParser.from_json(config_path, Analysis.NAME)
@@ -99,24 +92,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     if allData.empty or allData.loc[allData[DataFormat.FORMAT_TYPE] == DataFormat.VIDEO].empty:
         logger.error("Unable to detect viable datasets with the data formats provided. Please review your dataset format.")
         return allData
-
-    # x = root.winfo_screenwidth() / 2 - 128
-    # y = root.winfo_screenheight() / 2 - 128
-    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))  # This moving around is to make sure the dialogs appear in the middle of the screen.
-    # root.update()
-
-    # pb = ttk.Progressbar(root, orient=HORIZONTAL, length=1024)
-    # pb.grid(column=0, row=0, columnspan=3, padx=3, pady=5)
-    # pb_label = ttk.Label(root, text="Initializing setup...")
-    # pb_label.grid(column=0, row=1, columnspan=3)
-    # pb.start()
-    # # Resize our root to show our progress bar.
-    # w = 1024
-    # h = 64
-    # x = root.winfo_screenwidth() / 2 - 256
-    # y = root.winfo_screenheight() / 2 - 64
-    # root.geometry('%dx%d+%d+%d' % (w, h, x, y))
-    # root.update()
 
     analysis_dat_format = dat_form.get(Analysis.NAME)
     preanalysis_dat_format = dat_form.get(PreAnalysisPipeline.NAME, dict())
@@ -274,12 +249,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                     data_vidnums = np.sort(allData.loc[cntl_slice_of_life & vidtype_filter, DataTags.VIDEO_ID].unique()).tolist()
 
-                    # pb["maximum"] = len(data_vidnums)+1
+
                     for v, vidnum in enumerate(data_vidnums):
-                        # pb["value"] = v
-                        # pb_label["text"] = "Loading control dataset "+str(vidnum)+"... ("+str(v)+" of "+str(len(data_vidnums))+")"
-                        # pb.update()
-                        # pb_label.update()
 
                         vidid_filter = allData[DataTags.VIDEO_ID] == vidnum
 
@@ -295,17 +266,9 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         if dataset is not None:
                             pass # Do something with control data? Nah, not yet probably...
 
-                    # pb["value"] = len(data_vidnums)
-                    # pb_label["text"] = "Loading control dataset " + str(vidnum) + "... Done!"
-                    # pb.update()
-                    # pb_label.update()
 
                 # Respect the users' folder structure. If things are in different folders, analyze them separately.
                 for folder in folder_groups:
-
-                    # Initialize data lists
-                    pop_iORG_result_datframe = []
-                    indiv_iORG_result_datframe = []
 
                     if folder.name == output_folder.name:
                         continue
@@ -382,10 +345,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         # Perform analyses on each query location set for each stimulus dataset.
                         for sub_dataset in dataset:
                             for q in range(len(sub_dataset.query_loc)):
-                                # pb_label["text"] = "Processing query locs \"" + query_loc_names[q] + "\" in dataset #" + str(vidnum) + " from the " + str(
-                                #                     mode) + " modality in group " + str(group) + " and folder " + folder.name + "..."
-                                # pb.update()
-                                # pb_label.update()
+
                                 logger.info("Processing query locs \"" + str(sub_dataset.metadata.get(AcquisiPaths.QUERYLOC_PATH, [Path()])[q].name) +
                                       "\" in dataset #" + str(vidnum) + " from the " + str(mode) + " modality in group "
                                       + str(group) + " and folder " + folder.name + "...")
@@ -418,11 +378,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             # Once we've extracted the iORG signals, remove the video and mask data as it's likely to have a large memory footprint.
                             sub_dataset.clear_video_data()
 
-                    # pb["value"] = len(data_vidnums)
-                    # pb_label["text"] = "Processing query locs ... Done!"
-                    # pb.update()
-                    # pb_label.update()
-
                     has_stim = allData.loc[:, AcquisiParams.STIM_PRESENT].astype(bool)
                     slice_of_life = group_filter & folder_filter & mode_filter
                     stim_datasets = allData.loc[slice_of_life & vidtype_filter & has_stim, AcquisiPaths.DATASET].tolist()
@@ -437,7 +392,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
                     pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
-                    # pb["maximum"] = len(stim_data_vidnums)+1
 
                     # Determine if all stimulus data in this folder and mode has the same form and contents;
                     # if so, we can just process the control data *one* time, saving a lot of time.
@@ -525,11 +479,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             first_run = False
                             # Only do the below if we have actual control datasets.
                             if control_datasets:
-                                # pb_label["text"] = "Processing query files in control datasets for stimulus video " + str(
-                                #     stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
-                                #     group) + " and folder " + folder.name + "..."
-                                # pb.update()
-                                # pb_label.update()
+
                                 logger.info("Processing query files in control datasets for stim video " + str(
                                     stim_vidnum) + " from the " + str(mode) + " modality in group " + str(
                                     group) + " and folder " + folder.name + "...")
