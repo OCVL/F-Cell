@@ -1,19 +1,13 @@
 import warnings
 from itertools import repeat
-from multiprocessing import Pool, shared_memory
-
+from multiprocessing import shared_memory
 import numpy as np
-
 import scipy
 from joblib._multiprocessing_helpers import mp
-
 from scipy import signal
-from scipy.interpolate import UnivariateSpline, Akima1DInterpolator, make_smoothing_spline
-from scipy.ndimage import center_of_mass, convolve1d, median_filter
-from scipy.signal import savgol_filter, convolve, freqz
-from skimage.feature import graycomatrix, graycoprops
-from matplotlib import pyplot as plt
-
+from scipy.interpolate import Akima1DInterpolator, make_smoothing_spline
+from scipy.ndimage import center_of_mass, convolve1d
+from scipy.signal import savgol_filter
 
 
 def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", window_size=1, fraction_thresh=0.25, pool=None):
