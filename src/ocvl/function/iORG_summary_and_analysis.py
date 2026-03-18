@@ -151,7 +151,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
             metrics_tags.append(MetricTags.RECOVERY_PERCENT)
 
     pop_overlap_params = display_params.get(DisplayParams.POP_SUMMARY_OVERLAP, dict())
-    debug_params = display_params.get(DebugParams.NAME, dict())
+    debug_params = analysis_dat_format.get(DebugParams.NAME, dict())
     pop_seq_params = display_params.get(DisplayParams.POP_SUMMARY_SEQ, dict())
     indiv_overlap_params = display_params.get(DisplayParams.INDIV_SUMMARY_OVERLAP, dict())
     indiv_summary = display_params.get(DisplayParams.INDIV_SUMMARY, dict())

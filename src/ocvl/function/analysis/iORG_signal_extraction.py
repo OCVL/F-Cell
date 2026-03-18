@@ -61,7 +61,7 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
 
     # Debug parameters. All of these default to off, unless explicitly flagged on in the json.
     display_params = analysis_dat_format.get(DisplayParams.NAME, dict())
-    debug_params = display_params.get(DebugParams.NAME, dict())
+    debug_params = analysis_dat_format.get(DebugParams.NAME, dict())
     plot_extracted_orgs = debug_params.get(DebugParams.PLOT_POP_EXTRACTED_ORGS, False)
     plot_stdize_orgs = debug_params.get(DebugParams.PLOT_POP_STANDARDIZED_ORGS, False)
     plot_refine_to_ref = debug_params.get(DebugParams.PLOT_REFINE_TO_REF, False)

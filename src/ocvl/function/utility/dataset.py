@@ -109,7 +109,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
 
     display_params = params.get(DisplayParams.NAME, dict())
     analysis_params = params.get(Analysis.PARAMS, dict())
-    debug_params = display_params.get(DebugParams.NAME, dict())
+    debug_params = params.get(DebugParams.NAME, dict())
     metadata_params = params.get(MetaTags.METATAG, dict())
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
 
