@@ -1105,7 +1105,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             tryagain = True
                             while tryagain:
                                 try:
-                                    indiv_iORG_result[q].sort_index(inplace=True)
                                     indiv_iORG_result[q].to_csv(indiv_respath)
                                     tryagain = False
                                 except PermissionError:
