@@ -854,7 +854,7 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
         result_folder.mkdir(parents=True, exist_ok=True)
         save_tiff_stack(result_folder.joinpath(dataset.video_path.stem + "_" + norm_method + "_norm.tif"),
                         dataset.video_data)
-        logger.info("Output the normalized video to: "+result_folder)
+        logger.info("Output the normalized video to: "+str(result_folder))
 
     return dataset
 
