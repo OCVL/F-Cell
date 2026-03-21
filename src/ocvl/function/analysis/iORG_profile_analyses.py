@@ -1,13 +1,15 @@
+import logging
 import warnings
 from itertools import repeat
 from multiprocessing import shared_memory
 import numpy as np
 import scipy
 from joblib._multiprocessing_helpers import mp
+from matplotlib import pyplot as plt
 from scipy import signal
 from scipy.interpolate import Akima1DInterpolator, make_smoothing_spline
 from scipy.ndimage import center_of_mass, convolve1d
-from scipy.signal import savgol_filter
+from scipy.signal import savgol_filter, hilbert
 
 
 def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", window_size=1, fraction_thresh=0.25, pool=None):
@@ -129,6 +131,39 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                                 chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
+        elif summary_method == "envelope":
+
+            if window_radius == 0:
+                summary = np.full((temporal_data.shape[1], temporal_data.shape[2]), np.nan)
+
+                for c in range(temporal_data.shape[1]):
+                    cell_signals =  temporal_data[:,c,:]
+
+                    for acq_ind in range(cell_signals.shape[0]):
+                        finite_window_frms = np.flatnonzero(np.isfinite(cell_signals[acq_ind,:]))
+                        if len(finite_window_frms) > fraction_thresh*cell_signals.shape[1]:
+                            interper = Akima1DInterpolator(finite_window_frms, cell_signals[acq_ind, finite_window_frms], method="makima")
+                            interpinds = np.arange(start=finite_window_frms[0], stop=finite_window_frms[-1])
+                            cell_signals[acq_ind,interpinds] = interper(interpinds)
+
+                            cell_signals[acq_ind,interpinds] = np.abs(hilbert(cell_signals[acq_ind, interpinds]))
+
+                    if np.any(np.isfinite(cell_signals)):
+                        summary[c,:] = np.nanmax(cell_signals, axis=0)
+
+                        plt.figure("cell")
+                        plt.clf()
+                        plt.plot(temporal_data[:,c,:].transpose())
+                        plt.plot( summary[c,:] )
+
+                        plt.show(block=False)
+                        plt.waitforbuttonpress()
+
+
+            else:
+                print("Awww shit")
+                pass
+
         else:
             raise Exception("Invalid summary_method")
 
@@ -256,6 +291,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         temporal_signals = temporal_signals[None, :]
 
     finite_data = np.isfinite(temporal_signals)
+    logger = logging.getLogger("ORG_Logger")
 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
@@ -298,11 +334,20 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         prestim_val = np.nanmedian(prestim, axis=1)
 
         # This only smooths the signal if spline_smooth is defined.
-        if spline_smooth is not None:
+        if spline_smooth is not None and poststim_frms.shape[1] > 5:
             if spline_smooth == "auto": # This is found automatically using the Generalized Cross Validation, per scipy.
                 spline_smooth = None
             for c in range(poststim.shape[0]):
-                poststim[c,:] = make_smoothing_spline(poststim_frms, poststim[c,:], lam=spline_smooth)(poststim_frms)
+                numfi = np.isfinite(poststim[c, :])
+                if np.sum(numfi) > 5:
+                    poststim[c,numfi] = make_smoothing_spline(poststim_frms[numfi], poststim[c,numfi], lam=spline_smooth)(poststim_frms[numfi])
+
+        elif spline_smooth is not None and poststim_frms.shape[1] < 5:
+            logger.warning(f"Unable to smooth and analyze signals as there are less than 5 post stim frames ({len(poststim_frms) })")
+            return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
+                   np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan), \
+                   np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
+
 
 
         if poststim.size != 1 and poststim.shape[1] != 1:

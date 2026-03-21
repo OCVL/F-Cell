@@ -733,37 +733,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         largest_prestim = np.argmax(stimtrain, axis=0)
                         stimtrain = stimtrain[largest_prestim[0],:]
 
-                        # Debug - to look at individual cell raw traces.
-                        if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
-                            if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, "all") == "all":
-                                cell_inds = range(stim_iORG_signals[q].shape[1])
-                            else:
-                                cell_inds = debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, 0)
-
-                            for c in cell_inds:
-                                overlap_label = "Debug: View stdz " + mode + " iORGs in " + folder.name + " signals for cell: "+str(c)+ " at: " + str(stim_datasets[0].query_loc[q][c,:])
-                                if len(cell_inds) < 10:
-                                    folder_display_dict[query_loc_names[q] + "_stdz_" + mode + "_iORGs_" + folder.name + "_" + str(c) + "_at_" + str(stim_datasets[0].query_loc[q][c, :])] = overlap_label
-
-                                if np.any(np.isfinite(stim_iORG_signals[q][:, c, :])):
-
-                                    if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
-                                        if control_iORG_signals[q] is not None:
-                                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
-                                                          finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
-                                                          image=stim_datasets[0].avg_image_data, cell_loc=stim_datasets[0].query_loc[q][c,:],
-                                                          stim_delivery_frms = stimtrain, framerate = pooled_framerate,
-                                                          figure_label = overlap_label, params = debug_params)
-                                        else:
-                                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
-                                                          image=stim_datasets[0].avg_image_data, cell_loc=stim_datasets[0].query_loc[q][c,:],
-                                                          stim_delivery_frms = stimtrain, framerate = pooled_framerate,
-                                                          figure_label = overlap_label, params = debug_params)
-
-                                        if len(cell_inds) > 10:
-                                            plt.show(block=False)
-                                            plt.waitforbuttonpress()
-                                            plt.close()
 
                         ''' *** Pool the summarized population iORGs *** '''
                         with warnings.catch_warnings():
@@ -932,7 +901,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 plt.title("Pooled " + sum_method.upper() + " iORGs. (No control)")
 
                         # If we have a uniform dataset, summarize each cell's iORG too.
-                        ''' *** Individual iORG analyses start here *** '''
+                        ''' ******** Individual iORG analyses start here ******** '''
                         if uniform_datasets:
                             all_frmstmp = np.arange(max_frmstamp + 1)
 
@@ -956,7 +925,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             stim_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
 
                             allcell_iORG_summary, _ = summarize_iORG_signals(stim_iORG_signals[q], all_frmstmp,
-                                                                          summary_method=sum_method,
+                                                                          summary_method="envelope",
                                                                           window_size=sum_window,
                                                                           pool=the_pool)
 
@@ -979,6 +948,45 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                          stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
                                                          figure_label=overlap_label, params=indiv_overlap_params)
 
+                            # Debug - to look at individual cell raw traces.
+                            if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
+                                if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, "all") == "all":
+                                    cell_inds = range(stim_iORG_signals[q].shape[1])
+                                else:
+                                    cell_inds = debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, 0)
+
+                                for c in cell_inds:
+                                    overlap_label = "Debug: View stdz " + mode + " iORGs in " + folder.name + " signals for cell: " + str(c) + " at: " + str(stim_datasets[0].query_loc[q][c, :])
+                                    if len(cell_inds) < 10:
+                                        folder_display_dict[query_loc_names[q] + "_stdz_" + mode + "_iORGs_" + folder.name + "_" + str(c) + "_at_" + str(stim_datasets[0].query_loc[q][c, :])] = overlap_label
+
+                                    if np.any(np.isfinite(stim_iORG_signals[q][:, c, :])):
+
+                                        if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
+                                            if control_iORG_signals[q] is not None:
+                                                display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :],
+                                                              query_loc_names[q],
+                                                              finite_iORG_frmstmp, control_iORG_signals[q][:, c, :],
+                                                              control_data_vidnums,
+                                                              image=stim_datasets[0].avg_image_data,
+                                                              cell_loc=stim_datasets[0].query_loc[q][c, :],
+                                                              stim_delivery_frms=stimtrain, framerate=pooled_framerate,
+                                                              figure_label=overlap_label, params=debug_params)
+                                            else:
+                                                display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :],
+                                                              query_loc_names[q],
+                                                              image=stim_datasets[0].avg_image_data,
+                                                              cell_loc=stim_datasets[0].query_loc[q][c, :],
+                                                              stim_delivery_frms=stimtrain, framerate=pooled_framerate,
+                                                              figure_label=overlap_label, params=debug_params)
+                                        plt.subplot(1, 3, 2)
+                                        plt.plot(all_frmstmp/pooled_framerate, allcell_iORG_summary[c,:], 'k--', linewidth=4)
+
+                                        if len(cell_inds) > 10:
+                                            plt.show(block=False)
+                                            plt.waitforbuttonpress()
+                                            plt.close()
+
                             if analysis_params.get(Analysis.OUTPUT_SUM_INDIV_ORGS, False):
                                 result_datafolder = result_path.joinpath("iORG_Data")
                                 result_datafolder.mkdir(parents=True, exist_ok=True)
@@ -992,6 +1000,17 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 gc.collect()
 
                             # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
+
+                            # tiled_frmstmp = np.tile(all_frmstmp, (stim_iORG_summary[q].shape[0], 1))
+                            # plt.figure()
+                            # plt.hist2d(tiled_frmstmp.flatten(), stim_iORG_summary[q].flatten(), bins=[59, 30], range=[[58, 175], [-10, 60]])
+                            #
+                            # plt.figure()
+                            # plt.hist(stim_iORG_summary[q][78,:].flatten(), bins=60)
+                            #
+                            # plt.show(block=False)
+                            # plt.waitforbuttonpress()
+
                             res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool,
                                                                                                            smooth_factor, amp_percentile, poststim_frms)
 
