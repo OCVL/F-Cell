@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from scipy import signal
 from scipy.interpolate import Akima1DInterpolator, make_smoothing_spline
 from scipy.ndimage import center_of_mass, convolve1d
-from scipy.signal import savgol_filter, hilbert
+from scipy.signal import savgol_filter, hilbert, envelope
 
 
 def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", window_size=1, fraction_thresh=0.25, pool=None):
@@ -137,7 +137,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                 summary = np.full((temporal_data.shape[1], temporal_data.shape[2]), np.nan)
 
                 for c in range(temporal_data.shape[1]):
-                    cell_signals =  temporal_data[:,c,:]
+                    cell_signals =  temporal_data[:,c,:].copy()
 
                     for acq_ind in range(cell_signals.shape[0]):
                         finite_window_frms = np.flatnonzero(np.isfinite(cell_signals[acq_ind,:]))
@@ -146,12 +146,14 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                             interpinds = np.arange(start=finite_window_frms[0], stop=finite_window_frms[-1])
                             cell_signals[acq_ind,interpinds] = interper(interpinds)
 
-                            cell_signals[acq_ind,interpinds] = np.abs(hilbert(cell_signals[acq_ind, interpinds]))
+                            samp_per_freak = int((interpinds[-1]-interpinds[0])/29.4)
+                            # cell_signals[acq_ind,interpinds] = np.abs(hilbert(cell_signals[acq_ind, interpinds]))
+                            cell_signals[acq_ind, interpinds] = envelope(cell_signals[acq_ind, interpinds],bp_in=(int(0.25 * samp_per_freak, None), None))
 
                     if np.any(np.isfinite(cell_signals)):
                         summary[c,:] = np.nanmax(cell_signals, axis=0)
 
-                        plt.figure("cell")
+                        plt.figure(f"cell {c}")
                         plt.clf()
                         plt.plot(temporal_data[:,c,:].transpose())
                         plt.plot( summary[c,:] )
