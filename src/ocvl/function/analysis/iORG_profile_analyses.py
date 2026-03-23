@@ -146,18 +146,24 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                             interpinds = np.arange(start=finite_window_frms[0], stop=finite_window_frms[-1])
                             cell_signals[acq_ind,interpinds] = interper(interpinds)
 
-                            samp_per_freak = int((interpinds[-1]-interpinds[0])/29.4)
+                            samp_per_freak = int(len(interpinds)/29.4)
                             # cell_signals[acq_ind,interpinds] = np.abs(hilbert(cell_signals[acq_ind, interpinds]))
-                            cell_signals[acq_ind, interpinds] = envelope(cell_signals[acq_ind, interpinds],bp_in=(int(0.25 * samp_per_freak, None), None))
+                            cell_signals[acq_ind,interpinds] = np.unwrap(np.angle(hilbert(cell_signals[acq_ind, interpinds]))) # Instantaneous phase
+                            cell_signals[acq_ind,:] -= np.nanmean(cell_signals[acq_ind,48:58])
+
+                            # cell_env = envelope(cell_signals[acq_ind, interpinds],bp_in=(int(0.25 * samp_per_freak), int(len(interpinds)*.35)), residual=None)
+                            # cell_signals[acq_ind, interpinds] = cell_env
 
                     if np.any(np.isfinite(cell_signals)):
-                        summary[c,:] = np.nanmax(cell_signals, axis=0)
+                        summary[c,:] = np.nanmean(cell_signals, axis=0)
 
-                        plt.figure(f"cell {c}")
+                        plt.figure(f"cell")
                         plt.clf()
-                        plt.plot(temporal_data[:,c,:].transpose())
-                        plt.plot( summary[c,:] )
 
+                        plt.plot(cell_signals.transpose())
+                        plt.plot(summary[c, :], color="k", linewidth=4)
+                        plt.ylim((-50,50))
+                       # plt.plot(temporal_data[:,c,:].transpose())
                         plt.show(block=False)
                         plt.waitforbuttonpress()
 
