@@ -925,7 +925,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             stim_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
 
                             allcell_iORG_summary, _ = summarize_iORG_signals(stim_iORG_signals[q], all_frmstmp,
-                                                                          summary_method="envelope",
+                                                                          summary_method=sum_method,
                                                                           window_size=sum_window,
                                                                           pool=the_pool)
 
@@ -939,14 +939,20 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                             ''' *** Display individual iORG summaries  *** '''
                             if indiv_overlap_params:
-                                if indiv_overlap_params.get(DisplayParams.DISP_STIMULUS, False) or \
+                                if (indiv_overlap_params.get(DisplayParams.DISP_STIMULUS, False) or \
                                         indiv_overlap_params.get(DisplayParams.DISP_CONTROL, False) or \
-                                        indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, False):
+                                        indiv_overlap_params.get(DisplayParams.DISP_RELATIVE, False)):
 
-                                    display_iORG_pop_summary(all_frmstmp, allcell_iORG_summary, stim_iORG_summary[q], None,
-                                                         all_frmstmp, control_pop_iORG_summary_pooled[q][np.newaxis, :],
-                                                         stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
-                                                         figure_label=overlap_label, params=indiv_overlap_params)
+                                    if control_datasets:
+                                        display_iORG_pop_summary(all_frmstmp, allcell_iORG_summary, stim_iORG_summary[q], None,
+                                                             all_frmstmp, control_pop_iORG_summary_pooled[q][np.newaxis, :],
+                                                             stim_delivery_frms=stimtrain,framerate=pooled_framerate, sum_method=sum_method, sum_control=sum_control,
+                                                             figure_label=overlap_label, params=indiv_overlap_params)
+                                    else:
+                                        display_iORG_pop_summary(all_frmstmp, allcell_iORG_summary, stim_iORG_summary[q],
+                                                             None, all_frmstmp, stim_delivery_frms=stimtrain, framerate=pooled_framerate,
+                                                             sum_method=sum_method, sum_control=sum_control,
+                                                             figure_label=overlap_label, params=indiv_overlap_params)
 
                             # Debug - to look at individual cell raw traces.
                             if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
@@ -972,6 +978,9 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                               cell_loc=stim_datasets[0].query_loc[q][c, :],
                                                               stim_delivery_frms=stimtrain, framerate=pooled_framerate,
                                                               figure_label=overlap_label, params=debug_params)
+                                                plt.subplot(1, 3, 2)
+                                                plt.plot(all_frmstmp / pooled_framerate, allcell_iORG_summary[c, :],
+                                                         'k--', linewidth=4)
                                             else:
                                                 display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :],
                                                               query_loc_names[q],
@@ -979,8 +988,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                               cell_loc=stim_datasets[0].query_loc[q][c, :],
                                                               stim_delivery_frms=stimtrain, framerate=pooled_framerate,
                                                               figure_label=overlap_label, params=debug_params)
-                                        plt.subplot(1, 3, 2)
-                                        plt.plot(all_frmstmp/pooled_framerate, allcell_iORG_summary[c,:], 'k--', linewidth=4)
+                                                plt.subplot(1, 2, 2)
+                                                plt.plot(all_frmstmp / pooled_framerate, allcell_iORG_summary[c, :],
+                                                         'k--', linewidth=4)
+
 
                                         if len(cell_inds) > 10:
                                             plt.show(block=False)
