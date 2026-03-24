@@ -141,29 +141,41 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
 
                     for acq_ind in range(cell_signals.shape[0]):
                         finite_window_frms = np.flatnonzero(np.isfinite(cell_signals[acq_ind,:]))
+                        finite_frmstmps = framestamps[finite_window_frms]
+
                         if len(finite_window_frms) > fraction_thresh*cell_signals.shape[1]:
                             interper = Akima1DInterpolator(finite_window_frms, cell_signals[acq_ind, finite_window_frms], method="makima")
                             interpinds = np.arange(start=finite_window_frms[0], stop=finite_window_frms[-1])
                             cell_signals[acq_ind,interpinds] = interper(interpinds)
+                            plt.figure(f"cell {c}")
+                            plt.clf()
+                            plt.plot(interpinds, cell_signals[acq_ind,interpinds])
 
                             samp_per_freak = int(len(interpinds)/29.4)
                             # cell_signals[acq_ind,interpinds] = np.abs(hilbert(cell_signals[acq_ind, interpinds]))
                             cell_signals[acq_ind,interpinds] = np.unwrap(np.angle(hilbert(cell_signals[acq_ind, interpinds]))) # Instantaneous phase
-                            cell_signals[acq_ind,:] -= np.nanmean(cell_signals[acq_ind,48:58])
+                            #cell_signals[acq_ind, interpinds] = np.gradient(cell_signals[acq_ind, interpinds])  # Instantaneous frequency
+                            #cell_signals[acq_ind,:] -= np.nanmean(cell_signals[acq_ind,57])
 
                             # cell_env = envelope(cell_signals[acq_ind, interpinds],bp_in=(int(0.25 * samp_per_freak), int(len(interpinds)*.35)), residual=None)
                             # cell_signals[acq_ind, interpinds] = cell_env
 
+                            plt.plot(finite_frmstmps, cell_signals[acq_ind,finite_frmstmps])
+
+                            plt.show(block=False)
+                            plt.waitforbuttonpress()
+
                     if np.any(np.isfinite(cell_signals)):
                         summary[c,:] = np.nanmean(cell_signals, axis=0)
 
-                        plt.figure(f"cell")
+                        plt.figure(f"allcell")
                         plt.clf()
 
                         plt.plot(cell_signals.transpose())
                         plt.plot(summary[c, :], color="k", linewidth=4)
-                        plt.ylim((-50,50))
-                       # plt.plot(temporal_data[:,c,:].transpose())
+                        #plt.xlim((0,150))
+                        #plt.ylim((-5, 5))
+                        #plt.plot(temporal_data[:,c,:].transpose())
                         plt.show(block=False)
                         plt.waitforbuttonpress()
 
@@ -401,7 +413,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
     return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery, prestim_frms, poststim_frms
 
-def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
+def iORG_signal_filter(temporal_signals, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
 
     finite_data = np.isfinite(temporal_signals)
 
