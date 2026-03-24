@@ -566,7 +566,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             # situations where we extract multiple stimuli from one long video. Otherwise, does essentially nothing.
                             stim_dataset.framestamps = (stim_dataset.framestamps-(stim_dataset.stimtrain_frame_stamps[1]-1))-min_frmstamp_rel_to_stim
 
-                            stim_pop_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q]
+                            stim_pop_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q].flatten()
 
                             if sum_control == "subtraction" and control_datasets:
                                 stim_dataset.summarized_iORGs[q] = stim_pop_summary - control_pop_iORG_summary_pooled[q]
