@@ -749,16 +749,16 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                                     if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
                                         if control_iORG_signals[q] is not None:
-                                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
+                                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], stim_data_vidnums,
                                                           finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
                                                           image=stim_datasets[0].avg_image_data, cell_loc=stim_datasets[0].query_loc[q][c,:],
                                                           stim_delivery_frms = stimtrain, framerate = pooled_framerate,
-                                                          figure_label = overlap_label, params = debug_params)
+                                                          figure_label = overlap_label, params = debug_params, data_color = debug_params.get('axes',{}).get('cmap', 'viridis'))
                                         else:
-                                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], query_loc_names[q],
+                                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], stim_data_vidnums,
                                                           image=stim_datasets[0].avg_image_data, cell_loc=stim_datasets[0].query_loc[q][c,:],
                                                           stim_delivery_frms = stimtrain, framerate = pooled_framerate,
-                                                          figure_label = overlap_label, params = debug_params)
+                                                          figure_label = overlap_label, params = debug_params, data_color = debug_params.get('axes',{}).get('cmap', 'viridis'))
 
                                         if len(cell_inds) > 10:
                                             plt.show(block=False)

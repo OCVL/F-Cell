@@ -238,8 +238,11 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
 
     #if data_color is None: data_color = ax_params.get(DisplayParams.CMAP, "viridis")
 
+    if data_color is None:
+        data_color = ax_params.get(DisplayParams.CMAP, "viridis")
+
     show_legend = ax_params.get(DisplayParams.LEGEND, False) and \
-                  isinstance(stim_vidnums, list) and isinstance(control_vidnums, list)
+                   isinstance(stim_vidnums, list) and isinstance(control_vidnums, list)
     xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
     ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
     linethickness = ax_params.get(DisplayParams.LINEWIDTH, 2.5)
@@ -261,37 +264,13 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         plt.imshow(image, cmap='gray')
         plt.plot(cell_loc[:, 0], cell_loc[:, 1], "*", markersize=6)
 
-    if how_many > 1 and disp_stim:
-        plt.subplot(1, how_many, ind)
-        ind += 1
-    if disp_stim:
-        plt.title("Stimulus iORG")
-        for r in range(stim_iORGs.shape[0]):
-            dispinds = np.isfinite(stim_iORGs[r])
-            plt.plot(stim_framestamps[dispinds] / framerate, stim_iORGs[r, dispinds], linewidth=linethickness,
-                     label=str(stim_vidnums[r]))
-        plt.xlabel("Time (s)")
-        plt.ylabel("A.U.")
-
-        if data_color is not None:
-            _update_plot_colors(data_color)
-
-        if stim_delivery_frms is not None and len(plt.gca().get_lines()) == 1:
-            for i in range(1, len(stim_delivery_frms), 2):
-                plt.gca().axvspan(float(stim_delivery_frms[i-1]/ framerate),
-                                  float(stim_delivery_frms[i]/ framerate), facecolor='g', alpha=0.5)
-
-        if not None in xlimits: plt.xlim(xlimits)
-        if not None in ylimits: plt.ylim(ylimits)
-        if show_legend: plt.legend()
-
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
         ind += 1
     if disp_cont  and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
         plt.title("Control iORGs")
         for r in range(control_iORGs.shape[0]):
-            dispinds = np.isfinite(stim_iORGs[r])
+            dispinds = np.isfinite(control_iORGs[r])
             plt.plot(control_framestamps[dispinds] / framerate, control_iORGs[r, dispinds], linewidth=linethickness, label=str(control_vidnums[r]))
         plt.xlabel("Time (s)")
         plt.ylabel("A.U.")
@@ -302,6 +281,29 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         if not None in ylimits: plt.ylim(ylimits)
         if show_legend: plt.legend()
 
+    if how_many > 1 and disp_stim:
+        plt.subplot(1, how_many, ind)
+        ind += 1
+    if disp_stim and plt.gca().get_title() != "Stimulus iORGs":
+        plt.title("Stimulus iORGs")
+        for r in range(stim_iORGs.shape[0]):
+            dispinds = np.isfinite(stim_iORGs[r])
+            plt.plot(stim_framestamps[dispinds] / framerate, stim_iORGs[r, dispinds], linewidth=linethickness,
+                     label=str(stim_vidnums[r]))
+        plt.xlabel("Time (s)")
+        plt.ylabel("A.U.")
+
+        #if data_color is not None:
+        _update_plot_colors(data_color)
+
+        if stim_delivery_frms is not None and len(plt.gca().get_lines()) == 1:
+            for i in range(1, len(stim_delivery_frms), 2):
+                plt.gca().axvspan(float(stim_delivery_frms[i-1]/ framerate),
+                                  float(stim_delivery_frms[i]/ framerate), facecolor='g', alpha=0.5)
+
+        if not None in xlimits: plt.xlim(xlimits)
+        if not None in ylimits: plt.ylim(ylimits)
+        if show_legend: plt.legend()
 
 def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_delivery_frms=None,
                                  framerate=15.0, sum_method="",
