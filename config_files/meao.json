@@ -93,7 +93,7 @@
         "units": "time",
         "start": -0.2,
         "stop": 0.2,
-        "fraction": 0.2
+        "fraction": 0.5
       },
       "standardization": {
         "method": "mean_sub",

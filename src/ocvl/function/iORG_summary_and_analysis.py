@@ -1004,7 +1004,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                              pool=the_pool)
 
                             # Add correlation function here
-                            iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary)
+#                            iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary)
 
                             # Calculate the relativized individual cell iORGs
                             if indiv_sum_control == "subtraction_pop" and control_datasets:
