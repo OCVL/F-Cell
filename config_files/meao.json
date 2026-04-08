@@ -57,9 +57,9 @@
       "type": "text_file",
       "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_piped.csv",
       "fields_to_load": {
-        "framestamps": "FrameStamps",
-        "stimulus_sequence": "StimulusOn"
-      }
+        "framestamps": "FrameStamps"
+      },
+      "stimulus_sequence": [58, 2, 116]
     },
     "recursive_search": false,
     "control": {
@@ -73,7 +73,7 @@
       "output_subfolder_method": "DateTime",
       "output_indiv_stdize_orgs": false,
       "output_sum_pop_orgs": true,
-      "output_sum_indiv_orgs": false,
+      "output_sum_indiv_orgs": true,
       "normalization": {
         "method": "score",
         "rescaled": true,
@@ -92,8 +92,8 @@
         "type": "stim-relative",
         "units": "time",
         "start": -0.2,
-        "stop": 0.2,
-        "fraction": 0.2
+        "stop": 0.4,
+        "fraction": 0.5
       },
       "standardization": {
         "method": "mean_sub",
@@ -102,23 +102,22 @@
         "start": -2
       },
       "summary": {
-        "method": "rms",
-        "control": "subtraction",
+        "method": "envelope",
+        "control": "none",
         "metrics": {
           "type": ["amp", "logamp", "amp_imp_time", "halfamp_imp_time"],
           "measured": "stim-relative",
           "units": "time",
-          "prestim": [-1, 0],
-          "poststim": [0, 1]
+          "prestim": [-0.5, 0],
+          "poststim": [0, 0.1],
+          "smoothing_factor": null
         },
         "indiv_cutoff": 5
       },
       "gaus_blur": 0.0,
+      "flat_field": true,
       "mask_roi": {
-        "r": 0,
-        "c": 0,
-        "width": -1,
-        "height": -1
+
       }
     },
     "debug":{
@@ -152,7 +151,7 @@
           "xmin": 0,
           "xmax": 4,
           "ymin": -5,
-          "ymax": 60,
+          "ymax": 100,
           "cmap": "plasma",
           "legend": true
         }
@@ -165,7 +164,7 @@
           "xmin": 0,
           "xmax": 4,
           "ymin": 0,
-          "ymax": 60,
+          "ymax": 100,
           "cmap": "plasma",
           "legend": true
         }
@@ -173,7 +172,7 @@
       "indiv_summary_overlap": {
         "stimulus": false,
         "control": false,
-        "relative": false,
+        "relative": true,
         "axes": {
           "xmin": null,
           "xmax": null,
@@ -184,7 +183,7 @@
       },
       "indiv_summary": {
         "histogram": true,
-        "cumulative_histogram": true,
+        "cumulative_histogram": false,
         "map_overlay": true,
         "axes": {
           "xmin": null,

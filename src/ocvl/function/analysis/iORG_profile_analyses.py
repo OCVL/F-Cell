@@ -66,7 +66,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
 
     else:
         if len(temporal_signals.shape) == 2:
-            temporal_data = np.ndarray((num_signals, 1, framestamps[-1] + 1), dtype=temporal_signals.dtype)
+            temporal_data = np.full((num_signals, 1, framestamps[-1] + 1), np.nan, dtype=np.float32)
             temporal_data[:, 0, framestamps] = temporal_signals
         elif len(temporal_signals.shape) == 3:
             temporal_data = temporal_signals
@@ -139,51 +139,76 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
 
             if window_radius == 0:
                 for c in range(temporal_data.shape[1]):
-                    padding = int(temporal_data.shape[-1]/2)
+                    if np.any(np.isfinite(temporal_data[:, c, :])):
+                        padding = int(temporal_data.shape[-1]/2)
 
-                    cell_signals =  temporal_data[:,c,:].copy()
-                    cell_signals = np.pad(cell_signals, ((0, 0),
-                                                           (padding, padding)),
-                                           "constant", constant_values=np.nan)
+                        cell_signals =  temporal_data[:,c,:].copy()
+                        cell_signals = iORG_signal_filter(cell_signals, filter_type="MS")
 
-                    for acq_ind in range(cell_signals.shape[0]):
-                        finite_window_frms = np.flatnonzero(np.isfinite(cell_signals[acq_ind,:]))
+                        # for acq_ind in range(cell_signals.shape[0]):
+                        #     if np.any(np.isfinite(temporal_data[acq_ind,c, :])):
+                        #         plt.figure(f"cell")
+                        #         plt.clf()
+                        #         plt.plot(temporal_data[acq_ind,c, :])
+                        #         plt.plot(cell_signals[acq_ind, :])
+                        #         plt.axvline(58, ymin=0, ymax=1, color='k')
+                        #         plt.show(block=False)
+                        #         plt.waitforbuttonpress()
 
-                        if len(finite_window_frms) > fraction_thresh*cell_signals.shape[1]:
-                            interper = interp1d(finite_window_frms, cell_signals[acq_ind, finite_window_frms])
-                            interpinds = np.arange(start=finite_window_frms[0], stop=finite_window_frms[-1])
-                            cell_signals[acq_ind,interpinds] = interper(interpinds)
+                        cell_signals = np.pad(cell_signals, ((0, 0), (padding, padding)),
+                                               "constant", constant_values=np.nan)
 
-                            cell_signals[acq_ind, np.isnan(cell_signals[acq_ind, :])] = 0
+                        for acq_ind in range(cell_signals.shape[0]):
+                            finite_window_frms = np.flatnonzero(np.isfinite(cell_signals[acq_ind,:]))
 
-                            # cell_signals[acq_ind,:] = np.abs(hilbert(cell_signals[acq_ind,:]))
-                            cell_signals[acq_ind, :] = envelope(cell_signals[acq_ind,:], bp_in=(3, None), residual=None)
+                            if len(finite_window_frms) > fraction_thresh*cell_signals.shape[1]:
+                                interper = interp1d(finite_window_frms, cell_signals[acq_ind, finite_window_frms])
+                                interpinds = np.arange(start=finite_window_frms[0], stop=finite_window_frms[-1])
+                                cell_signals[acq_ind,interpinds] = interper(interpinds)
 
-                        else:
-                            cell_signals[acq_ind, :] = np.nan
+                                cell_signals[acq_ind, np.isnan(cell_signals[acq_ind, :])] = 0
 
-                    cell_signals = cell_signals[:, padding:-padding]
-
-                    if np.any(np.isfinite(cell_signals)):
-                        #Envelope RMS
-                        # mean prestim subtract
-
-                        prestim_mean = np.nanmean(cell_signals[:, np.flatnonzero((framestamps < 58) & (framestamps > 25))], axis=1)
-                        cell_signals -= prestim_mean[:,np.newaxis]
-
-                        summary[c,:] = np.sqrt(np.nanmean(np.square(cell_signals[:,framestamps]), axis=0))  # Sqrt last
-                        num_incl = np.sum(np.isfinite(cell_signals), axis=0)
+                                # cell_signals[acq_ind,:] = np.abs(hilbert(cell_signals[acq_ind,:]))
+                                # plt.figure(f"allcell")
+                                # plt.clf()
+                                # plt.plot(cell_signals[acq_ind,:])
+                                # plt.plot(np.abs(hilbert(cell_signals[acq_ind,:])))
+                                # cell_signals[acq_ind, :] = envelope(cell_signals[acq_ind,:], bp_in=(5, None), residual=None)
+                                # plt.plot(cell_signals[acq_ind, :])
+                                # plt.show(block=False)
+                                # plt.waitforbuttonpress()
+                                # print("")
+                            else:
+                                cell_signals[acq_ind, :] = np.nan
 
                         # plt.figure(f"allcell")
                         # plt.clf()
-                        #
                         # plt.plot(cell_signals.transpose())
-                        # plt.plot(framestamps, summary[c, :], color="k", linewidth=4)
-                        # #plt.xlim((0,150))
-                        # #plt.ylim((-5, 5))
-                        # #plt.plot(temporal_data[:,c,:].transpose())
-                        # plt.show(block=False)
                         # plt.waitforbuttonpress()
+
+                        cell_signals = cell_signals[:, padding:-padding]
+
+                        if np.any(np.isfinite(cell_signals)):
+                            #Envelope RMS
+                            # mean prestim subtract
+
+                            prestim_mean = np.nanmean(cell_signals[:, 55:58], axis=1)
+                            cell_signals -= prestim_mean[:,np.newaxis]
+
+                            summary[c,:] = np.sqrt(np.nanmean(np.square(cell_signals[:,framestamps]), axis=0))  # Sqrt last
+                            num_incl = np.sum(np.isfinite(cell_signals), axis=0)
+
+                            # plt.figure(f"allcell")
+                            # plt.clf()
+                            #
+                            # plt.plot(cell_signals.transpose())
+                            # plt.plot(framestamps, summary[c, :], color="k", linewidth=4)
+                            # plt.axvline(58, ymin=0, ymax=1, color='k')
+                            # #plt.xlim((0,150))
+                            # #plt.ylim((-5, 5))
+                            # #plt.plot(temporal_data[:,c,:].transpose())
+                            # plt.show(block=False)
+                            # plt.waitforbuttonpress()
 
 
             else:
