@@ -34,7 +34,7 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 from datetime import datetime
 from matplotlib.lines import Line2D
-from scipy.stats import t
+from scipy.stats import t, pearsonr
 
 import ocvl.function
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
@@ -1004,7 +1004,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                              pool=the_pool)
 
                             # Add correlation function here
-#                            iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary)
+                            iORG_corr, iORG_corr_p_val = iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary)
 
                             # Calculate the relativized individual cell iORGs
                             if indiv_sum_control == "subtraction_pop" and control_datasets:

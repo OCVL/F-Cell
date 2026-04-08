@@ -8,6 +8,7 @@ from scipy import signal
 from scipy.interpolate import Akima1DInterpolator, make_smoothing_spline
 from scipy.ndimage import center_of_mass, convolve1d
 from scipy.signal import savgol_filter
+from scipy.stats import pearsonr
 
 
 def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", window_size=1, fraction_thresh=0.25, pool=None):
@@ -247,8 +248,18 @@ def _summary_avg(params):
 
     return c, summary, num_incl
 
-def iORG_signal_correlation(signals1, signals2, framestamps):
-    pass
+def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals):
+
+    # Pre-allocating
+    iORG_corr = np.full(len(stim_iORG_signals), np.nan)
+    iORG_corr_p_val = np.full(len(stim_iORG_signals), np.nan)
+
+    for i in range(len(stim_iORG_signals)):
+        nan_mask = ~np.isnan(stim_iORG_signals[i]) & ~np.isnan(control_iORG_signals[i])
+        iORG_corr[i], iORG_corr_p_val[i] = pearsonr(stim_iORG_signals[i, nan_mask], control_iORG_signals[i, nan_mask])
+        del nan_mask # can't preallocate or save for each i since it will change size depending on the number of nan frames per cell...
+
+    return iORG_corr, iORG_corr_p_val
 
 def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
                         desired_prestim_frms=None, desired_poststim_frms=None, pool=None,
