@@ -129,9 +129,11 @@ class SummaryParams(StrEnum):
     UNITS = "units"
     PRESTIM = "prestim"
     POSTSTIM = "poststim"
-    INDIV_CUTOFF = "indiv_cutoff"
+    INDIV_CUTOFF = "cutoff"
     SMOOTHING_FACTOR = "smoothing_factor"
     AMPLITUDE_PERCENTILE = "amplitude_percentile"
+    POPULATION = "population"
+    INDIVIDUAL = "individual"
 
 class ControlParams(StrEnum):
     NAME = "control"

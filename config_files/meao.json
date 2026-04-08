@@ -102,16 +102,29 @@
         "start": -2
       },
       "summary": {
-        "method": "rms",
-        "control": "subtraction",
-        "metrics": {
-          "type": ["amp", "logamp", "amp_imp_time", "halfamp_imp_time"],
-          "measured": "stim-relative",
-          "units": "time",
-          "prestim": [-1, 0],
-          "poststim": [0, 1]
+        "population": {
+          "method": "rms",
+          "control": "subtraction_pop",
+          "metrics": {
+            "type": [ "aur", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
+            "measured": "stim-relative",
+            "units": "time",
+            "prestim": [-1, 0 ],
+            "poststim": [ 0, 1 ]
+          }
         },
-        "indiv_cutoff": 1
+        "individual": {
+          "method": "rms",
+          "control": "subtraction_indiv",
+          "cutoff": 1,
+          "metrics": {
+            "type": [ "aur", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
+            "measured": "stim-relative",
+            "units": "time",
+            "prestim": [-1, 0 ],
+            "poststim": [ 0, 1 ]
+          }
+        }
       },
       "gaus_blur": 0.0,
       "mask_roi": {

@@ -95,16 +95,28 @@
         "start": -1
       },
       "summary": {
-        "method": "rms",
-        "control": "subtraction",
-        "metrics": {
-          "type": ["aur","amp","logamp","amp_imp_time", "halfamp_imp_time", "rec_amp"],
-          "measured": "stim-relative",
-          "units": "time",
-          "prestim": [-1, 0],
-          "poststim": [0, 1]
+        "population": {
+          "method": "rms",
+          "control": "subtraction_pop",
+          "metrics": {
+            "type": [ "aur", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
+            "measured": "stim-relative",
+            "units": "time",
+            "prestim": [-1, 0 ],
+            "poststim": [ 0, 1 ]
+          }
         },
-        "indiv_cutoff": 5
+        "individual": {
+          "method": "rms",
+          "control": "subtraction_indiv",
+          "cutoff": 1,
+          "metrics": {
+            "type": [ "aur", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
+            "measured": "stim-relative",
+            "units": "time",
+            "prestim": [-1, 0 ],
+            "poststim": [ 0, 1 ]
+          }
       },
       "flat_field": false,
       "gaus_blur": 0.0,

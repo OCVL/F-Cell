@@ -247,6 +247,8 @@ def _summary_avg(params):
 
     return c, summary, num_incl
 
+def iORG_signal_correlation(signals1, signals2, framestamps):
+    pass
 
 def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
                         desired_prestim_frms=None, desired_poststim_frms=None, pool=None,

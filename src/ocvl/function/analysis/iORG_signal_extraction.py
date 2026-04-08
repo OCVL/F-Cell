@@ -89,8 +89,9 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
     std_cutoff_fraction = excl_params.get(STDParams.FRACTION, 0.3)
 
     sum_params = analysis_params.get(SummaryParams.NAME, dict())
-    sum_method = sum_params.get(SummaryParams.METHOD, "rms")
-    sum_window = sum_params.get(SummaryParams.WINDOW_SIZE, 1)
+    pop_sum_params = sum_params.get(SummaryParams.POPULATION, dict())
+    pop_sum_method = pop_sum_params.get(SummaryParams.METHOD, "rms")
+    pop_sum_window = pop_sum_params.get(SummaryParams.WINDOW_SIZE, 1)
 
     # Normalization - only used here if it is equal to "signals"
     norm_params = analysis_params.get(NormParams.NAME, dict())
@@ -317,8 +318,8 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
     logger.warning(str(np.sum(~valid_signals)) + "/" + str(valid_signals.shape[0]) + " query locations were removed from consideration.")
 
     summarized_iORG, num_signals_per_sample = summarize_iORG_signals(iORG_signals, dataset.framestamps,
-                                                                     summary_method=sum_method,
-                                                                     window_size=sum_window,
+                                                                     summary_method=pop_sum_method,
+                                                                     window_size=pop_sum_window,
                                                                      pool=thread_pool)
 
     return iORG_signals, summarized_iORG, query_status, query_loc, auto_detect_vals
