@@ -25,3 +25,4 @@ ipython~=9.7.0
 traitlets~=5.14.3
 pywin32~=311
 pyinstaller~=6.14.2
+packaging>=26.0

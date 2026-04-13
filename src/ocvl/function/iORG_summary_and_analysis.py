@@ -26,6 +26,7 @@ import logging
 import colorama
 import cv2
 import numpy as np
+from packaging.version import Version, parse
 import pandas as pd
 from colorama import Style, Fore
 from file_tag_parser.tags.file_tag_parser import FileTagParser
@@ -39,7 +40,7 @@ from scipy.stats import t
 import ocvl.function
 from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_signals
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics, \
-    iORG_signal_correlation
+    iORG_signal_correlation, _determine_pre_n_post_stim_frms
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
     display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
 from ocvl.function.utility.dataset import initialize_and_load_dataset, Stages, \
@@ -47,7 +48,7 @@ from ocvl.function.utility.dataset import initialize_and_load_dataset, Stages, \
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataTags, \
     AcquisiParams, \
     SummaryParams, ControlParams, DisplayParams, \
-    MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams
+    MetricTags, Analysis, SegmentParams, ConfigFields, DebugParams, MetricParams
 from ocvl.function.utility.log_formatter import LogFormatter
 from ocvl.function.utility.resources import  save_video
 
@@ -77,6 +78,13 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     # Grab all the folders/data here.
     filename_parser = FileTagParser.from_json(config_path, Analysis.NAME)
     dat_form = filename_parser.json_dict
+
+    conf_vers = parse(dat_form.get(ConfigFields.VERSION, "0.0.0.0") ).release
+    soft_vers = parse(ocvl.function.__version__).release
+
+    if conf_vers[1] < soft_vers[1]:
+        logger.warning("Major version of selected configuration file is older than F-Cell. Analysis may not perform correctly.")
+
     allData = filename_parser.parse_path(analysis_path, dat_form.get(Analysis.NAME).get(AcquisiParams.RECURSIVE_SEARCH))
 
     # If our control data comes from the file structure, then prep to check for it in case its in the config.
@@ -133,8 +141,6 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     pop_metrics_measured_to = pop_metric_params.get(SummaryParams.MEASURED_TO, "stim-relative")
     pop_metrics_units = pop_metric_params.get(SummaryParams.UNITS, "time")
     pop_metrics_type = pop_metric_params.get(SummaryParams.TYPE, ["amp", "amp_imp_time"])
-    pop_smooth_factor = pop_metric_params.get(SummaryParams.SMOOTHING_FACTOR, None)
-    pop_amp_percentile = pop_metric_params.get(SummaryParams.AMPLITUDE_PERCENTILE, 0.99)
 
     # Individual summary configuration
     indiv_sum_params = sum_params.get(SummaryParams.INDIVIDUAL, dict())
@@ -145,41 +151,44 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     indiv_metrics_measured_to = indiv_metric_params.get(SummaryParams.MEASURED_TO, pop_metrics_measured_to)
     indiv_metrics_units = indiv_metric_params.get(SummaryParams.UNITS, pop_metrics_units)
     indiv_metrics_type = indiv_metric_params.get(SummaryParams.TYPE, pop_metrics_type)
-    indiv_smooth_factor = indiv_metric_params.get(SummaryParams.SMOOTHING_FACTOR, pop_smooth_factor)
-    indiv_amp_percentile = indiv_metric_params.get(SummaryParams.AMPLITUDE_PERCENTILE, pop_amp_percentile)
 
-
-    pop_metrics_tags =[]
+    pop_metric_tag_map = {}
     for metric in pop_metrics_type:
         # Need to do this in a pythonic way. Honestly it's fucking hideous.
-        if metric == "aur":
-            pop_metrics_tags.append(MetricTags.AUR)
-        elif metric == "amp":
-            pop_metrics_tags.append(MetricTags.AMPLITUDE)
-        elif metric == "logamp":
-            pop_metrics_tags.append(MetricTags.LOG_AMPLITUDE)
-        elif metric == "amp_imp_time":
-            pop_metrics_tags.append(MetricTags.AMP_IMPLICIT_TIME)
-        elif metric == "halfamp_imp_time":
-            pop_metrics_tags.append(MetricTags.HALFAMP_IMPLICIT_TIME)
-        elif metric == "rec_amp":
-            pop_metrics_tags.append(MetricTags.RECOVERY_PERCENT)
+        match metric:
+            case MetricParams.AUR:
+                pop_metric_tag_map[metric] = MetricTags.AUR
+            case MetricParams.AURD:
+                pop_metric_tag_map[metric] = MetricTags.AURD
+            case MetricParams.AMPLITUDE:
+                pop_metric_tag_map[metric] = MetricTags.AMPLITUDE
+            case MetricParams.LOG_AMPLITUDE:
+                pop_metric_tag_map[metric] = MetricTags.LOG_AMPLITUDE
+            case MetricParams.AMP_IMPLICIT_TIME:
+                pop_metric_tag_map[metric] = MetricTags.AMP_IMPLICIT_TIME
+            case MetricParams.HALFAMP_IMPLICIT_TIME:
+                pop_metric_tag_map[metric] = MetricTags.HALFAMP_IMPLICIT_TIME
+            case MetricParams.RECOVERY_PERCENT:
+                pop_metric_tag_map[metric] = MetricTags.RECOVERY_PERCENT
 
-    indiv_metrics_tags =[]
+    indiv_metric_tag_map = {}
     for metric in indiv_metrics_type:
         # Need to do this in a pythonic way. Honestly it's fucking hideous.
-        if metric == "aur":
-            indiv_metrics_tags.append(MetricTags.AUR)
-        elif metric == "amp":
-            indiv_metrics_tags.append(MetricTags.AMPLITUDE)
-        elif metric == "logamp":
-            indiv_metrics_tags.append(MetricTags.LOG_AMPLITUDE)
-        elif metric == "amp_imp_time":
-            indiv_metrics_tags.append(MetricTags.AMP_IMPLICIT_TIME)
-        elif metric == "halfamp_imp_time":
-            indiv_metrics_tags.append(MetricTags.HALFAMP_IMPLICIT_TIME)
-        elif metric == "rec_amp":
-            indiv_metrics_tags.append(MetricTags.RECOVERY_PERCENT)
+        match metric:
+            case MetricParams.AUR:
+                indiv_metric_tag_map[metric] = MetricTags.AUR
+            case MetricParams.AURD:
+                indiv_metric_tag_map[metric] = MetricTags.AURD
+            case MetricParams.AMPLITUDE:
+                indiv_metric_tag_map[metric] = MetricTags.AMPLITUDE
+            case MetricParams.LOG_AMPLITUDE:
+                indiv_metric_tag_map[metric] = MetricTags.LOG_AMPLITUDE
+            case MetricParams.AMP_IMPLICIT_TIME:
+                indiv_metric_tag_map[metric] = MetricTags.AMP_IMPLICIT_TIME
+            case MetricParams.HALFAMP_IMPLICIT_TIME:
+                indiv_metric_tag_map[metric] = MetricTags.HALFAMP_IMPLICIT_TIME
+            case MetricParams.RECOVERY_PERCENT:
+                indiv_metric_tag_map[metric] = MetricTags.RECOVERY_PERCENT
 
     pop_overlap_params = display_params.get(DisplayParams.POP_SUMMARY_OVERLAP, dict())
     debug_params = analysis_dat_format.get(DebugParams.NAME, dict())
@@ -420,7 +429,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     if not stim_datasets:
                         continue
 
-                    result_cols = pd.MultiIndex.from_product([query_loc_names, list(MetricTags)])
+                    result_cols = pd.MultiIndex.from_product([query_loc_names, list(pop_metric_tag_map.items())])
                     pop_iORG_result_datframe = pd.DataFrame(index=stim_data_vidnums, columns=result_cols)
 
 
@@ -660,62 +669,21 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                  pop_seq_params)
                                     plt.show(block=False)
 
-
-                            metrics_prestim = np.array(pop_metric_params.get(SummaryParams.PRESTIM, [-1, 0]))
-                            metrics_poststim = np.array(pop_metric_params.get(SummaryParams.POSTSTIM, [0, 1]))
-                            if pop_metrics_units == "time":
-                                metrics_prestim = np.round(metrics_prestim * stim_dataset.framerate)
-                                metrics_poststim = np.round(metrics_poststim * stim_dataset.framerate)
-                            else:  # if units == "frames":
-                                metrics_prestim = np.round(metrics_prestim)
-                                metrics_poststim = np.round(metrics_poststim)
-
-                            if pop_metrics_measured_to == "stim-relative":
-                                metrics_prestim = stim_dataset.stimtrain_frame_stamps[0] + metrics_prestim
-                                metrics_poststim = stim_dataset.stimtrain_frame_stamps[0] + metrics_poststim
-
-                            # Make the list of indices that should correspond to the pre and post stimulus frames we're analyzing
-                            if len(metrics_prestim) > 1:
-                                metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
-                            else:
-                                metrics_prestim = np.full((1,), metrics_prestim[0], dtype=int)
-
-                            if len(metrics_poststim) > 1:
-                                metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
-                            else:
-                                metrics_poststim = np.full((1,), metrics_poststim[0], dtype=int)
-
                             poststim_frms = np.arange(start=stim_dataset.stimtrain_frame_stamps[0], stop=stim_dataset.stimtrain_frame_stamps[2], step=1, dtype=int)
 
-                            amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, _, _ = iORG_signal_metrics(stim_dataset.summarized_iORGs[q][stim_dataset.framestamps],
-                                                                                                                     stim_dataset.framestamps, stim_dataset.framerate,
-                                                                                                                     metrics_prestim, metrics_poststim, the_pool,
-                                                                                                                     pop_smooth_factor, pop_amp_percentile, poststim_frms)
+                            metrics_res = iORG_signal_metrics(stim_dataset.summarized_iORGs[q][stim_dataset.framestamps], stim_dataset.framestamps,
+                                                              stim_dataset.framerate, poststim_frms, pop_metric_params, the_pool)
 
-                            if metrics_poststim.size == 1 and pop_metrics_measured_to == "stim-relative":
-                                amp_implicit_time[0] -= stim_dataset.stimtrain_frame_stamps[0] / stim_dataset.framerate
-                                halfamp_implicit_time[0] -= stim_dataset.stimtrain_frame_stamps[0] / stim_dataset.framerate
-
-                            for metric in pop_metrics_type:
-                                if metric == "aur":
-                                    pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.AUR)] = aur[0]
-                                elif metric == "amp":
-                                    pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.AMPLITUDE)] = amplitude[0]
-                                elif metric == "logamp":
-                                    pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.LOG_AMPLITUDE)] = np.log(amplitude[0])
-                                elif metric == "amp_imp_time":
-                                    pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.AMP_IMPLICIT_TIME)] = amp_implicit_time[0]
-                                elif metric == "halfamp_imp_time":
-                                    pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.HALFAMP_IMPLICIT_TIME)] = halfamp_implicit_time[0]
-                                elif metric == "rec_amp":
-                                    pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], MetricTags.RECOVERY_PERCENT)] = recovery[0]
+                            for key, value in metrics_res.items():
+                                if key in MetricParams:
+                                    pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], pop_metric_tag_map[key])] = value[0]
 
 
                     ''' *** Average all stimulus population iORGs, and do individual cone analyses *** '''
                     indiv_iORG_result =[None] * len(all_locs)
                     for q in range(len(all_locs)):
 
-                        indiv_iORG_result[q] = pd.DataFrame(index=all_query_status[mode][folder][q].index, columns=list(MetricTags))
+                        indiv_iORG_result[q] = pd.DataFrame(index=all_query_status[mode][folder][q].index, columns=list(indiv_metric_tag_map.values()))
 
                         stim_pop_iORG_summaries = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
                         stim_pop_iORG_N = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
@@ -820,54 +788,15 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                                + start_timestamp + ".csv"), index_label="Video Number")
                             del pop_iORG_summary
 
-                        metrics_prestim = np.array(pop_metric_params.get(SummaryParams.PRESTIM, [-1, 0]))
-                        metrics_poststim = np.array(pop_metric_params.get(SummaryParams.POSTSTIM, [0, 1]))
-                        if pop_metrics_units == "time":
-                            metrics_prestim = np.round(metrics_prestim * pooled_framerate)
-                            metrics_poststim = np.round(metrics_poststim * pooled_framerate)
-                        else:  # if units == "frames":
-                            metrics_prestim = np.round(metrics_prestim)
-                            metrics_poststim = np.round(metrics_poststim)
-
-                        if pop_metrics_measured_to == "stim-relative":
-                            metrics_prestim = stimtrain[0] + metrics_prestim
-                            metrics_poststim = stimtrain[0] + metrics_poststim
-
-                        # Make the list of indices that should correspond to pre and post stimulus
-                        if len(metrics_prestim) > 1:
-                            metrics_prestim = np.arange(start=metrics_prestim[0], stop=metrics_prestim[1], step=1, dtype=int)
-                        else:
-                            metrics_prestim = np.full((1,), metrics_prestim[0], dtype=int)
-
-                        if len(metrics_poststim) > 1:
-                            metrics_poststim = np.arange(start=metrics_poststim[0], stop=metrics_poststim[1], step=1, dtype=int)
-                        else:
-                            metrics_poststim = np.full((1,), metrics_poststim[0], dtype=int)
-
                         poststim_frms = np.arange(start=stim_dataset.stimtrain_frame_stamps[0], stop=stim_dataset.stimtrain_frame_stamps[2], step=1, dtype=int)
 
-                        amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery, prestim_idx, poststim_idx = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,
-                                                                                                                 pooled_framerate,
-                                                                                                                 metrics_prestim, metrics_poststim, the_pool,
-                                                                                                                 pop_smooth_factor, pop_amp_percentile, poststim_frms)
+                        metrics_res = iORG_signal_metrics(stim_pop_iORG_summary[q],finite_iORG_frmstmp,
+                                                          pooled_framerate, poststim_frms, pop_metric_params,
+                                                          the_pool)
 
-                        if metrics_poststim.size == 1 and pop_metrics_measured_to == "stim-relative":
-                            amp_implicit_time[0] -= stim_dataset.stimtrain_frame_stamps[0] / stim_dataset.framerate
-                            halfamp_implicit_time[0] -= stim_dataset.stimtrain_frame_stamps[0] / stim_dataset.framerate
-
-                        for metric in pop_metrics_type:
-                            if metric == "aur":
-                                pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AUR)] = aur[0]
-                            elif metric == "amp":
-                                pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AMPLITUDE)] = amplitude[0]
-                            elif metric == "logamp":
-                                pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.LOG_AMPLITUDE)] = np.log(amplitude[0])
-                            elif metric == "amp_imp_time":
-                                pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.AMP_IMPLICIT_TIME)] = amp_implicit_time[0]
-                            elif metric == "halfamp_imp_time":
-                                pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.HALFAMP_IMPLICIT_TIME)] = halfamp_implicit_time[0]
-                            elif metric == "rec_amp":
-                                pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], MetricTags.RECOVERY_PERCENT)] = recovery[0]
+                        for key, value in metrics_res.items():
+                            if key in MetricParams:
+                                pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], pop_metric_tag_map[key])] = value[0]
 
                         ''' *** Display the pooled population data *** '''
                         if pop_overlap_params.get(DisplayParams.DISP_POOLED, False):
@@ -883,29 +812,35 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             ''' *** Annotate the pooled population data *** '''
                             if pop_overlap_params.get(DisplayParams.DISP_ANNOTATIONS, True):
                                 linecolor = plt.gca().findobj(lambda obj: obj.get_label() == query_loc_names[q] and isinstance(obj, Line2D) )[0].get_color()
-                                for metric in pop_metrics_type:
+
+                                prestim_frms, poststim_frms = _determine_pre_n_post_stim_frms(pop_metric_params, poststim_frms[0],
+                                                                                                              stim_dataset.framerate)
+                                # Find the indexes of the framestamps corresponding to the analyzed pre and post stim frames;
+                                prestim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, prestim_frms))
+                                poststim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, prestim_frms))
+
+                                for metric, value in metrics_res.items():
                                     match metric:
-                                        case "aur":
+                                        case MetricParams.AUR:
                                             aurrange = finite_iORG_frmstmp[poststim_idx] / pooled_framerate
 
                                             plt.gca().fill_between(aurrange, stim_pop_iORG_summary[q][poststim_idx],
                                                                    np.zeros_like(stim_pop_iORG_summary[q][poststim_idx]),
                                                                    facecolor=linecolor, alpha=0.5, label=query_loc_names[q])
-                                            plt.gca().annotate(f"AUC:\n{aur[0]: .2f}",
+                                            plt.gca().annotate(f"AUR:\n{value[0]: .2f}",
                                                                (aurrange[0] + (aurrange[-1] - aurrange[0]) / 2.0, np.nanmax(stim_pop_iORG_summary[q][poststim_idx]) / 2.0),
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.4)),
                                                                color=linecolor,
                                                                horizontalalignment="center", verticalalignment="center",
                                                                multialignment="center", weight="bold", label=query_loc_names[q])
 
-                                        case "amp":
+                                        case MetricParams.AMPLITUDE:
                                             prestim_val = np.nanmedian( stim_pop_iORG_summary[q][prestim_idx])
                                             poststim_val = np.nanquantile( stim_pop_iORG_summary[q][poststim_idx],  [0.99]).flatten()
-                                            prestim_start = finite_iORG_frmstmp[metrics_prestim[0]]
+                                            prestim_start = finite_iORG_frmstmp[prestim_frms[0]]
 
                                             midline = (prestim_start + (stimtrain[0]-prestim_start)/2) / pooled_framerate
-                                            impl_time = (stimtrain[0] / pooled_framerate)+amp_implicit_time[0]
-                                            halfamp_impl_time = (stimtrain[0] / pooled_framerate) + halfamp_implicit_time[0]
+                                            impl_time = (stimtrain[0] / pooled_framerate) + metrics_res.get(MetricParams.AMP_IMPLICIT_TIME)
 
                                             plt.gca().hlines(prestim_val,
                                                              prestim_start/ pooled_framerate,
@@ -919,18 +854,18 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                              midline,
                                                              impl_time,
                                                              colors=linecolor, alpha=0.5, capstyle="round", label=query_loc_names[q])
-                                            plt.gca().annotate(f"Amplitude:\n{amplitude[0]: .2f} "+pop_sum_method, xy=(midline, prestim_val+amplitude[0]/2),
-                                                               xytext=(prestim_start/ pooled_framerate, prestim_val+amplitude[0]/2),
+                                            plt.gca().annotate(f"Amplitude:\n{value[0]: .2f} "+pop_sum_method, xy=(midline, prestim_val+value/2),
+                                                               xytext=(prestim_start/ pooled_framerate, prestim_val+value[0]/2),
                                                                horizontalalignment="right", verticalalignment="center", multialignment="center", weight="bold",
                                                                color=linecolor, label=query_loc_names[q],
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
                                                                arrowprops=dict(arrowstyle="-",color=linecolor, alpha=0.7))
 
-                                        case "amp_imp_time":
+                                        case MetricParams.AMP_IMPLICIT_TIME:
 
                                             lims = plt.gca().get_ylim()
                                             ypos = (lims[1]-lims[0]) * 0.9 + lims[0]
-                                            plt.gca().annotate(f"Implicit Time:\n{amp_implicit_time[0]: .2f}s",
+                                            plt.gca().annotate(f"Implicit Time:\n{value[0]: .2f}s",
                                                                xy=(impl_time, poststim_val),
                                                                xytext=(impl_time, ypos),
                                                                horizontalalignment="center", verticalalignment="top", multialignment="center", weight="bold",
@@ -938,11 +873,13 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                bbox=dict(boxstyle="square", lw=0, fc=(1, 1, 1, 0.7)),
                                                                arrowprops=dict(arrowstyle="-", color=linecolor, alpha=0.7),
                                                                label=query_loc_names[q])
-                                        case "halfamp_imp_time":
+                                        case MetricParams.HALFAMP_IMPLICIT_TIME:
                                             lims = plt.gca().get_ylim()
                                             ypos = (lims[1] - lims[0]) * 0.8 + lims[0]
-                                            plt.gca().annotate(f"Halfamp Implicit Time:\n{halfamp_implicit_time[0]: .2f}s",
-                                                               xy=(halfamp_impl_time, prestim_val+amplitude[0]/2),
+                                            halfamp_impl_time = (stimtrain[0] / pooled_framerate) + metrics_res.get(MetricParams.HALFAMP_IMPLICIT_TIME)
+
+                                            plt.gca().annotate(f"Halfamp Implicit Time:\n{value[0]: .2f}s",
+                                                               xy=(halfamp_impl_time, prestim_val+metrics_res.get(MetricParams.AMPLITUDE)/2),
                                                                xytext=(halfamp_impl_time, ypos),
                                                                horizontalalignment="center", verticalalignment="top", multialignment="center", weight="bold",
                                                                color=linecolor,
@@ -1042,26 +979,16 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 del sigout
                                 gc.collect()
 
-                            # amplitude, amp_implicit_time, halfamp_implicit_time, aur, recovery
-                            res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp, pooled_framerate, metrics_prestim, metrics_poststim, the_pool,
-                                                                                                           indiv_smooth_factor, indiv_amp_percentile, poststim_frms)
+                            metrics_res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp,
+                                                              pooled_framerate, poststim_frms, indiv_metric_params, the_pool)
 
                             with warnings.catch_warnings():
                                 warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")
 
-                                for m, metric in enumerate(res):
-                                    match m:
-                                        case 0: # amplitude
-                                            indiv_iORG_result[q].loc[:, MetricTags.AMPLITUDE] = metric
-                                            indiv_iORG_result[q].loc[:, MetricTags.LOG_AMPLITUDE] = np.log(metric)
-                                        case 1: # amp_implicit_time
-                                            indiv_iORG_result[q].loc[:, MetricTags.AMP_IMPLICIT_TIME] = metric
-                                        case 2: # halfamp_implicit_time
-                                            indiv_iORG_result[q].loc[:, MetricTags.HALFAMP_IMPLICIT_TIME] = metric
-                                        case 3: # aur
-                                            indiv_iORG_result[q].loc[:, MetricTags.AUR] = metric
-                                        case 4: # recovery
-                                            indiv_iORG_result[q].loc[:, MetricTags.RECOVERY_PERCENT] = metric
+                                for key, value in metrics_res.items():
+                                    if key in MetricParams:
+                                        indiv_iORG_result[q].loc[:, indiv_metric_tag_map[key]] = value
+
 
                             if indiv_overlap_params:
                                 plt.show(block=False)
@@ -1072,7 +999,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 overlap_label = "Individual-Cell iORGs metric histograms\nfrom " + mode + " iORGs in " + folder.name
                                 folder_display_dict[str(subject_IDs[0]) + "_" + folder.name + "_" + mode + "_indiv_iORG_" + indiv_sum_method + "_metric_histograms_" + start_timestamp] = overlap_label
 
-                                display_iORG_summary_histogram(indiv_iORG_result[q], indiv_metrics_tags, False, query_loc_names[q],
+                                display_iORG_summary_histogram(indiv_iORG_result[q], indiv_metric_tag_map.values(), False, query_loc_names[q],
                                                                overlap_label, indiv_summary)
                                 plt.suptitle(overlap_label)
 
@@ -1081,7 +1008,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                     group_overlap_label = "Individual-Cell iORGs metric histograms\nfrom " + mode + " iORGs"
                                     group_display_dict["group_summary_of_" + mode + "_indiv_iORG_" + indiv_sum_method + "_metric_histograms_" + start_timestamp] = group_overlap_label
 
-                                    display_iORG_summary_histogram(indiv_iORG_result[q], indiv_metrics_tags, False,
+                                    display_iORG_summary_histogram(indiv_iORG_result[q], indiv_metric_tag_map.values(), False,
                                                                    group+"_"+ folder.name +"_"+query_loc_names[q],
                                                                    group_overlap_label, indiv_summary)
                                     plt.suptitle(overlap_label)
@@ -1090,7 +1017,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 overlap_label = "Individual-Cell iORGs metric cumulative histograms\nfrom " + mode + " iORGs in " + folder.name
                                 folder_display_dict[str(subject_IDs[0]) + "_" + folder.name + "_" + mode + "_indiv_iORG_" + indiv_sum_method + "_metric_cumul_histograms_" + start_timestamp] = overlap_label
 
-                                display_iORG_summary_histogram(indiv_iORG_result[q], indiv_metrics_tags, True, query_loc_names[q],
+                                display_iORG_summary_histogram(indiv_iORG_result[q], indiv_metric_tag_map.values(), True, query_loc_names[q],
                                                                overlap_label, indiv_summary)
                                 plt.suptitle(overlap_label)
 
@@ -1099,7 +1026,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                     group_overlap_label = "Individual-Cell iORGs metric cumulative histograms\nfrom " + mode + " iORGs"
                                     group_display_dict["group_summary_of_" + mode + "_indiv_iORG_" + indiv_sum_method + "_metric_cumul_histograms_" + start_timestamp] = group_overlap_label
 
-                                    display_iORG_summary_histogram(indiv_iORG_result[q], indiv_metrics_tags, True,
+                                    display_iORG_summary_histogram(indiv_iORG_result[q], indiv_metric_tag_map.values(), True,
                                                                    group+"_"+ folder.name +"_"+query_loc_names[q],
                                                                    group_overlap_label, indiv_summary)
                                     plt.suptitle(overlap_label)
@@ -1107,7 +1034,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             if indiv_summary.get(DisplayParams.MAP_OVERLAY):
                                 ax_params = indiv_summary.get(DisplayParams.AXES, dict())
 
-                                for metric in indiv_metrics_tags:
+                                for metric in indiv_metric_tag_map.values():
                                     if indiv_iORG_result[q].loc[:, metric].count() != 0:
                                         label = "Individual iORG "+metric+" from " + mode + "\nusing query locations " + query_loc_names[q] + " in " + folder.name
                                         folder_display_dict[str(subject_IDs[0]) + "_" + folder.name + "_" + mode + "_indiv_iORG_" + indiv_sum_method + "_" + metric + "_overlay_" + query_loc_names[q] + "_" + start_timestamp] = label

@@ -4,10 +4,14 @@ from multiprocessing import shared_memory
 import numpy as np
 import scipy
 from joblib._multiprocessing_helpers import mp
+from matplotlib import pyplot as plt
 from scipy import signal
+from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import Akima1DInterpolator, make_smoothing_spline
 from scipy.ndimage import center_of_mass, convolve1d
 from scipy.signal import savgol_filter
+
+from ocvl.function.utility.json_format_constants import SummaryParams, MetricParams
 
 
 def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", window_size=1, fraction_thresh=0.25, pool=None):
@@ -250,14 +254,59 @@ def _summary_avg(params):
 def iORG_signal_correlation(signals1, signals2, framestamps):
     pass
 
-def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
-                        desired_prestim_frms=None, desired_poststim_frms=None, pool=None,
-                        spline_smooth=None, amplitude_percentile=0.99, all_poststim_frms=None):
+
+def _determine_pre_n_post_stim_frms(params, stimulus_onset_frmstamp, framerate=1):
+    if params is None:
+        params = dict()
+
+    metrics_units = params.get(SummaryParams.UNITS, "time")
+    metrics_measured_to = params.get(SummaryParams.MEASURED_TO, "stim-relative")
+    prestim = np.array(params.get(SummaryParams.PRESTIM, [-1, 0]))
+    poststim = np.array(params.get(SummaryParams.POSTSTIM, [0, 1]))
+
+    if metrics_units == "time":
+        prestim = np.round(prestim * framerate)
+        poststim = np.round(poststim * framerate)
+    else:  # if units == "frames":
+        prestim = np.round(prestim)
+        poststim = np.round(poststim)
+
+    if metrics_measured_to == "stim-relative":
+        prestim = stimulus_onset_frmstamp + prestim
+        poststim = stimulus_onset_frmstamp + poststim
+
+        # Make the list of indices that should correspond to the pre and post stimulus frames we're analyzing
+    if len(prestim) > 1:
+        prestim = np.arange(start=prestim[0], stop=prestim[1], step=1, dtype=int)
+    else:
+        prestim = np.full((1,), prestim[0], dtype=int)
+
+    if len(poststim) > 1:
+        poststim = np.arange(start=poststim[0], stop=poststim[1], step=1, dtype=int)
+    else:
+        poststim = np.full((1,), poststim[0], dtype=int)
+
+    return prestim, poststim
+
+
+def iORG_signal_metrics(temporal_signals, framestamps, framerate=1, all_poststim_frms=None, params=None, pool=None) -> dict:
+
+    if params is None:
+        params = dict()
+
+    # Extract our parameters
+    smoothing = params.get(SummaryParams.SMOOTHING, None)
+    amplitude_percentile = params.get(SummaryParams.AMPLITUDE_PERCENTILE, 0.99)
+    metrics_type = params.get(SummaryParams.TYPE, ["amp", "amp_imp_time"])
+
+    desired_prestim_frms, desired_poststim_frms = _determine_pre_n_post_stim_frms(params, all_poststim_frms[0], framerate)
 
     if temporal_signals.ndim == 1:
         temporal_signals = temporal_signals[None, :]
 
     finite_data = np.isfinite(temporal_signals)
+
+    result_dict = dict()
 
     with warnings.catch_warnings():
         warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
@@ -269,28 +318,15 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
         if np.all(~finite_data) or desired_prestim_frms.size == 0 or desired_poststim_frms.size==0 or \
             poststim_window_idx.size == 0 or prestim_window_idx.size == 0 or prestim_window_idx is None or poststim_window_idx is None:
-            return np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), \
-                   np.full((temporal_signals.shape[0]), np.nan), np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan), \
-                   np.full((temporal_signals.shape[0]), np.nan), np.full(temporal_signals.shape, np.nan)
+            return result_dict
 
         chunk_size = 250
         if pool is None:
             pool = mp.Pool(processes=1)
 
-        grad_profiles = np.sqrt((1/(framerate**2)) + (np.gradient(temporal_signals, axis=1) ** 2)) # Don't need to factor in the dx, because it gets removed anyway in the next step.
-
-        pre_abs_diff_profiles = np.abs(grad_profiles[:, prestim_window_idx])
-        if np.size(pre_abs_diff_profiles) <=1:
-            pre_abs_diff_profiles = np.zeros((1,1))
-        cum_pre_abs_diff_profiles = np.nancumsum(pre_abs_diff_profiles, axis=1)
-
-        post_abs_diff_profiles = np.abs(grad_profiles[:, poststim_window_idx])
-        cum_post_abs_diff_profiles = np.nancumsum(post_abs_diff_profiles, axis=1)
-
-        cum_pre_abs_diff_profiles[cum_pre_abs_diff_profiles == 0] = np.nan
-        cum_post_abs_diff_profiles[cum_post_abs_diff_profiles == 0] = np.nan
-        prefad = np.amax(cum_pre_abs_diff_profiles, axis=1)
-        postfad = np.amax(cum_post_abs_diff_profiles, axis=1)
+        # This only smooths the signal if smooth is defined.
+        if smoothing is not None:
+            temporal_signals = iORG_signal_filter(temporal_signals, framestamps, framerate, filter_type=smoothing)
 
         prestim = temporal_signals[:, prestim_window_idx]
         prestim_frms = framestamps[prestim_window_idx]
@@ -298,14 +334,6 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         poststim_frms = framestamps[poststim_window_idx]
 
         prestim_val = np.nanmedian(prestim, axis=1)
-
-        # This only smooths the signal if spline_smooth is defined.
-        if spline_smooth is not None:
-            if spline_smooth == "auto": # This is found automatically using the Generalized Cross Validation, per scipy.
-                spline_smooth = None
-            for c in range(poststim.shape[0]):
-                poststim[c,:] = make_smoothing_spline(poststim_frms, poststim[c,:], lam=spline_smooth)(poststim_frms)
-
 
         if poststim.size != 1 and poststim.shape[1] != 1:
             poststim_val = np.nanquantile(poststim, [amplitude_percentile], axis=1).flatten()
@@ -315,12 +343,23 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
         # ** Amplitude **
         amplitude = np.abs(poststim_val - prestim_val)
 
+        if MetricParams.AMPLITUDE in metrics_type or MetricParams.HALFAMP_IMPLICIT_TIME in metrics_type:
+            result_dict[MetricParams.AMPLITUDE] = amplitude
+        if MetricParams.LOG_AMPLITUDE in metrics_type or MetricParams.HALFAMP_IMPLICIT_TIME in metrics_type:
+            result_dict[MetricParams.LOG_AMPLITUDE] = np.log(amplitude)
+
         # ** Recovery percentage **
         final_val = np.nanmean(temporal_signals[:, -5:], axis=1)
         recovery =  ((final_val-prestim_val)-amplitude)/(framestamps[-1]-poststim_frms[0]) #np.abs(((final_val-prestim_val)-amplitude)/amplitude)
 
-        # ** Area Under the Response (est. by trapezoidal rule) **
-        auc = np.full((temporal_signals.shape[0],), np.nan)
+        if MetricParams.RECOVERY_PERCENT in metrics_type:
+            result_dict[MetricParams.RECOVERY_PERCENT] = recovery
+
+        # ** Area Under the Curve (est. by trapezoidal rule) **
+        aur = np.full((temporal_signals.shape[0],), np.nan)
+
+        # ** Area Under the Derivative (est. by trapezoidal rule) **
+        aurd = np.full((temporal_signals.shape[0],), np.nan)
 
         # ** Implicit time **
         amp_implicit_time = np.full_like(amplitude, np.nan)
@@ -333,22 +372,32 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1,
 
         # If we are considering multiple frames, then we can interpolate to determine the precise implicit times.
         # if desired_poststim_frms.size > 1:
-        res = pool.imap(_interp_implicit, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
-                                       repeat(temporal_signals.shape), repeat(temporal_signals.dtype), repeat(framestamps),
-                                       repeat(all_poststim_frms), repeat(desired_poststim_frms), repeat(framerate),
-                                       prestim_val, poststim_val, amplitude),
-                                       chunksize=chunk_size)
+        res = pool.imap(_extract_extra_metrics, zip(range(temporal_signals.shape[0]), repeat(shared_block.name),
+                                                    repeat(temporal_signals.shape), repeat(temporal_signals.dtype), repeat(framestamps),
+                                                    repeat(all_poststim_frms), repeat(desired_poststim_frms), repeat(framerate),
+                                                    prestim_val, poststim_val, amplitude),
+                        chunksize=chunk_size)
 
-        for i, amp_imp, halfamp_imp, au in res:
+        for i, amp_imp, halfamp_imp, au, aua in res:
             amp_implicit_time[i] = (amp_imp- all_poststim_frms[0]) / framerate
             halfamp_implicit_time[i] = (halfamp_imp - all_poststim_frms[0]) / framerate
-            auc[i] = au
+            aur[i] = au
+            aurd[i] = aua
+
+        if MetricParams.AMP_IMPLICIT_TIME in metrics_type or MetricParams.AMPLITUDE in metrics_type or MetricParams.LOG_AMPLITUDE in metrics_type:
+            result_dict[MetricParams.AMP_IMPLICIT_TIME] = amp_implicit_time
+        if MetricParams.HALFAMP_IMPLICIT_TIME in metrics_type:
+            result_dict[MetricParams.HALFAMP_IMPLICIT_TIME] = halfamp_implicit_time
+        if MetricParams.AUR in metrics_type:
+            result_dict[MetricParams.AUR] = aur
+        if MetricParams.AURD in metrics_type:
+            result_dict[MetricParams.AURD] = aurd
 
 
         shared_block.close()
         shared_block.unlink()
 
-    return amplitude, amp_implicit_time, halfamp_implicit_time, auc, recovery, prestim_frms, poststim_frms
+    return result_dict
 
 def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
 
@@ -441,7 +490,14 @@ def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=N
                                                                  trunc_sinc, mode="reflect")
     elif filter_type == "movmean":
         filtered_profiles = scipy.ndimage.convolve1d(butter_filtered_profiles, weights=np.ones((5))/5, axis=1)
-    elif filter_type == "none" or filter_type is None:
+
+    elif filter_type == "spline": # This is found automatically using the Generalized Cross Validation, per scipy.
+        filtered_profiles = np.full_like(butter_filtered_profiles, np.nan)
+
+        for c in range(temporal_signals.shape[0]):
+            if np.any(finite_data[c, :]) and np.sum(finite_data[c, :])>5:
+                filtered_profiles[c,:] = make_smoothing_spline(framestamps[finite_data[c, :]], butter_filtered_profiles[c,finite_data[c, :]])(framestamps)
+    else:
         filtered_profiles = butter_filtered_profiles
 
     return filtered_profiles
@@ -462,7 +518,7 @@ def pooled_variance(data, axis=1):
 
     return np.sum(datavar*datacount) / np.sum(datacount), np.sum(datamean*datacount) / np.sum(datacount)
 
-def _interp_implicit(params):
+def _extract_extra_metrics(params):
     (i, mem_name, signal_shape, the_dtype, framestamps, all_poststim_frms,
      desired_poststim_frms, framerate, prestim_val, poststim_val, amplitude) = params
 
@@ -471,6 +527,7 @@ def _interp_implicit(params):
 
     finite_iORG = np.isfinite(temporal_signals[i, :])
     auc = np.nan
+    aurd = np.nan
     amp_implicit_time = np.nan
     halfamp_implicit_time = np.nan
 
@@ -491,6 +548,9 @@ def _interp_implicit(params):
                 finite_window_frms = np.insert(finite_window_frms, next_highest, desired_poststim_frms[-1])
                 valid_auc = True
 
+        elif np.any(finite_window_frms == desired_poststim_frms[-1]):
+            valid_auc = True
+
         all_poststim_idx = np.flatnonzero(np.isin(finite_window_frms, all_poststim_frms))
         poststim_window_idx = np.flatnonzero(np.isin(finite_window_frms, desired_poststim_frms))
 
@@ -502,17 +562,37 @@ def _interp_implicit(params):
 
         if finite_window_frms.size > 1:
             if valid_auc:
-                auc = np.trapezoid(finite_window_data, x=finite_window_frms / framerate)
+                auc = np.trapezoid(finite_window_data-finite_window_data[0], x=finite_window_frms / framerate)
+
+                grad_profiles = np.gradient(finite_window_data, finite_window_frms / framerate)
+                aurd = np.trapezoid(np.abs(grad_profiles), x=finite_window_frms / framerate)
+
+                # plt.figure(f"auad: {auad}")
+                # plt.clf()
+                # plt.subplot(2,1,1)
+                # plt.plot(finite_window_frms / framerate, grad_profiles)
+                # plt.subplot(2, 1, 2)
+                # plt.plot(finite_window_frms / framerate, cumulative_trapezoid(np.abs(grad_profiles), x=finite_window_frms / framerate, initial=0))
+                # plt.show(block=False)
+                # plt.waitforbuttonpress()
+
 
             amp_val_interp = Akima1DInterpolator(finite_window_frms, finite_window_data - poststim_val, method="makima")
 
             if amp_val_interp.roots().size != 0:
                 amp_implicit_time = amp_val_interp.roots()[0]
+
         elif finite_window_frms.size == 1:
-            amp_implicit_time = finite_window_frms[0]
+
+            grad_profiles = np.gradient(finite_post_data, finite_post_frms / framerate)
+
+            aurd = np.trapezoid(np.abs(grad_profiles[:poststim_window_idx]),
+                                x=finite_post_frms[:poststim_window_idx] / framerate)
+
+            amp_implicit_time = desired_poststim_frms[0]
+
 
         if finite_post_frms.size > 1:
-
             halfamp_val_interp = Akima1DInterpolator(finite_post_frms, finite_post_data - ((amplitude / 2) + prestim_val),
                                                      method="makima")
             if halfamp_val_interp.roots().size != 0:
@@ -520,4 +600,4 @@ def _interp_implicit(params):
 
     shared_block.close()
 
-    return i, amp_implicit_time, halfamp_implicit_time, auc
+    return i, amp_implicit_time, halfamp_implicit_time, auc, aurd
