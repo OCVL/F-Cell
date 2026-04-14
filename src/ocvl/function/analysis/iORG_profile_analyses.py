@@ -1,3 +1,4 @@
+import logging
 import warnings
 from itertools import repeat
 from multiprocessing import shared_memory
@@ -6,10 +7,9 @@ import scipy
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
 from scipy import signal
-from scipy.integrate import cumulative_trapezoid
-from scipy.interpolate import Akima1DInterpolator, make_smoothing_spline
+from scipy.interpolate import Akima1DInterpolator, make_smoothing_spline, interp1d
 from scipy.ndimage import center_of_mass, convolve1d
-from scipy.signal import savgol_filter
+from scipy.signal import savgol_filter, hilbert, envelope
 
 from ocvl.function.utility.json_format_constants import SummaryParams, MetricParams
 
@@ -67,7 +67,11 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
         temporal_data = np.pad(temporal_data, ((0, 0), (0, 0), (window_radius, window_radius)), "symmetric")
 
     else:
-        temporal_data = temporal_signals
+        if len(temporal_signals.shape) == 2:
+            temporal_data = np.full((num_signals, 1, framestamps[-1] + 1), np.nan, dtype=np.float32)
+            temporal_data[:, 0, framestamps] = temporal_signals
+        elif len(temporal_signals.shape) == 3:
+            temporal_data = temporal_signals
 
     if len(temporal_signals.shape) == 2:
         num_incl = np.zeros((1, num_samples), dtype=np.uint32)
@@ -133,6 +137,85 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                                 chunksize=250)
             else:
                 raise Exception("Window size must be less than half of the number of samples")
+        elif summary_method == "envelope":
+
+            if window_radius == 0:
+                for c in range(temporal_data.shape[1]):
+                    if np.any(np.isfinite(temporal_data[:, c, :])):
+                        padding = int(temporal_data.shape[-1]/2)
+
+                        cell_signals =  temporal_data[:,c,:].copy()
+                        cell_signals = iORG_signal_filter(cell_signals, filter_type="MS")
+
+                        # for acq_ind in range(cell_signals.shape[0]):
+                        #     if np.any(np.isfinite(temporal_data[acq_ind,c, :])):
+                        #         plt.figure(f"cell")
+                        #         plt.clf()
+                        #         plt.plot(temporal_data[acq_ind,c, :])
+                        #         plt.plot(cell_signals[acq_ind, :])
+                        #         plt.axvline(58, ymin=0, ymax=1, color='k')
+                        #         plt.show(block=False)
+                        #         plt.waitforbuttonpress()
+
+                        cell_signals = np.pad(cell_signals, ((0, 0), (padding, padding)),
+                                               "constant", constant_values=np.nan)
+
+                        for acq_ind in range(cell_signals.shape[0]):
+                            finite_window_frms = np.flatnonzero(np.isfinite(cell_signals[acq_ind,:]))
+
+                            if len(finite_window_frms) > fraction_thresh*cell_signals.shape[1]:
+                                interper = interp1d(finite_window_frms, cell_signals[acq_ind, finite_window_frms])
+                                interpinds = np.arange(start=finite_window_frms[0], stop=finite_window_frms[-1])
+                                cell_signals[acq_ind,interpinds] = interper(interpinds)
+
+                                cell_signals[acq_ind, np.isnan(cell_signals[acq_ind, :])] = 0
+
+                                # cell_signals[acq_ind,:] = np.abs(hilbert(cell_signals[acq_ind,:]))
+                                # plt.figure(f"allcell")
+                                # plt.clf()
+                                # plt.plot(cell_signals[acq_ind,:])
+                                # plt.plot(np.abs(hilbert(cell_signals[acq_ind,:])))
+                                # cell_signals[acq_ind, :] = envelope(cell_signals[acq_ind,:], bp_in=(5, None), residual=None)
+                                # plt.plot(cell_signals[acq_ind, :])
+                                # plt.show(block=False)
+                                # plt.waitforbuttonpress()
+                                # print("")
+                            else:
+                                cell_signals[acq_ind, :] = np.nan
+
+                        # plt.figure(f"allcell")
+                        # plt.clf()
+                        # plt.plot(cell_signals.transpose())
+                        # plt.waitforbuttonpress()
+
+                        cell_signals = cell_signals[:, padding:-padding]
+
+                        if np.any(np.isfinite(cell_signals)):
+                            #Envelope RMS
+                            # mean prestim subtract
+
+                            prestim_mean = np.nanmean(cell_signals[:, 55:58], axis=1)
+                            cell_signals -= prestim_mean[:,np.newaxis]
+
+                            summary[c,:] = np.sqrt(np.nanmean(np.square(cell_signals[:,framestamps]), axis=0))  # Sqrt last
+                            num_incl = np.sum(np.isfinite(cell_signals), axis=0)
+
+                            # plt.figure(f"allcell")
+                            # plt.clf()
+                            #
+                            # plt.plot(cell_signals.transpose())
+                            # plt.plot(framestamps, summary[c, :], color="k", linewidth=4)
+                            # plt.axvline(58, ymin=0, ymax=1, color='k')
+                            # #plt.xlim((0,150))
+                            # #plt.ylim((-5, 5))
+                            # #plt.plot(temporal_data[:,c,:].transpose())
+                            # plt.show(block=False)
+                            # plt.waitforbuttonpress()
+
+
+            else:
+                print("Awww shit")
+                pass
         else:
             raise Exception("Invalid summary_method")
 
@@ -305,6 +388,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1, all_poststim
         temporal_signals = temporal_signals[None, :]
 
     finite_data = np.isfinite(temporal_signals)
+    logger = logging.getLogger("ORG_Logger")
 
     result_dict = dict()
 
