@@ -563,7 +563,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                         control_data.iORG_signals[q] = None
                                         control_data.summarized_iORGs[q] = None
 
-                                    if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False):
+                                    if debug_params.get(DebugParams.PLOT_INDIV_STANDARDIZED_ORGS, False) \
+                                        or indiv_sum_control == "subtraction_indiv" \
+                                        or indiv_sum_control == "division_indiv":
+
                                         control_iORG_signals[q] = control_iORG_sigs
                                     else:
                                         control_iORG_signals[q] = None
@@ -928,17 +931,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                             # If they're not viable, nan them.
                             stim_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
-                            control_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
 
                             allcell_stim_iORG_summary, _ = summarize_iORG_signals(stim_iORG_signals[q], all_frmstmp,
                                                                           summary_method=indiv_sum_method,
                                                                           window_size=indiv_sum_window,
                                                                           pool=the_pool)
-
-                            allcell_control_iORG_summary, _ = summarize_iORG_signals(control_iORG_signals[q], all_frmstmp,
-                                                                             summary_method=indiv_sum_method,
-                                                                             window_size=indiv_sum_window,
-                                                                             pool=the_pool)
 
                             # Add correlation function here
 #                            iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary)
@@ -949,9 +946,25 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             elif indiv_sum_control == "division_pop" and control_datasets:
                                 stim_iORG_summary[q] = allcell_stim_iORG_summary / np.repeat(control_pop_iORG_summary_pooled[q][None, :], allcell_stim_iORG_summary.shape[0], axis=0)
                             if indiv_sum_control == "subtraction_indiv" and control_datasets:
+                                control_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
+                                allcell_control_iORG_summary, _ = summarize_iORG_signals(control_iORG_signals[q],
+                                                                                         all_frmstmp,
+                                                                                         summary_method=indiv_sum_method,
+                                                                                         window_size=indiv_sum_window,
+                                                                                         pool=the_pool)
+
                                 stim_iORG_summary[q] = allcell_stim_iORG_summary - allcell_control_iORG_summary
+
                             elif indiv_sum_control == "division_indiv" and control_datasets:
+                                control_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
+                                allcell_control_iORG_summary, _ = summarize_iORG_signals(control_iORG_signals[q],
+                                                                                         all_frmstmp,
+                                                                                         summary_method=indiv_sum_method,
+                                                                                         window_size=indiv_sum_window,
+                                                                                         pool=the_pool)
+
                                 stim_iORG_summary[q] = allcell_stim_iORG_summary / allcell_control_iORG_summary
+
                             else:
                                 stim_iORG_summary[q] = allcell_stim_iORG_summary
 

@@ -326,7 +326,7 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1, all_poststim
 
         # This only smooths the signal if smooth is defined.
         if smoothing is not None:
-            temporal_signals = iORG_signal_filter(temporal_signals, framestamps, framerate, filter_type=smoothing)
+            temporal_signals = iORG_signal_filter(temporal_signals, framestamps, framerate, fwhm_size=21, filter_type=smoothing)
 
         prestim = temporal_signals[:, prestim_window_idx]
         prestim_frms = framestamps[prestim_window_idx]
@@ -399,7 +399,11 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1, all_poststim
 
     return result_dict
 
-def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None):
+def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None, pool=None):
+
+    chunk_size = 250
+    if pool is None:
+        pool = mp.Pool(processes=1)
 
     finite_data = np.isfinite(temporal_signals)
 
@@ -495,7 +499,7 @@ def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=N
         filtered_profiles = np.full_like(butter_filtered_profiles, np.nan)
 
         for c in range(temporal_signals.shape[0]):
-            if np.any(finite_data[c, :]) and np.sum(finite_data[c, :])>5:
+            if np.sum(finite_data[c, :])>5:
                 filtered_profiles[c,:] = make_smoothing_spline(framestamps[finite_data[c, :]], butter_filtered_profiles[c,finite_data[c, :]])(framestamps)
     else:
         filtered_profiles = butter_filtered_profiles
@@ -557,21 +561,23 @@ def _extract_extra_metrics(params):
         finite_post_data = finite_window_data[all_poststim_idx]
         finite_post_frms = finite_window_frms[all_poststim_idx]
 
-        finite_window_data = finite_window_data[poststim_window_idx]
-        finite_window_frms = finite_window_frms[poststim_window_idx]
+        if poststim_window_idx.size > 1:
+            finite_window_data = finite_window_data[poststim_window_idx]
+            finite_window_frms = finite_window_frms[poststim_window_idx]
 
-        if finite_window_frms.size > 1:
             if valid_auc:
                 auc = np.trapezoid(finite_window_data-finite_window_data[0], x=finite_window_frms / framerate)
 
-                grad_profiles = np.gradient(finite_window_data, finite_window_frms / framerate)
-                aurd = np.trapezoid(np.abs(grad_profiles), x=finite_window_frms / framerate)
+                grad_profiles = np.abs(np.gradient(finite_window_data, finite_window_frms / framerate))
+                aurd = np.trapezoid(grad_profiles, x=finite_window_frms / framerate)
 
-                # plt.figure(f"auad: {auad}")
+                # plt.figure(f"auad")
                 # plt.clf()
-                # plt.subplot(2,1,1)
+                # plt.subplot(3, 1, 3)
+                # plt.plot(finite_window_frms / framerate,finite_window_data)
+                # plt.subplot(3,1,2)
                 # plt.plot(finite_window_frms / framerate, grad_profiles)
-                # plt.subplot(2, 1, 2)
+                # plt.subplot(3, 1, 3)
                 # plt.plot(finite_window_frms / framerate, cumulative_trapezoid(np.abs(grad_profiles), x=finite_window_frms / framerate, initial=0))
                 # plt.show(block=False)
                 # plt.waitforbuttonpress()
@@ -582,12 +588,14 @@ def _extract_extra_metrics(params):
             if amp_val_interp.roots().size != 0:
                 amp_implicit_time = amp_val_interp.roots()[0]
 
-        elif finite_window_frms.size == 1:
+        elif poststim_window_idx.size == 1:
 
-            grad_profiles = np.gradient(finite_post_data, finite_post_frms / framerate)
+            finite_window_data = finite_post_data[all_poststim_idx <= poststim_window_idx[0]]
+            finite_window_frms = finite_post_frms[all_poststim_idx <= poststim_window_idx[0]]
 
-            aurd = np.trapezoid(np.abs(grad_profiles[:poststim_window_idx]),
-                                x=finite_post_frms[:poststim_window_idx] / framerate)
+            grad_profiles = np.gradient(finite_window_data, finite_window_frms / framerate)
+
+            aurd = np.trapezoid(np.abs(grad_profiles),x=finite_window_frms / framerate)
 
             amp_implicit_time = desired_poststim_frms[0]
 
