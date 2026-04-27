@@ -130,20 +130,33 @@ class SummaryParams(StrEnum):
     PRESTIM = "prestim"
     POSTSTIM = "poststim"
     INDIV_CUTOFF = "cutoff"
-    SMOOTHING_FACTOR = "smoothing_factor"
+    SMOOTHING = "smoothing_factor"
     AMPLITUDE_PERCENTILE = "amplitude_percentile"
     POPULATION = "population"
     INDIVIDUAL = "individual"
+    DROP_EXTREMA = "drop_extrema"
 
 class ControlParams(StrEnum):
     NAME = "control"
     LOCATION = "location"
     FOLDER_NAME = "folder_name"
 
+# Used for internal tracking of metrics
+class MetricParams(StrEnum):
+    AUR = "aur"
+    AURD = "aurd"
+    AMPLITUDE = "amp"
+    LOG_AMPLITUDE = "logamp"
+    AMP_IMPLICIT_TIME = "amp_imp_time"
+    HALFAMP_IMPLICIT_TIME = "halfamp_imp_time"
+    RECOVERY_PERCENT = "rec_amp"
+
+# Used for human-readable outputs involving metric params
 class MetricTags(StrEnum):
-    AUR = "Response Area Under Curve"
-    LOG_AMPLITUDE = "Log Amplitude"
+    AUR = "Area Under Response"
+    AURD = "Area Under Response Derivative"
     AMPLITUDE = "Amplitude"
+    LOG_AMPLITUDE = "Log Amplitude"
     AMP_IMPLICIT_TIME = "Amplitude Implicit Time"
     HALFAMP_IMPLICIT_TIME = "Half Amplitude Implicit Time"
     RECOVERY_PERCENT = "Recovery Fraction"

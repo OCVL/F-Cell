@@ -1,5 +1,5 @@
 {
-  "version": "0.2",
+  "version": "0.4",
   "description": "The pipeline and analysis JSON for the OCVL's MEAOSLO.",
   "raw": {
     "video_format": "{IDnum}_{Year:4}{Month:2}{Day:2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}.avi",
@@ -36,8 +36,8 @@
         "start_frm": 0,
         "end_frm": -1
       },
-      "alignment_reference_modality": "Confocal",
-      "modalities": ["CalculatedSplit","Confocal"],
+      "alignment_reference_modality": "760nm",
+      "modalities": ["760nm"],
       "output_folder": "Functional Pipeline",
       "group_by": "({LocX},{LocY})",
       "correct_torsion": true,
@@ -57,9 +57,9 @@
       "type": "text_file",
       "metadata_format": "{IDnum}_{Year:.4}{Month:.2}{Day:.2}_{Eye}_({LocX},{LocY})_{FOV_Width}x{FOV_Height}_{VidNum}_{Modality}_piped.csv",
       "fields_to_load": {
-        "framestamps": "FrameStamps",
-        "stimulus_sequence": "StimulusOn"
-      }
+        "framestamps": "FrameStamps"
+      },
+      "stimulus_sequence": [58, 2, 116]
     },
     "recursive_search": false,
     "control": {
@@ -67,7 +67,7 @@
       "folder_name": "control"
     },
     "analysis_params": {
-      "modalities": ["Confocal"],
+      "modalities": ["760nm"],
       "output_folder": "Results",
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
@@ -82,8 +82,8 @@
       },
       "segmentation": {
         "refine_to_ref": true,
-        "refine_to_vid": false,
-        "radius": "auto",
+        "refine_to_vid": true,
+        "radius": 1,
         "shape": "disk",
         "summary": "mean",
         "pixelwise": false
@@ -106,7 +106,7 @@
           "method": "rms",
           "control": "subtraction_pop",
           "metrics": {
-            "type": [ "aur", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
+            "type": [ "aur", "aurd", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
             "measured": "stim-relative",
             "units": "time",
             "prestim": [-1, 0 ],
@@ -115,23 +115,25 @@
         },
         "individual": {
           "method": "rms",
-          "control": "subtraction_indiv",
-          "cutoff": 1,
+          "control": "subtraction_pop",
+          "cutoff": 18,
+          "drop_extrema": [0.25],
           "metrics": {
-            "type": [ "aur", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
+            "type": [ "aur", "aurd", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
             "measured": "stim-relative",
             "units": "time",
             "prestim": [-1, 0 ],
-            "poststim": [ 0, 1 ]
+            "poststim": [ 0, 1 ],
+            "smoothing_factor": "spline"
           }
         }
       },
       "gaus_blur": 0.0,
       "mask_roi": {
-        "r": 0,
-        "c": 0,
-        "width": -1,
-        "height": -1
+        "r": 90,
+        "c": 90,
+        "width": 280,
+        "height": 280
       }
     },
     "debug":{
@@ -140,7 +142,7 @@
         "plot_refine_to_vid": false,
         "plot_pop_extracted_orgs": false,
         "plot_pop_stdize_orgs": false,
-        "plot_indiv_stdize_orgs": [475],
+        "plot_indiv_stdize_orgs": false,
         "plot_valid_cells": false,
         "stimulus": true,
         "control": true,
