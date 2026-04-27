@@ -147,6 +147,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
     indiv_sum_control = indiv_sum_params.get(SummaryParams.CONTROL, pop_sum_control)
     indiv_sum_method = indiv_sum_params.get(SummaryParams.METHOD, pop_sum_method)
     indiv_sum_window = indiv_sum_params.get(SummaryParams.WINDOW_SIZE, pop_sum_window)
+    indiv_drop_extrema = indiv_sum_params.get(SummaryParams.DROP_EXTREMA, None)
     indiv_metric_params = indiv_sum_params.get(SummaryParams.METRICS, dict())
     indiv_metrics_measured_to = indiv_metric_params.get(SummaryParams.MEASURED_TO, pop_metrics_measured_to)
     indiv_metrics_units = indiv_metric_params.get(SummaryParams.UNITS, pop_metrics_units)
@@ -931,6 +932,30 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                             # If they're not viable, nan them.
                             stim_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
+
+                            if indiv_drop_extrema:
+                                prestim_frms, poststim_frms = _determine_pre_n_post_stim_frms(pop_metric_params, poststim_frms[0],
+                                                                                                              stim_dataset.framerate)
+                                # Find the indexes of the framestamps corresponding to the analyzed pre and post stim frames;
+                                prestim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, prestim_frms))
+                                poststim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, prestim_frms))
+
+                                # Try and detect signals that do and do not respond from a given trial.
+                                squared_sigs = np.square(stim_iORG_signals[q][:, :, :])
+                                prestim_avg_nrg = np.nanmean(squared_sigs[:, :, prestim_idx], axis=2)
+                                poststim_avg_nrg = np.nanmean(squared_sigs[:, :, poststim_idx], axis=2)
+
+                                log_nrg_change = np.log10(poststim_avg_nrg) - np.log10(prestim_avg_nrg)
+                                if len(indiv_drop_extrema) == 1:
+                                    low_resp = np.nanquantile(log_nrg_change, indiv_drop_extrema[0], axis=0)
+                                    stim_iORG_signals[q][log_nrg_change <= low_resp, :] = np.nan
+                                elif len(indiv_drop_extrema) == 2:
+                                    low_resp = np.nanquantile(log_nrg_change, indiv_drop_extrema[0], axis=0)
+                                    high_resp = np.nanquantile(log_nrg_change, indiv_drop_extrema[1], axis=0)
+                                else:
+
+                                    stim_iORG_signals[q][log_nrg_change <= low_resp & log_nrg_change >=high_resp, :] = np.nan
+
 
                             allcell_stim_iORG_summary, _ = summarize_iORG_signals(stim_iORG_signals[q], all_frmstmp,
                                                                           summary_method=indiv_sum_method,

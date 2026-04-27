@@ -134,6 +134,7 @@ class SummaryParams(StrEnum):
     AMPLITUDE_PERCENTILE = "amplitude_percentile"
     POPULATION = "population"
     INDIVIDUAL = "individual"
+    DROP_EXTREMA = "drop_extrema"
 
 class ControlParams(StrEnum):
     NAME = "control"

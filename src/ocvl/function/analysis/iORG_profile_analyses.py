@@ -67,11 +67,11 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
         temporal_data = np.pad(temporal_data, ((0, 0), (0, 0), (window_radius, window_radius)), "symmetric")
 
     else:
-        if len(temporal_signals.shape) == 2:
-            temporal_data = np.full((num_signals, 1, framestamps[-1] + 1), np.nan, dtype=np.float32)
-            temporal_data[:, 0, framestamps] = temporal_signals
-        elif len(temporal_signals.shape) == 3:
-            temporal_data = temporal_signals
+        # if len(temporal_signals.shape) == 2:
+        #     temporal_data = np.full((num_signals, 1, framestamps[-1] + 1), np.nan, dtype=np.float32)
+        #     temporal_data[:, 0, framestamps] = temporal_signals
+        # elif len(temporal_signals.shape) == 3:
+        temporal_data = temporal_signals
 
     if len(temporal_signals.shape) == 2:
         num_incl = np.zeros((1, num_samples), dtype=np.uint32)
@@ -145,7 +145,7 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
                         padding = int(temporal_data.shape[-1]/2)
 
                         cell_signals =  temporal_data[:,c,:].copy()
-                        cell_signals = iORG_signal_filter(cell_signals, filter_type="MS")
+                        cell_signals = iORG_signal_filter(cell_signals, framestamps, filter_type="MS")
 
                         # for acq_ind in range(cell_signals.shape[0]):
                         #     if np.any(np.isfinite(temporal_data[acq_ind,c, :])):
