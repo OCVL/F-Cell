@@ -102,18 +102,6 @@ for c in slice.itertuples():
     #
     # nolow_summary = np.nanmean(np.square(all_siggies[log_nrg_change>low_resp, ind, :]), axis=0)  # Average second
     # nolow_summary = np.sqrt(nolow_summary)  # Sqrt last
-    #
-    # # plt.figure()
-    # # plt.violinplot(log_nrg_change)
-    #
-    #plt.figure(f"Cell: {ind} with amplitude: {c.Amplitude}")
-    # plt.plot(time, all_siggies[log_nrg_change>low_resp, ind, :].transpose(), "r", linewidth=1)
-    # plt.plot(time, all_siggies[log_nrg_change<=low_resp, ind, :].transpose(), "b", linewidth=1)
-    # plt.plot(time, all_summary, "k-",linewidth=3)
-    # plt.plot(time, nolow_summary, "g-", linewidth=3)
-    # plt.ylim((-100, 100))
-    # plt.xlim((0, 5))
-    # plt.show()
 
     # Concat all sigs
     # oversample = 4
@@ -152,54 +140,7 @@ for c in slice.itertuples():
     # rescaled = concat_sig / np.nanmax(abs(concat_sig))
     #
     # plt.plot(concat_time, (rescaled*5)+10, color='y')
-    #
-    # IMFs = emd.sift.complete_ensemble_sift(concat_sig, nensembles=100, ensemble_noise=0.2)
-    # #emd.plotting.plot_imfs(IMFs, sample_rate=29.4)
-    #
-    # IF_est, IA_est, s_est = acmd(concat_sig, 29.4, np.full_like(concat_sig, 0), alpha0=1e-7, beta=1e-9)
-    # plt.figure("concat freq 0hz")
-    # plt.subplot(3, 1, 1)
-    # plt.plot(full_concat_time[finite_dat], IA_est * IF_est)
-    # plt.plot(full_concat_time[finite_dat], IA_est)
-    # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-    # #plt.ylim((0, 100))
-    #
-    # plt.subplot(3, 1, 2)
-    # plt.plot(full_concat_time[finite_dat], IF_est)
-    # plt.plot(stim_time, np.full_like(stim_time, 0), 'g*')
-    # plt.ylim((-1, 2))
-    #
-    # plt.subplot(3, 1, 3)
-    # plt.plot(full_concat_time[finite_dat], concat_sig)
-    # plt.plot(full_concat_time[finite_dat], s_est)
-    # plt.plot(full_concat_time[finite_dat], (IMFs[:, -1]+IMFs[:, -2]))
-    # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-    # #plt.ylim((-150, 150))
-    #
-    # concat_sig -= s_est
-    # #
-    # IF_est, IA_est, s_est = acmd(concat_sig, 29.4, np.full_like(concat_sig, 2.2), alpha0=1e-3, beta=1e-4)
-    # plt.figure("concat freq 2.5hz")
-    # plt.subplot(3, 1, 1)
-    # plt.plot(full_concat_time[finite_dat], IA_est * IF_est)
-    # plt.plot(full_concat_time[finite_dat], IA_est)
-    # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-    # plt.ylim((0, 100))
-    #
-    # plt.subplot(3, 1, 2)
-    # plt.plot(full_concat_time[finite_dat], IF_est)
-    # plt.plot(stim_time, np.full_like(stim_time, 0), 'g*')
-    # plt.ylim((-1, 5))
-    #
-    # plt.subplot(3, 1, 3)
-    # plt.plot(full_concat_time[finite_dat], concat_sig)
-    # plt.plot(full_concat_time[finite_dat], s_est)
-    # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-    # plt.ylim((-100, 100))
-    #
-    # plt.show()
 
-    #
     for acq in range(20):
          finite_dat = np.isfinite(all_siggies[acq, ind, :])
          if np.any(finite_dat):
@@ -208,38 +149,37 @@ for c in slice.itertuples():
     #
             finite_sig = all_siggies[acq, ind, finite_dat]
             stim_time = 58/29.4
-    #
-    # #         '''Ensemble EMD'''
-    # #         IMFs = emd.sift.complete_ensemble_sift(all_siggies[acq, ind, finite_dat], nensembles=100, ensemble_noise=0.5)
-    # #         drift = IMFs[:, -1]
-    # #         emd.plotting.plot_imfs(IMFs, sample_rate=29.4)
-    #
-    #         ''' VMD '''
-    #         # if finite_sig.size % 2 != 0:
-    #         #     finite_sig = np.append(finite_sig, finite_sig[-1])
-    #         #
-    #         #     u, u_hat, omega = VMD(finite_sig, alpha, tau, K, DC, init, tol)
-    #         #     drift_idx = np.argmin(omega[-1, :])  # omega[-1] = final freq estimates
-    #         #     drift = u[drift_idx, :]
-    #         #
-    #         #     all_siggies[acq, ind, finite_dat] = finite_sig[:-1] - drift[:-1]
-    #         # else:
-    #         #
-    #         #     u, u_hat, omega = VMD(finite_sig, alpha, tau, K, DC, init, tol)
-    #         #     drift_idx = np.argmin(omega[-1, :])  # omega[-1] = final freq estimates
-    #         #     drift = u[drift_idx, :]
-    #         #
-    #         #     all_siggies[acq, ind, finite_dat] = finite_sig- drift
-    #         #
-    #         # plt.figure()
-    #         # plt.plot(time[finite_dat], finite_sig)
-    #         # plt.plot(time[finite_dat], u[1, :], label=f"Component 1: {acq}")
-    #         # plt.plot(time, all_siggies[acq, ind, :], label=f"Detrended: {acq}")
-    #         # plt.ylim((-100, 100))
-    #         # plt.xlim((0, 5))
-    #
-    #         '''ACMD'''
-    #
+
+            '''Ensemble EMD'''
+            IMFs = emd.sift.complete_ensemble_sift(all_siggies[acq, ind, finite_dat], nensembles=100, ensemble_noise=0.5)
+            drift = IMFs[:, -1]
+            emd.plotting.plot_imfs(IMFs, sample_rate=29.4)
+
+            ''' VMD '''
+            if finite_sig.size % 2 != 0:
+                finite_sig = np.append(finite_sig, finite_sig[-1])
+
+                u, u_hat, omega = VMD(finite_sig, alpha, tau, K, DC, init, tol)
+                drift_idx = np.argmin(omega[-1, :])  # omega[-1] = final freq estimates
+                drift = u[drift_idx, :]
+
+                all_siggies[acq, ind, finite_dat] = finite_sig[:-1] - drift[:-1]
+            else:
+
+                u, u_hat, omega = VMD(finite_sig, alpha, tau, K, DC, init, tol)
+                drift_idx = np.argmin(omega[-1, :])  # omega[-1] = final freq estimates
+                drift = u[drift_idx, :]
+
+                all_siggies[acq, ind, finite_dat] = finite_sig- drift
+
+            plt.figure()
+            plt.plot(time[finite_dat], finite_sig)
+            plt.plot(time[finite_dat], u[1, :], label=f"Component 1: {acq}")
+            plt.plot(time, all_siggies[acq, ind, :], label=f"Detrended: {acq}")
+            plt.ylim((-100, 100))
+            plt.xlim((0, 5))
+
+            '''ACMD'''
             IF_est, IA_est, drift_est = acmd(finite_sig, 29.4, np.full_like(finite_sig, 0.1), alpha0=5e-7, beta=1e-8)
             plt.figure(f"concat freq 0hz with amplitude: {c.Amplitude}")
             plt.subplot(3, 1, 1)
@@ -257,7 +197,7 @@ for c in slice.itertuples():
             plt.plot(time[finite_dat], finite_sig)
             plt.plot(time[finite_dat], drift_est)
             plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-            # plt.ylim((-150, 150))
+            plt.ylim((-150, 150))
 
             finite_sig -= drift_est
 
@@ -280,73 +220,4 @@ for c in slice.itertuples():
             plt.plot(time[finite_dat], s_est+drift_est)
             plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
             plt.ylim((-100, 100))
-
-            plt.figure(f"residual: {c.Amplitude}")
-            plt.plot(time[finite_dat],finite_sig-s_est)
-
-            # finite_sig -= s_est
-            #
-            # IF_est, IA_est, s_est = acmd(finite_sig, 29.4, np.full_like(finite_sig, 2), alpha0=1e-4, beta=1e-4)
-            # plt.figure("concat freq 2hz")
-            # plt.subplot(3, 1, 1)
-            # plt.plot(time[finite_dat], IA_est * IF_est)
-            # plt.plot(time[finite_dat], IA_est)
-            # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-            # plt.ylim((0, 100))
-            #
-            # plt.subplot(3, 1, 2)
-            # plt.plot(time[finite_dat], IF_est)
-            # plt.plot(stim_time, np.full_like(stim_time, 0), 'g*')
-            # plt.ylim((-1, 5))
-            #
-            # plt.subplot(3, 1, 3)
-            # plt.plot(time[finite_dat], finite_sig)
-            # plt.plot(time[finite_dat], s_est)
-            # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-            # plt.ylim((-100, 100))
-
-            plt.show()
-
-            # IF_est, IA_est, s_est = acmd(finite_sig, 29.4, np.full_like(finite_sig, 5))
-            # # plt.figure("amp 3")
-            # # plt.plot(time[finite_dat], IA_est)
-            # # plt.plot(time[finite_dat], finite_sig / 10)
-            # # plt.figure("freq 3")
-            # # plt.plot(time[finite_dat], IF_est)
-            # # plt.plot(time[finite_dat], finite_sig / 10)
-            # plt.figure("sig 3")
-            # plt.plot(time[finite_dat], s_est)
-            # plt.plot(time[finite_dat], finite_sig)
-            # plt.ylim((-100, 100))
-            # plt.xlim((0, 5))
-            # finite_sig -= s_est
-            #
-            # IF_est, IA_est, s_est = acmd(finite_sig, 29.4, np.full_like(finite_sig, 10))
-            # # plt.figure("amp 3")
-            # # plt.plot(time[finite_dat], IA_est)
-            # # plt.plot(time[finite_dat], finite_sig / 10)
-            # # plt.figure("freq 3")
-            # # plt.plot(time[finite_dat], IF_est)
-            # # plt.plot(time[finite_dat], finite_sig / 10)
-            # plt.figure("sig 4")
-            # plt.plot(time[finite_dat], s_est)
-            # plt.plot(time[finite_dat], finite_sig)
-            # plt.ylim((-100, 100))
-            # plt.xlim((0, 5))
-    #
-    #
-    #
-    #
-    # #
-    #
-    # #
-    # #         # emd.plotting.plot_imfs(IMFs, sample_rate=29.4)
-    # #         # eIF_init = np.full(len(finite_sig), 2.0)
-    # #
-    #         plt.show()
-            #plt.waitforbuttonpress()
-
-    # plt.legend()
-    # plt.show()
-
-
+    plt.show()
