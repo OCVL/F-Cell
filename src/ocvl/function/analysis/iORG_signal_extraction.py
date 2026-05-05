@@ -2,6 +2,8 @@ import logging
 import warnings
 from itertools import repeat
 from multiprocessing import shared_memory
+from typing import Tuple
+
 import cv2
 import numpy as np
 from joblib._multiprocessing_helpers import mp
@@ -18,8 +20,8 @@ from ocvl.function.utility.json_format_constants import SegmentParams, NormParam
 from scipy.spatial.distance import pdist
 
 
-def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, query_loc: np.array = None, query_loc_name: str = None,
-                                  stimtrain_frame_stamps: np.array =None, thread_pool:mp.Pool =None):
+def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, query_loc: np.ndarray = None, query_loc_name: str = None,
+                                  stimtrain_frame_stamps: np.ndarray = None, thread_pool:mp.Pool = None):
     """
     The primary iORG extraction function.
 
@@ -29,6 +31,7 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
     :param query_loc_name: The name of the query locations.
     :param stimtrain_frame_stamps: The framestamps corresponding to the stimulus delivery.
     :param thread_pool: The thread pool available for algorithms that are multithreaded.
+
     :return: The refined iORG signals, the summarized iORGs, the query location inclusion/exclusion list,
             the query locations, and a dict containing any automatically detected value.
 
@@ -325,7 +328,7 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
     return iORG_signals, summarized_iORG, query_status, query_loc, auto_detect_vals
 
 
-def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
+def refine_coord(ref_image: np.ndarray, coordinates: np.ndarray, search_radius:int = 1, numiter:int = 2):
     """
     Refine a set of coordinates based on the intensity of the underlying image- essentially is an iterative "hill climbing" algorithm.
 
@@ -376,7 +379,8 @@ def refine_coord(ref_image, coordinates, search_radius=1, numiter=2):
     return coordinates, includelist, query_status
 
 
-def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, threshold=0.3):
+def refine_coord_to_stack(image_stack: np.ndarray, ref_image: np.ndarray, coordinates: np.ndarray,
+                          search_radius:int = 2, threshold:float = 0.3):
     """
     Refine a set of coordinates based on the average intensity of an image stack. Uses normalized cross correlation of a
     template generated from each coordinate in a reference image.
@@ -445,7 +449,8 @@ def refine_coord_to_stack(image_stack, ref_image, coordinates, search_radius=2, 
     return coordinates, includelist, query_status
 
 
-def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1, summary="mean", sigma=None, pool=None):
+def extract_signals(image_stack:np.ndarray, coordinates:np.ndarray = None, seg_mask:str = "box", seg_radius:int = 1,
+                    summary:str = "mean", sigma:float = None, pool:mp.pool = None):
     """
     This function extracts temporal profiles from a 3D matrix, where the first two dimensions are assumed to
     contain data from a single time point (a single image)
@@ -569,7 +574,23 @@ def extract_signals(image_stack, coordinates=None, seg_mask="box", seg_radius=1,
 
     return signal_data, query_status, coordinates
 
-def _extract_box(params):
+def _extract_box(params: Tuple[int, str, np.ndarray, str, np.ndarray, int, str] ) -> Tuple[int, np.ndarray, str]:
+    """
+    Extract ORG profiles in a box; designed to be supplied to a multiprocessing pool.
+
+    :param params: a tuple containing: the cell index (int),
+                    The name of the SharedMemory buffer storing the video data (str),
+                    The shape of the SharedMemory buffer storing the video data,
+                    The name of the SharedMemory buffer storing the coordinates (str),
+                    The shape of the SharedMemory buffer storing the coordinates,
+                    The window radius (int),
+                    The name of the summary method used for each box.
+
+    :returns: A tuple containing:
+              The query point index that was processed by this thread (int)
+              The extracted ORG (numpy ndarray)
+              The query status of this index (str).
+    """
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
     signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
@@ -611,7 +632,23 @@ def _extract_box(params):
 
     return i, signal_data, query_status
 
-def _extract_disk(params):
+def _extract_disk(params: Tuple[int, str, np.ndarray, str, np.ndarray, int, str] ) -> Tuple[int, np.ndarray, str]:
+    """
+    Extract ORG profiles in a disk around the query point; designed to be supplied to a multiprocessing pool.
+
+    :param params: a tuple containing: the cell index (int),
+                    The name of the SharedMemory buffer storing the video data (str),
+                    The shape of the SharedMemory buffer storing the video data,
+                    The name of the SharedMemory buffer storing the coordinates (str),
+                    The shape of the SharedMemory buffer storing the coordinates,
+                    The window radius (int),
+                    The name of the summary method used for each box.
+
+    :returns: A tuple containing:
+              The query point index that was processed by this thread (int)
+              The extracted ORG (numpy ndarray)
+              The query status of this index (str).
+    """
     i, vid_name, vid_shape, coord_name, coord_shape, seg_radius, summary = params
 
     signal_data = np.full((vid_shape[-1], ), np.nan, dtype=np.float32)
@@ -665,15 +702,15 @@ def _extract_disk(params):
     return i, signal_data, query_status
 
 
-def exclude_signals(temporal_signals, framestamps,
-                    critical_region=None, critical_fraction=0.5, require_full_signal=False):
+def exclude_signals(temporal_signals: np.ndarray, framestamps:np.ndarray,
+                    critical_region: np.ndarray = None, critical_fraction:float = 0.5, require_full_signal:bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     A bit of code used to remove cells that don't have enough data in the critical region of a signal. This is typically
     surrounding a stimulus.
 
     :param temporal_signals: A NxM numpy matrix with N cells and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
-    :param critical_region: A set of values containing the critical region of a signal- if a cell doesn't have data here,
+    :param critical_region: A set of framestamps that are the critical region of a signal- if a cell doesn't have data here,
                             then drop its entire signal from consideration.
     :param critical_fraction: The fraction of real values required to consider the signal valid.
     :param require_full_signal: Require a full profile instead of merely a fraction of the critical region.
@@ -708,7 +745,8 @@ def exclude_signals(temporal_signals, framestamps,
 
     return temporal_signals, good_profiles, query_status
 
-def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, rescale_mean=None, rescale_std=None):
+def normalize_signals(temporal_signals: np.ndarray, norm_method:str = "mean",
+                      rescaled:bool = False, rescale_mean:float = None, rescale_std:float = None) -> np.ndarray:
     """
     This function normalizes the columns of the data (a single sample of all cells) using a method supplied by the user.
 
@@ -762,17 +800,17 @@ def normalize_signals(temporal_signals, norm_method="mean", rescaled=False, resc
     return temporal_signals
 
 
-def standardize_signals(temporal_signals, framestamps, std_indices, method="mean_sub", critical_fraction=0.3, pool=None):
+def standardize_signals(temporal_signals: np.ndarray, framestamps: np.ndarray, std_indices:np.ndarray,
+                        method:str = "mean_sub", critical_fraction:float = 0.3, pool:mp.pool = None):
     """
     This function standardizes each temporal profile (here, the rows of the supplied data) according to the provided
     arguments.
 
     :param temporal_signals: A NxM numpy matrix with N cells and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
-    :param std_indices: The range of indices to use when standardizing.
-    :param method: The method used to standardize. Default is "linear_stddev", which subtracts a linear fit to
-                    each signal before stimulus_stamp, followed by a standardization based on that pre-stamp linear-fit
-                    subtracted data. This was used in Cooper et al 2017/2020.
+    :param std_indices: The range of indices to use when standardizing- usually preceeds a stimulus.
+    :param method: The method used to standardize. Default is "mean_sub", which subtracts the mean signal value before
+                    the stimulus is delivered; this was used in Gaffney 2024.
                     Current options include: "stddev", "linear_stddev", "linear_vast", "relative_change", and "mean_sub"
     :param critical_fraction: The fraction of real values required to consider the signal valid.
     :param pool: A multiprocessing pool object. Default: None
