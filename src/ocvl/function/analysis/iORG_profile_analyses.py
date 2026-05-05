@@ -2,10 +2,13 @@ import logging
 import warnings
 from itertools import repeat
 from multiprocessing import shared_memory
+from typing import Tuple, Iterator, Any
+
 import numpy as np
 import scipy
 from joblib._multiprocessing_helpers import mp
 from matplotlib import pyplot as plt
+from numpy import ndarray, dtype
 from scipy import signal
 from scipy.interpolate import Akima1DInterpolator, make_smoothing_spline, interp1d
 from scipy.ndimage import center_of_mass, convolve1d
@@ -16,24 +19,25 @@ from scipy.signal import savgol_filter
 from scipy.stats import pearsonr
 
 
-def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", window_size=1, fraction_thresh=0.25, pool=None):
+def summarize_iORG_signals(temporal_signals: np.ndarray, framestamps: np.ndarray, summary_method:str ="rms",
+                           window_size:int = 1, fraction_thresh:float =0.25, pool:mp.Pool =None) -> Tuple[np.ndarray, np.ndarray]:
     """
     Summarizes the summary on a supplied dataset, using a variety of power based summary methods published in
-    Gaffney et. al. 2024, Cooper et. al. 2020, and Cooper et. al. 2017.
+    Cooper et. al. 2025, Gaffney et. al. 2024, Cooper et. al. 2020, and Cooper et. al. 2017.
 
     :param temporal_signals: If 2D, an NxM numpy matrix with N cells OR acquisitions from a single cell,
                                 and M temporal samples of some signal. If 3D, an NxCxM numpy matrix with N acquisitions
                                 from C cells, and M temporal samples of some signal.
     :param framestamps: A 1xM numpy matrix containing the associated frame stamps for temporal_data.
     :param summary_method: The method used to summarize the population at each sample. Current options include:
-                            "rms, "variance", "stddev", and "avg". Default: "rms"
+                            "rms, "variance", "stddev", "avg", and "envelope". Default: "rms"
     :param window_size: The window size used to summarize the population at each sample. Can be an odd integer from
                         1 (no window) to M/2. Default: 1
     :param fraction_thresh: The fraction of the values inside the sample window that must be finite in order for the power
                             to be calculated- otherwise, the value will be considered np.nan.
-    :param pool: A multiprocessing pool object. Default: None
+    :param pool: A multiprocessing pool object, that can be used for multithreaded operations. Default: None
 
-    :return: a NxM summarized summarized signal
+    :return: a NxM summarized summarized signal.
     """
 
     chunk_size = 250
@@ -234,7 +238,23 @@ def summarize_iORG_signals(temporal_signals, framestamps, summary_method="rms", 
 
     return summary, num_incl
 
-def _summary_variance(params):
+def _summary_variance(params: Tuple[int, str, np.ndarray, np.dtype, int, float] ) -> Tuple[int, np.ndarray, np.ndarray]:
+    """
+    Summarize a set of signals using variance; designed to be supplied to a multiprocessing pool.
+
+    :param params: a tuple containing: the cell index (int),
+                    The name of the SharedMemory buffer storing the temporal signals (str),
+                    The shape of the SharedMemory buffer,
+                    The datatype of the SharedMemory buffer,
+                    The window radius (int),
+                    And the fraction of datapoints required for calculating a value at a given position.
+
+    :returns: A tuple containing:
+              The cell index that was processed by this thread (int)
+              The summarized signal (numpy ndarray)
+              How many signals were included at each time lag.
+    """
+
     c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
 
     with warnings.catch_warnings():
@@ -258,7 +278,22 @@ def _summary_variance(params):
 
     return c, summary, num_incl
 
-def _summary_stddev(params):
+def _summary_stddev(params: Tuple[int, str, np.ndarray, np.dtype, int, float] ) -> Tuple[int, np.ndarray, np.ndarray]:
+    """
+    Summarize a set of signals using standard deviation; designed to be supplied to a multiprocessing pool.
+
+    :param params: a tuple containing: the cell index (int),
+                    The name of the SharedMemory buffer storing the temporal signals (str),
+                    The shape of the SharedMemory buffer,
+                    The datatype of the SharedMemory buffer,
+                    The window radius (int),
+                    And the fraction of datapoints required for calculating a value at a given position.
+
+    :returns: A tuple containing:
+              The cell index that was processed by this thread (int)
+              The summarized signal (numpy ndarray)
+              How many signals were included at each time lag.
+    """
     c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
 
     with warnings.catch_warnings():
@@ -282,7 +317,22 @@ def _summary_stddev(params):
 
     return c, summary, num_incl
 
-def _summary_rms(params):
+def _summary_rms(params: Tuple[int, str, np.ndarray, np.dtype, int, float] ) -> Tuple[int, np.ndarray, np.ndarray]:
+    """
+    Summarize a set of signals using RMS; designed to be supplied to a multiprocessing pool.
+
+    :param params: a tuple containing: the cell index (int),
+                    The name of the SharedMemory buffer storing the temporal signals (str),
+                    The shape of the SharedMemory buffer,
+                    The datatype of the SharedMemory buffer,
+                    The window radius (int),
+                    And the fraction of datapoints required for calculating a value at a given position.
+
+    :returns: A tuple containing:
+              The cell index that was processed by this thread (int)
+              The summarized signal (numpy ndarray)
+              How many signals were included at each time lag.
+    """
     c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
 
     with warnings.catch_warnings():
@@ -308,7 +358,22 @@ def _summary_rms(params):
 
     return c, summary, num_incl
 
-def _summary_avg(params):
+def _summary_avg(params: Tuple[int, str, np.ndarray, np.dtype, int, float] ) -> Tuple[int, np.ndarray, np.ndarray]:
+    """
+    Summarize a set of signals using the average; designed to be supplied to a multiprocessing pool.
+
+    :param params: a tuple containing: the cell index (int),
+                    The name of the SharedMemory buffer storing the temporal signals (str),
+                    The shape of the SharedMemory buffer,
+                    The datatype of the SharedMemory buffer,
+                    The window radius (int),
+                    And the fraction of datapoints required for calculating a value at a given position.
+
+    :returns: A tuple containing:
+              The cell index that was processed by this thread (int)
+              The summarized signal (numpy ndarray)
+              How many signals were included at each time lag.
+    """
     c, mem_name, signal_shape, the_dtype, window_radius, fraction_thresh = params
 
     with warnings.catch_warnings():
@@ -332,7 +397,7 @@ def _summary_avg(params):
 
     return c, summary, num_incl
 
-def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals):
+def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals) -> Tuple[np.ndarray, np.ndarray]:
 
     # Pre-allocating
     iORG_corr = np.full(len(stim_iORG_signals), np.nan)
@@ -346,7 +411,17 @@ def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals):
     return iORG_corr, iORG_corr_p_val
 
 
-def _determine_pre_n_post_stim_frms(params, stimulus_onset_frmstamp, framerate=1):
+def _determine_pre_n_post_stim_frms(params: dict, stimulus_onset_frmstamp: int, framerate:float = 1.0) -> Tuple[ndarray[Tuple[int], dtype[Any]], ndarray[Tuple[int], dtype[Any]]]:
+    """
+    Determine the pre- and post- stimulus frames depending on a set of rules defined in a dict supplied by the user.
+
+    :param params: A dictionary defining SummaryParams.UNITS, SummaryParams.MEASURED_TO, SummaryParams.PRESTIM, and SummaryParams.POSTSTIM.
+    :param stimulus_onset_frmstamp: The framestamp (e.g the frame number) where the stimulus is delivered for this dataset.
+    :param framerate: The framerate of the device. Divides the framestamp if SummaryParams.UNITS is "time".
+
+    :return: A tuple of frames corresponding to all of the prestimulus and poststimulus frames.
+    """
+
     if params is None:
         params = dict()
 
@@ -380,7 +455,25 @@ def _determine_pre_n_post_stim_frms(params, stimulus_onset_frmstamp, framerate=1
     return prestim, poststim
 
 
-def iORG_signal_metrics(temporal_signals, framestamps, framerate=1, all_poststim_frms=None, params=None, pool=None) -> dict:
+def iORG_signal_metrics(temporal_signals: np.ndarray, framestamps: np.ndarray,
+                        framerate:float = 1.0, all_poststim_frms:np.ndarray = None, params:dict = None, pool:mp.pool = None) -> dict:
+    """
+    Extracts metrics from N signals that are T samples long; metrics include amplitude, implicit time and more.
+    Metrics are returned in a dictionary corresponding to the metrics themselves.
+
+    :param temporal_signals: An NxT numpy array storing all the signals to be analyzed.
+    :param framestamps: An 1xT numpy int array containing the framestamps of each of the samples in temporal_signals.
+    :param framerate: The framerate of the device (float).
+    :param all_poststim_frms: The frames within the framestamps that are considered "post stimulus" for the purpose of analysis.
+                                Metrics are ONLY extracted from within this window.
+    :param params: A dictionary containing the parameters for analysis, such as SMOOTHING for any pre-extraction smoothing,
+                   AMPLITUDE_PERCENTILE for the percentile used to isolate the signal amplitude, and TYPE which is a list of
+                   metrics that will be extracted from the provided signals.
+    :param pool: A multiprocessing pool that can be used to accelerate analyses that require interpolation,
+                 such as implicit time.
+    :return: A dictionary containing the metrics extracted from the provided signals; each key/value pair corresponds to
+             a single metrics.
+    """
 
     if params is None:
         params = dict()
@@ -491,7 +584,24 @@ def iORG_signal_metrics(temporal_signals, framestamps, framerate=1, all_poststim
 
     return result_dict
 
-def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=None, fwhm_size=14, notch_filter=None, pool=None):
+def iORG_signal_filter(temporal_signals: ndarray, framestamps:ndarray, framerate:float = 1.0,
+                       filter_type:str = None, fwhm_size:int = 14, notch_filter:bool = None, pool:mp.pool = None) -> np.ndarray:
+    """
+    Filters the iORG signals using a variety of less common, better performing FIR filters, including the Savgol filter,
+    the MS and MS1 filters (Schmid et. al.). It can also filter the signals using more common moving mean and spline-based
+    filters.
+
+    :param temporal_signals: An NxT numpy array storing all the signals to be analyzed.
+    :param framestamps: An 1xT numpy int array containing the framestamps of each of the samples in temporal_signals.
+    :param framerate: The framerate of the device (float).
+    :param filter_type: A string with the filter name. Currently accepted: "savgol", "MS", "MS1", "movmean", and "spline".
+    :param fwhm_size: The full-width at half max target of the filter design. Only used for "savgol", "MS" and "MS1".
+    :param notch_filter: Experimental. A notch filter designed to remove breathing artifacts in humans.
+    :param pool: A multiprocessing pool that can be used to accelerate analyses that require interpolation,
+                 such as implicit time.
+
+    :return: The filtered signals, sharing the same size as the input array (temporal_signals).
+    """
 
     chunk_size = 250
     if pool is None:
@@ -499,7 +609,7 @@ def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=N
 
     finite_data = np.isfinite(temporal_signals)
 
-    # First we filter the data with a notch filter (to possibly remove artifacts from breathing or other things.
+    # First we filter the data with a notch filter (to possibly remove artifacts from breathing or other things).
     if notch_filter is not None:
         # sos = signal.butter(10, notch_filter, "bandstop", fs=29.5, output='sos')
         # sos = signal.iirdesign([1.45, 2.15], [1.5, 2.1], gpass=1, gstop=60, fs=29.5, output='sos')
@@ -599,8 +709,16 @@ def iORG_signal_filter(temporal_signals, framestamps, framerate=1, filter_type=N
     return filtered_profiles
 
 
-def pooled_variance(data, axis=1):
+def pooled_variance(data:np.ndarray, axis=1) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Calculates the pooled variance of a given dataset- essentially a "weighted variance" approach. Weights are determined
+    by counting the number of non-NaN values along the given axis.
 
+    :param data: A ndarray for pooling. NaN values will be excluded.
+    :param axis: The axis to perform pooling over.
+    :return: A tuple of ndarrays containing  pooled values, less whatever dimension was chosen by the caller,
+            and the weights used in the pooling calculation.
+    """
     if len(data.shape) == 1:
         return np.zeros_like(data), data
 
@@ -614,7 +732,32 @@ def pooled_variance(data, axis=1):
 
     return np.sum(datavar*datacount) / np.sum(datacount), np.sum(datamean*datacount) / np.sum(datacount)
 
-def _extract_extra_metrics(params):
+
+def _extract_extra_metrics(params: Tuple[int, str, np.ndarray, np.dtype, np.ndarray, np.ndarray,
+                                        np.ndarray, float, float, float, float]) -> Tuple[int, float, float, float, float]:
+    """
+    Extract metrics that may require multithreading to be feasible. Should be run in a multiprocessing pool.
+
+    :param params: a tuple containing: the cell index (int),
+                    The name of the SharedMemory buffer storing the temporal signals (str),
+                    The shape of the SharedMemory buffer,
+                    The datatype of the SharedMemory buffer,
+                    The framestamps of the data,
+                    The possible poststim frames,
+                    The desired poststim frames,
+                    The framerate of the data,
+                    The prestimulus value of this cell,
+                    The poststimulus value of this cell,
+                    And the amplitude of this cell.
+
+    :returns: A tuple containing:
+              The cell index that was processed by this thread,
+              The implicit time,
+              Implicit time of half the amplitude,
+              Area under the curve,
+              And the area of the absolute derivative
+
+    """
     (i, mem_name, signal_shape, the_dtype, framestamps, all_poststim_frms,
      desired_poststim_frms, framerate, prestim_val, poststim_val, amplitude) = params
 
