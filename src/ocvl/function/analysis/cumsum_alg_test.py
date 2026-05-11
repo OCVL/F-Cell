@@ -9,6 +9,7 @@ from matplotlib.pyplot import viridis
 from numpy import hanning
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import make_smoothing_spline
+from scipy.ndimage import convolve1d
 from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
 from scipy.sparse import diags, eye, spdiags
@@ -16,11 +17,13 @@ from scipy.sparse.linalg import spsolve
 from ssqueezepy import ssq_stft, extract_ridges
 from vmdpy import VMD
 
+
 from ocvl.function.analysis.acmd import acmd
 
-def viz(x, Tf, ridge_idxs, yticks=None, ssq=False, transform='cwt', show_x=True):
+#%%## Visual methods #########################################################
+def viz(x, Tf, ridge_idxs, yticks=None, ssq=False, transform='cwt', show_x=False):
     if show_x:
-        plt.plot(x, title="x(t)", show=1,
+        ssqueezepy.visuals.plot(x, title="x(t)", show=1,
              xlabel="Time [samples]", ylabel="Signal Amplitude [A.U.]")
 
     ylabel = ("Frequency scales [1/Hz]" if (transform == 'cwt' and not ssq) else
@@ -28,11 +31,10 @@ def viz(x, Tf, ridge_idxs, yticks=None, ssq=False, transform='cwt', show_x=True)
     title = "abs({}{}) w/ ridge_idxs".format("SSQ_" if ssq else "",
                                              transform.upper())
 
-    ikw = dict(cmap='turbo', yticks=yticks, title=title)
+    ikw = dict(abs=1, cmap='turbo', yticks=yticks, title=title)
     pkw = dict(linestyle='--', color='k', xlabel="Time [samples]", ylabel=ylabel,
                xlims=(0, Tf.shape[1]))
 
-    plt.figure()
     ssqueezepy.visuals.imshow(Tf, **ikw, show=0)
     ssqueezepy.visuals.plot(ridge_idxs, **pkw, show=1)
 
@@ -59,8 +61,8 @@ if __name__ == "__main__":
         all_siggies[i, :, 0:thedats.shape[1]] = thedats
         i+=1
 
-    gt = (metricdata.loc[:,"Log Amplitude"] >= 1.1)
-    lt = metricdata.loc[:,"Log Amplitude"] <=1.3
+    gt = (metricdata.loc[:,"Log Amplitude"] >= 1.6)
+    lt = metricdata.loc[:,"Log Amplitude"] <=4
 
     slice = metricdata.loc[gt & lt]
 
@@ -73,123 +75,199 @@ if __name__ == "__main__":
     all_amps = np.full((2327,), np.nan)
     all_phi = np.full_like(all_amps, np.nan)
 
+    # interesting_time_ind = np.flatnonzero((time > 29 / framerate))
+    #
+    # time = time[interesting_time_ind]
+    # time -= time[0]
+    # all_siggies = all_siggies[:, :, interesting_time_ind]
+
     for c in slice.itertuples():
         ind = c.Index
         print(ind)
         if ind >= 0:
-            cell_amps = np.full((20, 176), np.nan)
-            cell_phi = np.full((20, 176), np.nan)
+            cell_amps = np.full((20, all_siggies.shape[2]), np.nan)
+            cell_phi = np.full((20, all_siggies.shape[2]), np.nan)
             cell_aurd = np.full((20, ), np.nan)
-            decomp_signals = np.full((20, 176), np.nan)
-            aurd_signals = np.full((20, 176), np.nan)
+            decomp_signals = np.full((20, all_siggies.shape[2]), np.nan)
+            aurd_signals = np.full((20, all_siggies.shape[2]), np.nan)
 
+            all_stft = np.full((20, 89,  all_siggies.shape[2]), np.nan, dtype=np.complex64)
+            stim_time = 58 / framerate
+            Sfs = None
 
             for acq in range(20):
                 finite_dat = np.isfinite(all_siggies[acq, ind, :])
                 if np.any(finite_dat):
+
                     finite_sig = all_siggies[acq, ind, finite_dat]
-                    stim_time = 58/framerate
+
                     finite_time = time[finite_dat]
+
+                    finite_sig = np.interp(time, finite_time, finite_sig)
+                    finite_time = time
+
+
                     '''
                     First, I tried Ensemble EMD, then VMD, and settled on adaptive chirp mode decomposition (ACMD) because
                     it can handle rapidly varying frequencies (which our signals do).
                     '''
 
-                    IF_est, IA_est, drift_est = acmd(finite_sig, framerate, np.full_like(finite_sig, 0.1), alpha0=5e-7, beta=1e-8)
+                    # IF_est, IA_est, drift_est = acmd(finite_sig, framerate, np.full_like(finite_sig, 0.2), alpha0=5e-7, beta=1e-8)
+
+                    drift_est = convolve1d(finite_sig, weights=np.ones((int(np.ceil(2*framerate)))) / np.ceil(2*framerate))
+
                     if disp_figs:
                         plt.figure(f"concat freq 0hz with amplitude: {c.Amplitude}")
-                        # plt.subplot(3, 1, 1)
-                        # plt.plot(finite_time, IA_est * IF_est)
-                        # plt.plot(finite_time, IA_est)
-                        # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-                        # # plt.ylim((0, 100))
-                        #
-                        # plt.subplot(3, 1, 2)
-                        # plt.plot(finite_time, IF_est)
-                        # plt.plot(stim_time, np.full_like(stim_time, 0), 'g*')
-                        # plt.ylim((-1, 2))
-                        #
-                        # plt.subplot(3, 1, 3)
+                        # # plt.subplot(3, 1, 1)
+                        # # plt.plot(finite_time, IA_est * IF_est)
+                        # # plt.plot(finite_time, IA_est)
+                        # # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
+                        # # # plt.ylim((0, 100))
+                        # #
+                        # # plt.subplot(3, 1, 2)
+                        # # plt.plot(finite_time, IF_est)
+                        # # plt.plot(stim_time, np.full_like(stim_time, 0), 'g*')
+                        # # plt.ylim((-1, 2))
+                        # #
+                        # # plt.subplot(3, 1, 3)
                         plt.plot(finite_time, finite_sig)
                         plt.plot(finite_time, drift_est)
-                        # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-                        # plt.ylim((-150, 150))
+                        # # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
+                        # # plt.ylim((-150, 150))
 
                     finite_sig -= drift_est
 
                     IF_est, IA_est, s_est = acmd(finite_sig, framerate, np.full_like(finite_sig, 3), alpha0=1e-2, beta=0.5e-4)
 
-                    cell_amps[acq, finite_dat] = IA_est
+                    cell_amps[acq, :] = IA_est
 
-                    decomp_signals[acq, finite_dat] = s_est
+                    decomp_signals[acq, :] = s_est
 
                     if disp_figs:
-                        plt.figure(f"concat freq 1hz with amplitude: {c.Amplitude:.2f}")
-                        plt.subplot(3, 1, 1)
-                        # plt.plot(finite_time, IA_est * IF_est)
-                        plt.plot(finite_time, IA_est)
-                        # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-                        # plt.ylim((0, 100))
-                        #
-                        plt.subplot(3, 1, 2)
-                        plt.plot(finite_time, IF_est)
-                        # plt.plot(stim_time, np.full_like(stim_time, 0), 'g*')
-                        # plt.ylim((-1, 5))
-                        #
-                        plt.subplot(3, 1, 3)
-                        plt.plot(finite_time, finite_sig)
-                        plt.plot(finite_time, s_est)
-                        # plt.plot(finite_time, s_est+drift_est)
-                        plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
-                        plt.ylim((-100, 100))
+                        # plt.figure(f"concat freq 1hz with amplitude: {c.Amplitude:.2f}")
+                    #     plt.subplot(3, 1, 1)
+                    #     # plt.plot(finite_time, IA_est * IF_est)
+                    #     plt.plot(finite_time, IA_est)
+                    #     # plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
+                    #     # plt.ylim((0, 100))
+                    #     #
+                    #     plt.subplot(3, 1, 2)
+                    #     plt.plot(finite_time, IF_est)
+                    #     # plt.plot(stim_time, np.full_like(stim_time, 0), 'g*')
+                    #     # plt.ylim((-1, 5))
+                    #     #
+                    #     plt.subplot(3, 1, 3)
+                    #     plt.plot(finite_time, finite_sig)
+                    #     plt.plot(finite_time, s_est)
+                    #     # plt.plot(finite_time, s_est+drift_est)
+                    #     plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
+                    #     plt.ylim((-100, 100))
 
-
-
-
-                        win_size = 28
-                        win_fwhm = 10
+                        win_size = 29
+                        win_fwhm = 14
                         win = hanning(win_size)
 
-                        Tsx, Sx, ssq_freqs_s, Sfs, *_ = ssq_stft(finite_sig, window=win, fs=29.4)
+                        Tsx, Sx, ssq_freqs_s, Sfs, *_ = ssq_stft(finite_sig, window=win, fs=framerate)
 
-                        skw = dict(penalty=0.1, n_ridges=1, transform='stft')
-                        stft_ridges = extract_ridges(Sx, Sfs, bw=win_fwhm, **skw)
+                        all_stft[acq, :, :] = Sx
+
+                        skw = dict(penalty=2, n_ridges=1, transform='stft')
+                        start_ridge_ind = np.flatnonzero((finite_time > stim_time))
+
+                        stft_ridges, stft_f, stft_e = extract_ridges(Sx[:, start_ridge_ind], Sfs,
+                                                                     bw=21, get_params=True, **skw)
+
+                        padded_ridge = np.zeros((Sx.shape[1], 1))
+                        padded_ridge[start_ridge_ind] = stft_ridges
+
+                        plt.figure("dft mag")
+                        spectral_mag = abs(Sx)
+                        plt.imshow(spectral_mag, origin='lower', aspect='auto', cmap='viridis')
+
+                        plt.figure("dft phase")
+                        spectral_phase = np.angle(Sx)
+                        plt.imshow(spectral_phase, origin='lower', aspect='auto', cmap='viridis')
+
+                        # plt.figure("dft nearstim")
+
+                        avg_ind = np.flatnonzero((time >= stim_time) &  (time < stim_time+(5/framerate)))
+
+                        maxind = np.argmax(np.nanmean(spectral_mag[:,avg_ind],axis=1))
 
 
 
-                        # viz(finite_sig, Sx, stft_ridges, Sfs, ssq=0, transform='stft', show_x=0)
+                        Sx_referenced = Sx * np.exp( spectral_phase[maxind, 57]*1j )
 
-                        SFT= ShortTimeFFT(win, hop=1, fs=29.4, mfft=win_size*4, scale_to='magnitude')
-                        t_lo, t_hi = SFT.extent(len(finite_sig))[:2]
+                        # all_stft[acq, :, :] = Sx_referenced
 
+
+                        # plt.figure("dft mag shifted")
+                        # spectral_mag = abs(Sx_referenced)
+                        # plt.imshow(spectral_mag, origin='lower', aspect='auto', cmap='viridis')
+                        #
+                        # plt.figure("dft phase shifted")
+                        # spectral_phase = np.angle(Sx_referenced)
+                        # plt.imshow(spectral_phase, origin='lower', aspect='auto', cmap='viridis')
+                        #
+                        plt.show()
+
+
+
+
+
+                        # SFT= ShortTimeFFT(win, hop=1, fs=framerate, mfft=win_size*4, scale_to='magnitude')
+                        # t_lo, t_hi = SFT.extent(len(finite_sig))[:2]
+                        #
                         # Sx = SFT.stft(finite_sig)
-                        plt.figure("dft")
-                        plt.imshow(abs(Sx), origin='lower', aspect='auto', cmap='viridis', extent=SFT.extent(len(finite_sig)))
+                        # plt.figure("dft")
+                        # plt.imshow(abs(Sx), origin='lower', aspect='auto', cmap='viridis', extent=SFT.extent(len(finite_sig)))
+                        #
+                        # rescaled = finite_sig / np.nanmax(abs(finite_sig))
+                        #
+                        # plt.plot(finite_time, (rescaled*5)+10, color='y')
+                        # plt.plot(finite_time, stft_f.flatten(), 'y-', linewidth=3)
 
-                        rescaled = finite_sig / np.nanmax(abs(finite_sig))
-
-                        plt.plot(finite_time, (rescaled*5)+10, color='y')
-                        plt.plot(finite_time, Sfs[stft_ridges].flatten(), 'y-', linewidth=3)
 
 
+                    # timeidx = np.flatnonzero(np.isin(finite_time, time_window))
+                    # if timeidx.size > 5:
+                    #
+                    #     cum_phase = 2 * np.pi * cumulative_trapezoid(IF_est, x=finite_time, initial=0)
+                    #     cell_phi[acq, finite_dat] = cum_phase
+                    #
+                    #     grad_profiles = np.abs(np.gradient(s_est[timeidx], finite_time[timeidx]))
+                    #     cell_aurd[acq] = np.trapezoid(grad_profiles, x=finite_time[timeidx])
+                    #
+                    #     if disp_figs:
+                    #     #     plt.figure(f"phase_reconstruction test")
+                    #     #     plt.plot(finite_time, cell_phi[acq, finite_dat], label=f"#{acq}")
+                    #     #     plt.xlim((1.9, 3))
+                    #     #     plt.legend()
+                    #     #     plt.figure(f"aur test amp")
+                    #     #     plt.plot(grad_profiles)
+                    #         plt.show()
 
-                    timeidx = np.flatnonzero(np.isin(finite_time, time_window))
-                    if timeidx.size > 5:
+            start_ridge_ind = np.flatnonzero((time > stim_time))
+            plt.figure("dft")
+            avg_stft = np.nanmean(all_stft, axis=0)
+            plt.imshow(abs(avg_stft), origin='lower', aspect='auto', cmap='viridis')
 
-                        cum_phase = 2 * np.pi * cumulative_trapezoid(IF_est, x=finite_time, initial=0)
-                        cell_phi[acq, finite_dat] = cum_phase
+            plt.figure("dft phase")
+            plt.imshow(np.angle(np.nanmean(all_stft, axis=0)), origin='lower', aspect='auto', cmap='viridis')
 
-                        grad_profiles = np.abs(np.gradient(s_est[timeidx], finite_time[timeidx]))
-                        cell_aurd[acq] = np.trapezoid(grad_profiles, x=finite_time[timeidx])
 
-                        if disp_figs:
-                            plt.figure(f"phase_reconstruction test")
-                            plt.plot(finite_time, cell_phi[acq, finite_dat], label=f"#{acq}")
-                            plt.xlim((1.9, 3))
-                            plt.legend()
-                            plt.figure(f"aur test amp")
-                            plt.plot(grad_profiles)
-                            plt.show()
+            plt.figure("ridge_extract")
+
+            skw = dict(penalty=0.5, n_ridges=1, transform='stft')
+            stft_ridges, stft_f, stft_e = extract_ridges(avg_stft[:, start_ridge_ind], Sfs,
+                                                         bw=15, get_params=True, **skw)
+
+            plt.figure("ridge_extract")
+            padded_ridge = np.zeros((avg_stft.shape[1], 1))
+            padded_ridge[start_ridge_ind] = stft_ridges
+            viz(None, avg_stft, padded_ridge, transform='stft')
+
+            plt.show()
 
             timeidx = np.flatnonzero(np.isin(time, time_window))
 
@@ -198,15 +276,15 @@ if __name__ == "__main__":
 
             print(f"Ind: {ind}, OG amplitude: {c.Amplitude:.2f}; Final Phase: {all_phi[ind]:.2f}; Final AUR: {all_amps[ind]:.2f} ")
 
-            if disp_figs:
-                plt.figure(f"concat freq 1hz with amplitude: {c.Amplitude:.2f}")
-                plt.subplot(3, 1, 1)
-                plt.plot(time, np.nanmean(cell_amps, axis=0), 'k-', linewidth=3)
+            # if disp_figs:
+            #     plt.figure(f"concat freq 1hz with amplitude: {c.Amplitude:.2f}")
+            #     plt.subplot(3, 1, 1)
+            #     plt.plot(time, np.nanmean(cell_amps, axis=0), 'k-', linewidth=3)
+            #
+            #     plt.figure(f"phase_reconstruction test")
+            #     plt.plot(time_window, np.nanmean(cell_phi, axis=0), 'k-', linewidth=3)
 
-                plt.figure(f"phase_reconstruction test")
-                plt.plot(time_window, np.nanmean(cell_phi, axis=0), 'k-', linewidth=3)
-
-                plt.show()
+                # plt.show()
     plt.figure("amplitudes")
     plt.hist(all_amps, bins=100)
 
