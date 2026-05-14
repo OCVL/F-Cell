@@ -35,6 +35,7 @@ from src.ocvl.function.gui.gui_widgets import (
     AffineRigidSelector, AlignmentModalitySelector, CollapsibleSection,
     ColorMapSelector, DropdownMenu, FreetextBox, freeFloat, freeInt,
     ListEditorWidget, OpenFolder, OptionalField, rangeSelector, TrueFalseSelector,
+    _depth_color,
 )
 from src.ocvl.function.gui.gui_dialogs import (
     FormatEditorWidget, GroupByFormatEditorWidget, SaveasExtensionsEditorWidget,
@@ -152,7 +153,7 @@ class FieldRow(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(6)
         layout.setAlignment(Qt.AlignLeft)
 
         self._label = QLabel(label_text + ':')
@@ -184,48 +185,27 @@ class FieldRow(QWidget):
         return self._label.text().rstrip(':')
 
 
+
 # ---------------------------------------------------------------------------
-# AddItemDialog  — picker for fields AND subsections not yet in a section
+# _PickerDialog  — base for field and section pickers
 # ---------------------------------------------------------------------------
 
-class AddItemDialog(QDialog):
-    """
-    Lists available leaf fields and subsections that can be added.
-    Each item shows the human-readable label and optional description.
-    Multi-select supported.
-    """
+class _PickerDialog(QDialog):
+    """Base list-picker used by AddFieldDialog and AddSectionDialog."""
 
-    def __init__(self, available: dict, parent=None):
+    def __init__(self, available: dict, title: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Add Field / Section")
-        self.setMinimumSize(440, 320)
+        self.setWindowTitle(title)
+        self.setMinimumSize(420, 300)
         self._available = available
 
         layout = QVBoxLayout(self)
-
         header = QLabel("Select items to add:")
         header.setStyleSheet("font-weight: bold; margin-bottom: 4px;")
         layout.addWidget(header)
 
         self._list = QListWidget()
         self._list.setSelectionMode(QListWidget.ExtendedSelection)
-
-        for key, tmpl_val in available.items():
-            label = format_label(key)
-            is_sub = _is_subsection(tmpl_val)
-            description = ""
-            if isinstance(tmpl_val, dict):
-                description = tmpl_val.get("description", "")
-
-            tag = " [Section]" if is_sub else ""
-            display = f"{label}{tag}"
-            if description:
-                display += f"  —  {description}"
-
-            item = QListWidgetItem(display)
-            item.setData(Qt.UserRole, key)
-            self._list.addItem(item)
-
         layout.addWidget(self._list)
 
         self._desc_label = QLabel("")
@@ -243,6 +223,15 @@ class AddItemDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+    def _populate(self, items: dict):
+        for key, tmpl_val in items.items():
+            label = format_label(key)
+            description = tmpl_val.get("description", "") if isinstance(tmpl_val, dict) else ""
+            display = f"{label}  —  {description}" if description else label
+            item = QListWidgetItem(display)
+            item.setData(Qt.UserRole, key)
+            self._list.addItem(item)
+
     def _on_selection_changed(self, current, _previous):
         if not current:
             self._desc_label.setText("")
@@ -256,6 +245,20 @@ class AddItemDialog(QDialog):
         return [item.data(Qt.UserRole) for item in self._list.selectedItems()]
 
 
+class AddFieldDialog(_PickerDialog):
+    """Picker showing only leaf fields (non-subsections)."""
+    def __init__(self, available: dict, parent=None):
+        super().__init__(available, "Add Field", parent)
+        self._populate({k: v for k, v in available.items() if not _is_subsection(v)})
+
+
+class AddSectionDialog(_PickerDialog):
+    """Picker showing only subsections."""
+    def __init__(self, available: dict, parent=None):
+        super().__init__(available, "Add Section", parent)
+        self._populate({k: v for k, v in available.items() if _is_subsection(v)})
+
+
 # ---------------------------------------------------------------------------
 # SectionWithAddButton
 # ---------------------------------------------------------------------------
@@ -263,20 +266,16 @@ class AddItemDialog(QDialog):
 class SectionWithAddButton(QWidget):
     """
     Wraps a CollapsibleSection with:
-    - A "+ Add Field / Section" button inside the content area (footer)
-    - An optional "✕ Remove Section" button next to the section header
 
-    Parameters
-    ----------
-    section          : CollapsibleSection
-    available        : dict { key: tmpl_val } — pool of addable items
-    template         : full subsection template (for building new widgets)
-    template_key_order: list of keys in master template order
-    parent_name      : dot-path key prefix
-    saved_widgets    : shared dependency-wiring dict
-    is_required      : if True, no remove button shown
-    on_remove        : callback(key, widget) called when this section is removed
-    section_key      : this section's own key in its parent template
+    Header row  : [checkbox] [▶ Title]  [+ Add Field]  [✕ Remove]
+                   The "+ Add Field" button opens a picker for leaf fields
+                   only. Shown only when leaf fields are available in the pool.
+
+    Content footer: [+ Add Section]
+                   At the bottom of the content area. Opens a picker for
+                   subsections only. Shown only when subsections are available.
+
+    depth drives accent color and propagates to child sections.
     """
 
     def __init__(self, section: CollapsibleSection,
@@ -288,6 +287,7 @@ class SectionWithAddButton(QWidget):
                  is_required: bool = False,
                  on_remove=None,
                  section_key: str = "",
+                 depth: int = 0,
                  parent=None):
         super().__init__(parent)
         self._section = section
@@ -299,56 +299,125 @@ class SectionWithAddButton(QWidget):
         self._is_required = is_required
         self._on_remove = on_remove
         self._section_key = section_key
+        self._depth = depth
+
+        color = _depth_color(depth)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
+        outer.addWidget(section)
 
-        # Optional "✕ Remove Section" button in its own header row
+        # ---- Header injections ----
+        hdr = section.header_layout()
+
+        # "+ Add Field" immediately after the toggle — left-aligned
+        self._add_field_btn = QPushButton("+ Add Field")
+        self._add_field_btn.setStyleSheet(
+            f"QPushButton {{ color: {color}; border: 1px solid {color};"
+            f" border-radius: 3px; padding: 2px 7px; font-size: 11px; background: transparent; }}"
+            f"QPushButton:hover {{ background: {color}22; }}"
+            f"QPushButton:disabled {{ color: #555; border-color: #555; }}"
+        )
+        self._add_field_btn.setFixedHeight(22)
+        self._add_field_btn.clicked.connect(self._open_field_picker)
+        self._add_field_btn.setVisible(self._has_available_fields())
+        hdr.addWidget(self._add_field_btn, alignment=Qt.AlignVCenter)
+
+        # Stretch pushes Remove to the far right
+        hdr.addStretch()
+
+        # "✕ Remove" right-aligned
         if not is_required and on_remove is not None:
-            header_row = QWidget()
-            header_layout = QHBoxLayout(header_row)
-            header_layout.setContentsMargins(0, 0, 0, 0)
-            header_layout.addWidget(section, stretch=1)
             remove_btn = QPushButton("✕ Remove Section")
             remove_btn.setStyleSheet(_REMOVE_BTN_STYLE)
             remove_btn.setToolTip(f"Remove the '{format_label(section_key)}' section")
+            remove_btn.setFixedHeight(22)
             remove_btn.clicked.connect(self._do_remove)
-            header_layout.addWidget(remove_btn, alignment=Qt.AlignTop)
-            outer.addWidget(header_row)
-        else:
-            outer.addWidget(section)
+            hdr.addWidget(remove_btn, alignment=Qt.AlignVCenter)
 
-        # "+ Add ..." button inside the section's content area
-        self._add_btn = QPushButton(self._add_btn_label())
-        self._add_btn.setStyleSheet(
-            "QPushButton { color: #007ACC; border: none; text-align: left;"
-            " padding: 4px 8px; font-size: 12px; }"
-            "QPushButton:hover { text-decoration: underline; }"
-        )
-        self._add_btn.clicked.connect(self._open_picker)
-        self._add_btn.setVisible(bool(available))
-
+        # ---- Content footer — "+ Add Section" for subsections only ----
         content_layout = section.content_area.layout()
         if content_layout:
-            line = QFrame()
-            line.setFrameShape(QFrame.HLine)
-            line.setStyleSheet("color: #ddd;")
-            content_layout.addWidget(line)
-            content_layout.addWidget(self._add_btn)
+            self._section_line = QFrame()
+            self._section_line.setFrameShape(QFrame.HLine)
+            self._section_line.setStyleSheet(f"color: {color};")
+            content_layout.addWidget(self._section_line)
 
-        section.enable_checkbox.toggled.connect(
-            lambda checked: self._add_btn.setVisible(checked and bool(self._available))
-        )
+            self._add_section_btn = QPushButton("+ Add Section")
+            self._add_section_btn.setStyleSheet(
+                f"QPushButton {{ color: {color}; border: none; text-align: left;"
+                f" padding: 4px 8px; font-size: 12px; }}"
+                f"QPushButton:hover {{ text-decoration: underline; }}"
+            )
+            self._add_section_btn.clicked.connect(self._open_section_picker)
+            content_layout.addWidget(self._add_section_btn)
 
-    def _add_btn_label(self) -> str:
-        has_fields = any(not _is_subsection(v) for v in self._available.values())
-        has_sects  = any(_is_subsection(v) for v in self._available.values())
-        if has_fields and has_sects:
-            return "+ Add Field / Section"
-        if has_sects:
-            return "+ Add Section"
-        return "+ Add Field"
+            self._update_section_btn_visibility()
+
+    # ------------------------------------------------------------------ #
+    # Visibility helpers
+    # ------------------------------------------------------------------ #
+
+    def _has_available_fields(self) -> bool:
+        return any(not _is_subsection(v) for v in self._available.values())
+
+    def _has_available_sections(self) -> bool:
+        return any(_is_subsection(v) for v in self._available.values())
+
+    def _update_field_btn_visibility(self):
+        self._add_field_btn.setVisible(self._has_available_fields())
+
+    def _update_section_btn_visibility(self):
+        has = self._has_available_sections()
+        self._add_section_btn.setVisible(has)
+        self._section_line.setVisible(has)
+
+    # ------------------------------------------------------------------ #
+    # Pickers
+    # ------------------------------------------------------------------ #
+
+    def _open_field_picker(self):
+        field_pool = {k: v for k, v in self._available.items() if not _is_subsection(v)}
+        if not field_pool:
+            return
+        dialog = AddFieldDialog(field_pool, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        self._insert_items(dialog.selected_keys())
+
+    def _open_section_picker(self):
+        section_pool = {k: v for k, v in self._available.items() if _is_subsection(v)}
+        if not section_pool:
+            return
+        dialog = AddSectionDialog(section_pool, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        self._insert_items(dialog.selected_keys())
+
+    def _insert_items(self, keys: list):
+        if not keys:
+            return
+        content_layout = self._section.content_area.layout()
+        # Footer is: [...items..., section_line, add_section_btn]
+        footer_count = 2
+
+        for key in keys:
+            tmpl_val = self._available.pop(key, None)
+            if tmpl_val is None:
+                continue
+            widget = self._build_item(key, tmpl_val)
+            if widget is None:
+                continue
+            insert_pos = self._find_insert_pos(key, content_layout, footer_count)
+            content_layout.insertWidget(insert_pos, widget)
+
+        self._update_field_btn_visibility()
+        self._update_section_btn_visibility()
+
+    # ------------------------------------------------------------------ #
+    # Shared helpers (unchanged from before)
+    # ------------------------------------------------------------------ #
 
     @property
     def collapsable(self) -> CollapsibleSection:
@@ -358,43 +427,7 @@ class SectionWithAddButton(QWidget):
         if self._on_remove:
             self._on_remove(self._section_key, self)
 
-    def _open_picker(self):
-        if not self._available:
-            return
-        dialog = AddItemDialog(self._available, self)
-        if dialog.exec() != QDialog.Accepted:
-            return
-        keys = dialog.selected_keys()
-        if not keys:
-            return
-
-        content_layout = self._section.content_area.layout()
-        # The layout has: [...existing items..., separator, add_btn]
-        # We want to insert before the separator (last 2 items).
-        footer_count = 2
-
-        for key in keys:
-            tmpl_val = self._available.pop(key, None)
-            if tmpl_val is None:
-                continue
-
-            widget = self._build_item(key, tmpl_val)
-            if widget is None:
-                continue
-
-            # Find the correct insertion position based on master template order
-            insert_pos = self._find_insert_pos(key, content_layout, footer_count)
-            content_layout.insertWidget(insert_pos, widget)
-
-        self._add_btn.setText(self._add_btn_label())
-        self._add_btn.setVisible(bool(self._available))
-
     def _find_insert_pos(self, new_key: str, content_layout, footer_count: int) -> int:
-        """
-        Return the layout index where new_key should be inserted to maintain
-        master template ordering.
-        """
-        # Build an ordered list of keys currently rendered in the layout
         rendered_keys = []
         for i in range(content_layout.count() - footer_count):
             item = content_layout.itemAt(i)
@@ -403,19 +436,15 @@ class SectionWithAddButton(QWidget):
                 rendered_keys.append(w.key)
             elif isinstance(w, SectionWithAddButton):
                 rendered_keys.append(w._section_key)
-
-        # Walk the master template order and find where new_key slots in
         last_pos = 0
         for tmpl_key in self._template_key_order:
             if tmpl_key == new_key:
                 break
             if tmpl_key in rendered_keys:
                 last_pos = rendered_keys.index(tmpl_key) + 1
-
         return last_pos
 
     def _build_item(self, key: str, tmpl_val):
-        """Build the appropriate widget for a field or subsection."""
         if _is_subsection(tmpl_val):
             return self._build_subsection(key, tmpl_val)
         return _build_field_row(
@@ -428,10 +457,10 @@ class SectionWithAddButton(QWidget):
         )
 
     def _build_subsection(self, key: str, tmpl_val: dict):
-        """Build a nested SectionWithAddButton for a subsection being added."""
         current_parent = f"{self._parent_name}_{key}" if self._parent_name else key
-        inner = build_form_from_template(tmpl_val, {}, current_parent, self._saved_widgets)
-        section = CollapsibleSection(title=format_label(key) + ":", default=True)
+        child_depth = self._depth + 1
+        inner = build_form_from_template(tmpl_val, {}, current_parent, self._saved_widgets, child_depth)
+        section = CollapsibleSection(title=format_label(key) + ":", default=True, depth=child_depth)
         section.set_content_layout(inner.layout())
         available = getattr(inner, '_available_fields', {})
         return SectionWithAddButton(
@@ -444,21 +473,19 @@ class SectionWithAddButton(QWidget):
             is_required=False,
             on_remove=self._return_field_to_pool,
             section_key=key,
+            depth=child_depth,
         )
 
     def _return_field_to_pool(self, key: str, widget: QWidget):
-        """Remove a field/section widget from the layout and return key to pool."""
         content_layout = self._section.content_area.layout()
         idx = content_layout.indexOf(widget)
         if idx >= 0:
             content_layout.takeAt(idx)
             widget.setParent(None)
             widget.deleteLater()
-
-        # Put the key back in the pool using original template value
         self._available[key] = self._template.get(key, {})
-        self._add_btn.setText(self._add_btn_label())
-        self._add_btn.setVisible(True)
+        self._update_field_btn_visibility()
+        self._update_section_btn_visibility()
 
 
 # ---------------------------------------------------------------------------
@@ -570,7 +597,9 @@ def _build_field_row(key: str, tmpl_val, data_val,
 
 
 def _set_widget_value(field_widget, val, widget_type: str):
-    """Push an imported value into a field widget."""
+    """Push an imported value into a field widget. Skips None so defaults are preserved."""
+    if val is None:
+        return   # leave the widget at its default rather than pushing "null"
     if hasattr(field_widget, "set_value"):
         if isinstance(val, bool):
             field_widget.set_value(val)
@@ -585,12 +614,141 @@ def _set_widget_value(field_widget, val, widget_type: str):
 
 
 # ---------------------------------------------------------------------------
+# _TopLevelAddBar  — add bar for the outermost form level
+# ---------------------------------------------------------------------------
+
+class _TopLevelAddBar(QWidget):
+    """
+    A persistent "+ Add Section" bar at the bottom of the top-level form.
+    Handles only top-level sections (preanalysis, analysis, raw, etc.).
+    Top-level leaf fields (version, description) are always required so
+    they never end up in this pool in practice.
+    """
+
+    def __init__(self, available: dict, template: dict,
+                 template_key_order: list, parent_name: str,
+                 saved_widgets: dict, form_layout, parent=None):
+        super().__init__(parent)
+        self._available = available
+        self._template = template
+        self._template_key_order = template_key_order
+        self._parent_name = parent_name
+        self._saved_widgets = saved_widgets
+        self._form_layout = form_layout
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 8, 0, 4)
+        layout.setSpacing(2)
+
+        self._line = QFrame()
+        self._line.setFrameShape(QFrame.HLine)
+        self._line.setStyleSheet("color: #444;")
+        layout.addWidget(self._line)
+
+        self._btn = QPushButton("+ Add Section")
+        self._btn.setStyleSheet(
+            "QPushButton { color: #007ACC; border: none; text-align: left;"
+            " padding: 4px 8px; font-size: 12px; }"
+            "QPushButton:hover { text-decoration: underline; }"
+        )
+        self._btn.clicked.connect(self._open_picker)
+        layout.addWidget(self._btn)
+
+        # Only show when there are sections to add
+        has_sections = any(_is_subsection(v) for v in available.values())
+        self.setVisible(has_sections)
+
+    def _refresh(self):
+        has_sections = any(_is_subsection(v) for v in self._available.values())
+        self.setVisible(has_sections)
+
+    def _open_picker(self):
+        section_pool = {k: v for k, v in self._available.items() if _is_subsection(v)}
+        if not section_pool:
+            return
+        dialog = AddSectionDialog(section_pool, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        keys = dialog.selected_keys()
+        if not keys:
+            return
+
+        bar_idx = self._form_layout.indexOf(self)
+        for key in keys:
+            tmpl_val = self._available.pop(key, None)
+            if tmpl_val is None:
+                continue
+            widget = self._build_item(key, tmpl_val)
+            if widget is None:
+                continue
+            insert_pos = self._find_insert_pos(key, bar_idx)
+            self._form_layout.insertWidget(insert_pos, widget)
+
+        self._refresh()
+
+    def _find_insert_pos(self, new_key: str, bar_idx: int) -> int:
+        rendered_keys = []
+        for i in range(bar_idx):
+            item = self._form_layout.itemAt(i)
+            w = item.widget() if item else None
+            if isinstance(w, SectionWithAddButton):
+                rendered_keys.append(w._section_key)
+            elif isinstance(w, FieldRow):
+                rendered_keys.append(w.key)
+        last_pos = 0
+        for tmpl_key in self._template_key_order:
+            if tmpl_key == new_key:
+                break
+            if tmpl_key in rendered_keys:
+                last_pos = rendered_keys.index(tmpl_key) + 1
+        return last_pos
+
+    def _return_item_to_pool(self, key: str, widget: QWidget):
+        idx = self._form_layout.indexOf(widget)
+        if idx >= 0:
+            self._form_layout.takeAt(idx)
+            widget.setParent(None)
+            widget.deleteLater()
+        self._available[key] = self._template.get(key, {})
+        self._refresh()
+
+    def _build_item(self, key: str, tmpl_val):
+        if _is_subsection(tmpl_val):
+            current_parent = f"{self._parent_name}_{key}" if self._parent_name else key
+            inner = build_form_from_template(tmpl_val, {}, current_parent, self._saved_widgets, depth=1)
+            section = CollapsibleSection(title=format_label(key) + ":", default=True, depth=0)
+            section.set_content_layout(inner.layout())
+            sub_available = getattr(inner, '_available_fields', {})
+            return SectionWithAddButton(
+                section=section,
+                available=sub_available,
+                template=tmpl_val,
+                template_key_order=list(tmpl_val.keys()),
+                parent_name=current_parent,
+                saved_widgets=self._saved_widgets,
+                is_required=False,
+                on_remove=self._return_item_to_pool,
+                section_key=key,
+                depth=0,
+            )
+        return _build_field_row(
+            key=key,
+            tmpl_val=tmpl_val,
+            data_val=None,
+            parent_name=self._parent_name,
+            saved_widgets=self._saved_widgets,
+            on_remove=self._return_item_to_pool,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Form builder
 # ---------------------------------------------------------------------------
 
 def build_form_from_template(template: dict, data: dict,
                               parent_name: str = "",
-                              saved_widgets: dict = None) -> QWidget:
+                              saved_widgets: dict = None,
+                              depth: int = 0) -> QWidget:
     """
     Build a form from *template*, rendering only fields/sections present in
     *data* (or marked required). Each CollapsibleSection is wrapped in a
@@ -604,8 +762,7 @@ def build_form_from_template(template: dict, data: dict,
     form_layout.setSpacing(20)
     form_layout.setContentsMargins(15, 15, 15, 15)
 
-    # Collect the pool of absent optional items before rendering anything,
-    # so the SectionWithAddButton gets the full pool from the start.
+    # Collect the pool of absent optional items up front.
     available_fields: dict = {}
     for key, tmpl_val in template.items():
         req = _is_required(tmpl_val)
@@ -613,42 +770,36 @@ def build_form_from_template(template: dict, data: dict,
         if not present and not req:
             available_fields[key] = tmpl_val
 
-    # Callback passed down to FieldRows/SectionWithAddButtons so they can
-    # return themselves to the available pool and be re-addable.
-    # We bind it after the SectionWithAddButton is created (see below).
-    parent_section_ref: list = [None]  # mutable container for late binding
-
     def _return_to_pool(key: str, widget: QWidget):
-        content_layout = form_layout  # top-level: items sit directly in form_layout
-        idx = content_layout.indexOf(widget)
+        """Remove a widget from the top-level layout and return its key to the pool."""
+        idx = form_layout.indexOf(widget)
         if idx >= 0:
-            content_layout.takeAt(idx)
+            form_layout.takeAt(idx)
             widget.setParent(None)
             widget.deleteLater()
         available_fields[key] = template.get(key, {})
-        if parent_section_ref[0] is not None:
-            parent_section_ref[0]._available = available_fields
-            parent_section_ref[0]._add_btn.setText(parent_section_ref[0]._add_btn_label())
-            parent_section_ref[0]._add_btn.setVisible(True)
+        if depth == 0:
+            top_bar._refresh()
 
     for key, tmpl_val in template.items():
         req     = _is_required(tmpl_val)
         present = isinstance(data, dict) and key in data
 
         if not present and not req:
-            continue   # goes into the pool, not rendered yet
+            continue   # in the pool, not rendered yet
 
         # ---- Subsection ----
         if _is_subsection(tmpl_val):
             sub_data = data.get(key, {}) if isinstance(data, dict) else {}
             current_parent = f"{parent_name}_{key}" if parent_name else key
 
-            inner = build_form_from_template(tmpl_val, sub_data, current_parent, saved_widgets)
+            inner = build_form_from_template(tmpl_val, sub_data, current_parent, saved_widgets, depth + 1)
 
             if inner.layout().count() > 0:
                 section = CollapsibleSection(
                     title=format_label(key) + ":",
                     default=True,
+                    depth=depth,
                 )
                 section.set_content_layout(inner.layout())
                 sub_available = getattr(inner, '_available_fields', {})
@@ -662,6 +813,7 @@ def build_form_from_template(template: dict, data: dict,
                     is_required=req,
                     on_remove=_return_to_pool if not req else None,
                     section_key=key,
+                    depth=depth,
                 )
                 form_layout.addWidget(wrapped)
 
@@ -683,6 +835,19 @@ def build_form_from_template(template: dict, data: dict,
         )
         if row is not None:
             form_layout.addWidget(row)
+
+    # Top-level add bar — only at the outermost form level (depth 0).
+    # Recursive calls manage their footer via SectionWithAddButton instead.
+    if depth == 0:
+        top_bar = _TopLevelAddBar(
+            available=available_fields,
+            template=template,
+            template_key_order=list(template.keys()),
+            parent_name=parent_name,
+            saved_widgets=saved_widgets,
+            form_layout=form_layout,
+        )
+        form_layout.addWidget(top_bar)
 
     form_container._available_fields = available_fields   # type: ignore[attr-defined]
     return form_container
@@ -799,6 +964,10 @@ def generate_json(form_container: QWidget, template: dict,
         if not layout:
             return result
 
+        # template_for_layout may be None if a parent section had no template entry
+        if not isinstance(template_for_layout, dict):
+            template_for_layout = {}
+
         for i in range(layout.count()):
             item = layout.itemAt(i)
             widget = item.widget()
@@ -819,7 +988,8 @@ def generate_json(form_container: QWidget, template: dict,
                 if not content_layout:
                     continue
 
-                section_template = template_for_layout.get(section_key, {})
+                # Use `or {}` so a None value in the template is treated as empty
+                section_template = template_for_layout.get(section_key) or {}
                 section_data = walk_layout(content_layout, section_template)
                 if section_data:
                     result[section_key] = section_data

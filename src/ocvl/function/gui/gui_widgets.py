@@ -1,8 +1,8 @@
 """
-gui_widgets.py — Base reusable form widgets.
+widgets.py — Base reusable form widgets.
 
 Replaces the widget portion of constructors.py. Complex dialogs
-(FormatEditorWidget, ColorMapSelector, etc.) live in gui_dialogs.py.
+(FormatEditorWidget, ColorMapSelector, etc.) live in dialogs.py.
 """
 
 import os
@@ -68,67 +68,82 @@ class OptionalField(QWidget):
 # CollapsibleSection
 # ---------------------------------------------------------------------------
 
-class CollapsibleSection(QWidget):
-    """A checkbox-gated collapsible section with a toggle-arrow header."""
+# Accent colors per nesting depth (dark-theme friendly, muted)
+_DEPTH_COLORS = [
+    "#2d6a9f",   # depth 0 — steel blue
+    "#2d8a6a",   # depth 1 — teal
+    "#7a4d9f",   # depth 2 — purple
+    "#9f7a2d",   # depth 3 — amber
+    "#9f2d2d",   # depth 4 — rust (deep nesting, rare)
+]
 
-    def __init__(self, title="", default=None, parent=None):
+def _depth_color(depth: int) -> str:
+    return _DEPTH_COLORS[depth % len(_DEPTH_COLORS)]
+
+
+class CollapsibleSection(QWidget):
+    """A collapsible section with a toggle-arrow header and left accent border."""
+
+    def __init__(self, title="", default=None, depth=0, parent=None):
         super().__init__(parent)
         self._title = title
-
-        self.enable_checkbox = QCheckBox()
-        self.enable_checkbox.setChecked(bool(default))
-        self.enable_checkbox.stateChanged.connect(self._update_enabled_state)
-        self.enable_checkbox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._depth = depth
+        color = _depth_color(depth)
 
         self.toggle_button = QToolButton(self)
         self.toggle_button.setText(title)
         self.toggle_button.setCheckable(True)
         self.toggle_button.setStyleSheet(
-            "QToolButton { border: none; text-align: left; padding: 5px; }"
-            "QToolButton:disabled { color: gray; }"
+            f"QToolButton {{ border: none; text-align: left; padding: 5px;"
+            f" color: {color}; font-weight: bold; }}"
+            f"QToolButton:disabled {{ color: gray; }}"
         )
         self.toggle_button.setArrowType(Qt.RightArrow)
         self.toggle_button.setIconSize(QSize(12, 12))
         self.toggle_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.toggle_button.clicked.connect(self._toggle_content)
 
-        header = QWidget()
-        header_layout = QHBoxLayout(header)
+        # Header: [▶ Title] ... (add field / remove buttons injected by SectionWithAddButton)
+        self.header = QWidget()
+        header_layout = QHBoxLayout(self.header)
         header_layout.setSpacing(8)
-        header_layout.addWidget(self.enable_checkbox)
-        header_layout.addWidget(self.toggle_button, 1)
-        header_layout.setAlignment(self.enable_checkbox, Qt.AlignCenter)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(self.toggle_button)
         header_layout.setAlignment(self.toggle_button, Qt.AlignLeft)
 
+        # Content area: fixed padding from the accent line, consistent across all depths.
+        # Depth-based indentation is applied to the CollapsibleSection container instead.
         self.content_area = QWidget()
+        self.content_area.setObjectName("content_area")
         self.content_area.setVisible(False)
+        self.content_area.setStyleSheet(
+            f"QWidget#content_area {{"
+            f" border-left: 3px solid {color};"
+            f" padding-left: 10px;"
+            f"}}"
+        )
 
         layout = QVBoxLayout(self)
         layout.setSpacing(0)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(header)
+        # Left margin increases with depth so nested sections indent visually,
+        # but the spacing between the line and content stays fixed at 10px.
+        layout.setContentsMargins(depth * 12, 0, 0, 0)
+        layout.addWidget(self.header)
         layout.addWidget(self.content_area)
 
-        self._update_enabled_state()
+    def depth(self) -> int:
+        return self._depth
 
     def title(self):
         return self._title
 
+    def header_layout(self):
+        return self.header.layout()
+
     def _toggle_content(self):
-        if not self.enable_checkbox.isChecked():
-            self.toggle_button.setChecked(False)
-            return
         visible = self.toggle_button.isChecked()
         self.content_area.setVisible(visible)
         self.toggle_button.setArrowType(Qt.DownArrow if visible else Qt.RightArrow)
-
-    def _update_enabled_state(self):
-        enabled = self.enable_checkbox.isChecked()
-        self.toggle_button.setEnabled(enabled)
-        if not enabled:
-            self.toggle_button.setChecked(False)
-            self.content_area.setVisible(False)
-            self.toggle_button.setArrowType(Qt.RightArrow)
 
     def set_content_layout(self, layout):
         if self.content_area.layout():
@@ -140,7 +155,8 @@ class CollapsibleSection(QWidget):
         self.content_area.setLayout(layout)
 
     def is_enabled(self):
-        return self.enable_checkbox.isChecked()
+        # Sections are always included when present — no checkbox to gate them.
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -247,12 +263,12 @@ class TrueFalseSelector(QWidget):
     def __init__(self, default_value=None, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
-        layout.setSpacing(30)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
         self.checkbox = QCheckBox("")
         self.checkbox.setChecked(bool(default_value))
         layout.addWidget(self.checkbox)
-        layout.addStretch()
-        self.setLayout(layout)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
     def get_value(self):
         return self.checkbox.isChecked()
@@ -287,8 +303,7 @@ class AffineRigidSelector(QWidget):
 
         layout.addWidget(self.true_button)
         layout.addWidget(self.false_button)
-        layout.addStretch()
-        self.setLayout(layout)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
     def get_value(self):
         return "affine" if self.true_button.isChecked() else "rigid"

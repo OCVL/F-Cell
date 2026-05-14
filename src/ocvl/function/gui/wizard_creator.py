@@ -17,8 +17,9 @@ from PySide6 import QtGui
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QRadioButton, QScrollArea, QSizePolicy, QVBoxLayout,
+    QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFileDialog,
+    QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QRadioButton, QScrollArea, QSizePolicy, QVBoxLayout,
     QWidget, QWizard, QWizardPage,
 )
 
@@ -45,6 +46,7 @@ class Page:
     REVIEW        = 6
     IMPORT_EDITOR = 7
     END           = 8
+    IMPORT_MODE   = 9   # asks Simple vs Advanced edit after importing a file
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +141,210 @@ def _clear_layout(layout):
 
 
 # ---------------------------------------------------------------------------
+# ChecklistCopyDialog  (Misc A — cross-section format copy)
+# ---------------------------------------------------------------------------
+
+class ChecklistCopyDialog(QDialog):
+    """
+    Asks the user which analysis format fields should receive a format string
+    copied from preanalysis, with an optional suffix to append before the
+    file extension.
+
+    Usage
+    -----
+    dialog = ChecklistCopyDialog(source_format, parent)
+    if dialog.exec() == QDialog.Accepted:
+        targets, suffix = dialog.get_result()
+    """
+
+    # Label → (attribute name on AnalysisPage, whether a suffix makes sense)
+    _TARGETS = [
+        ("Analysis Image Format",    "image_format_value",    True),
+        ("Analysis Query Loc Format","queryloc_format_value",  True),
+        ("Analysis Video Format",    "video_format_value",    True),
+    ]
+
+    # Common suffixes the F-Cell pipeline appends to preanalysis base names
+    _SUFFIX_OPTIONS = [
+        ("None",                   ""),
+        ("_ALL_ACQ_AVG  (images)", "_ALL_ACQ_AVG"),
+        ("_piped        (metadata)","_piped"),
+        ("Custom…",                "__custom__"),
+    ]
+
+    def __init__(self, source_format: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Copy Format to Analysis")
+        self.setMinimumWidth(420)
+        self._source = source_format
+        self._custom_suffix = ""
+
+        layout = QVBoxLayout(self)
+
+        # Source preview
+        preview = QLabel(f"<b>Source format:</b><br><code>{source_format}</code>")
+        preview.setWordWrap(True)
+        preview.setStyleSheet("padding: 6px; background: #f5f5f5; border: 1px solid #ccc; border-radius: 4px;")
+        layout.addWidget(preview)
+
+        # Target checkboxes
+        layout.addWidget(QLabel("<b>Copy to:</b>"))
+        self._checks = {}
+        for label, attr, _ in self._TARGETS:
+            cb = QCheckBox(label)
+            cb.setChecked(True)
+            layout.addWidget(cb)
+            self._checks[attr] = cb
+
+        # Suffix selector
+        layout.addWidget(QLabel("<b>Append suffix before extension:</b>"))
+        self._suffix_group = QButtonGroup(self)
+        self._suffix_radios = {}
+        for label, value in self._SUFFIX_OPTIONS:
+            rb = QRadioButton(label)
+            rb.setChecked(value == "")
+            self._suffix_group.addButton(rb)
+            self._suffix_radios[value] = rb
+            layout.addWidget(rb)
+
+        # Custom suffix input (shown only when Custom… is selected)
+        self._custom_input = QLineEdit()
+        self._custom_input.setPlaceholderText("Enter custom suffix…")
+        self._custom_input.setEnabled(False)
+        layout.addWidget(self._custom_input)
+        self._suffix_radios["__custom__"].toggled.connect(self._custom_input.setEnabled)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def get_result(self):
+        """
+        Returns
+        -------
+        targets : list of attribute names on AnalysisPage that were checked
+        suffix  : string to insert before the file extension (may be "")
+        """
+        targets = [attr for attr, cb in self._checks.items() if cb.isChecked()]
+
+        if self._suffix_radios["__custom__"].isChecked():
+            suffix = self._custom_input.text().strip()
+        else:
+            suffix = next(
+                (v for v, rb in self._suffix_radios.items() if rb.isChecked() and v != "__custom__"),
+                ""
+            )
+        return targets, suffix
+
+
+# ---------------------------------------------------------------------------
+# ImportModePage  (Issue 2 — choose Simple vs Advanced edit of imported JSON)
+# ---------------------------------------------------------------------------
+
+class ImportModePage(QWizardPage):
+    """
+    Shown after a JSON is imported. Asks whether the user wants to edit it
+    in Simple mode (pre-populates the existing step-by-step pages) or
+    Advanced mode (full field editor).
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setTitle("How would you like to edit the imported configuration?")
+        self.setSubTitle(
+            "• Simple: Pre-fills the step-by-step pages with values from your file\n"
+            "• Advanced: Opens the full field editor with all imported values loaded"
+        )
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        scroll.setWidget(container)
+
+        outer = QVBoxLayout(container)
+        outer.setAlignment(Qt.AlignCenter)
+
+        center = QHBoxLayout()
+        center.setAlignment(Qt.AlignCenter)
+
+        label = QLabel("Edit mode:")
+        label.setStyleSheet(_LABEL_STYLE)
+        center.addWidget(label)
+
+        self.simple_button = QRadioButton("Simple Edit")
+        self.adv_button    = QRadioButton("Advanced Edit")
+        self.simple_button.setStyleSheet(_RADIO_STYLE)
+        self.adv_button.setStyleSheet(_RADIO_STYLE)
+        self.simple_button.setChecked(True)
+
+        self.button_group = QButtonGroup()
+        self.button_group.addButton(self.simple_button, 0)
+        self.button_group.addButton(self.adv_button, 1)
+
+        btn_layout = QVBoxLayout()
+        btn_layout.addWidget(self.simple_button)
+        btn_layout.addWidget(self.adv_button)
+        btn_layout.setAlignment(Qt.AlignCenter)
+        center.addLayout(btn_layout)
+        outer.addLayout(center)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(scroll)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+    def initializePage(self):
+        """Pre-populate simple wizard pages when entering this page."""
+        wiz = self.wizard()
+        cfg = wiz.page(Page.INTRO).imported_config or {}
+        self._prepopulate_simple_pages(wiz, cfg)
+
+    def _prepopulate_simple_pages(self, wiz, cfg):
+        """Push imported values into VerDescriptionPage, PreanalysisPage, AnalysisPage."""
+        ver_page = wiz.page(Page.VER_DESC)
+        if "version" in cfg:
+            ver_page.version_value.setText(str(cfg["version"]))
+        if "description" in cfg:
+            ver_page.description_value.setText(str(cfg["description"]))
+
+        pre = cfg.get("preanalysis", {})
+        pre_page = wiz.page(Page.PREANALYSIS)
+        for attr, key in [("image_format_value", "image_format"),
+                          ("video_format_value", "video_format"),
+                          ("mask_format_value",  "mask_format")]:
+            if key in pre:
+                getattr(pre_page, attr).set_value(pre[key])
+        if "recursive_search" in pre:
+            pre_page.recursive_search_tf.set_value(pre["recursive_search"])
+        params = pre.get("pipeline_params", {})
+        if "modalities" in params and params["modalities"]:
+            pre_page.modalities_list_creator.set_value(params["modalities"])
+        if "alignment_reference_modality" in params:
+            pre_page.alignment_ref_value.set_value(params["alignment_reference_modality"] or "null")
+        if "group_by" in params:
+            pre_page.groupby_value.set_value(params["group_by"] or "null")
+
+        ana = cfg.get("analysis", {})
+        ana_page = wiz.page(Page.ANALYSIS)
+        for attr, key in [("image_format_value",    "image_format"),
+                          ("queryloc_format_value",  "queryloc_format"),
+                          ("video_format_value",    "video_format")]:
+            if key in ana:
+                getattr(ana_page, attr).set_value(ana[key])
+        if "recursive_search" in ana:
+            ana_page.recursive_search_tf.set_value(ana["recursive_search"])
+        ana_params = ana.get("analysis_params", {})
+        if "modalities" in ana_params and ana_params["modalities"]:
+            ana_page.modalities_list_creator.set_value(ana_params["modalities"])
+
+    def nextId(self):
+        if self.adv_button.isChecked():
+            return Page.IMPORT_EDITOR
+        # Simple: go through the normal step-by-step flow from VER_DESC onward
+        return Page.VER_DESC
+
+
+# ---------------------------------------------------------------------------
 # MainWizard
 # ---------------------------------------------------------------------------
 
@@ -169,6 +375,7 @@ class MainWizard(QWizard):
         self.setPage(Page.REVIEW,        ReviewPage())
         self.setPage(Page.IMPORT_EDITOR, ImportEditorPage())
         self.setPage(Page.END,           EndPage())
+        self.setPage(Page.IMPORT_MODE,   ImportModePage())
 
         self.currentIdChanged.connect(self._update_button_text)
         self.page(Page.INTRO).button_group.buttonToggled.connect(self._update_button_text_for_intro)
@@ -442,6 +649,15 @@ class PreanalysisPage(QWizardPage):
                                "Group By: Field used to group sessions (optional, options derived from format strings)."),
                          alignment=Qt.AlignLeft)
 
+        # --- Cross-section copy button ---
+        copy_btn = QPushButton("Copy Format to Analysis Section…")
+        copy_btn.setToolTip(
+            "Copy one of the preanalysis format strings to the analysis page,\n"
+            "with an optional suffix appended before the file extension."
+        )
+        copy_btn.clicked.connect(self._open_cross_section_copy)
+        layout.addWidget(copy_btn, alignment=Qt.AlignLeft)
+
         # Wire copy-to-all
         for key, widget in [("image_format", self.image_format_value),
                              ("video_format", self.video_format_value),
@@ -466,6 +682,42 @@ class PreanalysisPage(QWizardPage):
                      ("mask_format",  self.mask_format_value)]:
             if k != key:
                 w.set_value(value)
+
+    def _open_cross_section_copy(self):
+        """Open the cross-section copy dialog and apply the result to AnalysisPage."""
+        # Use the image format as the representative source; user picks targets/suffix
+        source = self.image_format_value.get_value() or ""
+        dialog = ChecklistCopyDialog(source, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        targets, suffix = dialog.get_result()
+        if not targets:
+            return
+
+        ana_page = self.wizard().page(Page.ANALYSIS)
+        for attr in targets:
+            widget = getattr(ana_page, attr, None)
+            if widget is None:
+                continue
+            new_fmt = self._apply_suffix(source, suffix)
+            widget.set_value(new_fmt)
+
+    @staticmethod
+    def _apply_suffix(format_string: str, suffix: str) -> str:
+        """
+        Insert suffix before the file extension in format_string.
+        e.g. "{IDnum}_{Modality}.tif" + "_ALL_ACQ_AVG" → "{IDnum}_{Modality}_ALL_ACQ_AVG.tif"
+        If no extension is detected, suffix is appended at the end.
+        """
+        if not suffix:
+            return format_string
+        import re
+        m = re.search(r'(\.[a-zA-Z0-9]{2,5})$', format_string)
+        if m:
+            ext = m.group(1)
+            return format_string[:-len(ext)] + suffix + ext
+        return format_string + suffix
 
     def _update_alignment_modality_state(self):
         self.alignment_ref_value.setEnabled(bool(self.modalities_list_creator.get_list()))
@@ -688,34 +940,6 @@ class ReviewPage(QWizardPage):
     def _titleize(self, key):
         return str(key).replace("_", " ").title()
 
-    def _render_by_template(self, template_node, data_node, header_name=None):
-        if header_name is not None:
-            self.container_layout.addWidget(self._mk_section(header_name))
-        if isinstance(template_node, dict):
-            for k, tmpl_child in template_node.items():
-                if header_name is None and k in ("version", "description"):
-                    continue
-                data_child = data_node.get(k) if isinstance(data_node, dict) else None
-                is_subsection = isinstance(tmpl_child, dict) and "type" not in tmpl_child
-                if is_subsection:
-                    self._render_by_template(tmpl_child, data_child or {}, self._titleize(k))
-                else:
-                    self.container_layout.addWidget(self._mk_field(self._titleize(k), data_child))
-
-    def _render_pruned_template(self, template_node, data_node):
-        if not isinstance(template_node, dict) or not isinstance(data_node, dict):
-            return data_node
-        pruned = {}
-        for k, tmpl_child in template_node.items():
-            if k in data_node:
-                dv = data_node[k]
-                is_subsection = isinstance(tmpl_child, dict) and "type" not in tmpl_child
-                if is_subsection and isinstance(dv, dict):
-                    pruned[k] = self._render_pruned_template(tmpl_child, dv)
-                else:
-                    pruned[k] = tmpl_child
-        return pruned
-
     def _display_simple_mode(self, cfg, wiz):
         for key, label in [("version", "Version"), ("description", "Description")]:
             if key in cfg:
@@ -751,22 +975,23 @@ class ReviewPage(QWizardPage):
                     self.container_layout.addWidget(self._mk_field("Modalities", params["modalities"]))
 
     def _display_advanced_mode(self, cfg, wiz):
-        for key, label in [("version", "Version"), ("description", "Description")]:
-            if key in cfg:
-                self.container_layout.addWidget(self._mk_field(label, cfg[key]))
-        with open(r"master_config_files/advanced_config_JSON.json", "r") as f:
-            advanced_template = json.load(f)
-        self._render_by_template(advanced_template, cfg)
+        """Render advanced review directly from generated_config."""
+        self._render_dict(cfg, depth=0)
 
     def _display_import_mode(self, cfg, wiz):
-        for key, label in [("version", "Version"), ("description", "Description")]:
-            if key in cfg:
-                self.container_layout.addWidget(self._mk_field(label, cfg[key]))
-        with open(r"master_config_files/master_JSON.json", "r") as f:
-            master_template = json.load(f)
-        imported = wiz.page(Page.INTRO).imported_config or {}
-        pruned = self._render_pruned_template(master_template, imported)
-        self._render_by_template(pruned, cfg)
+        """Render the import review directly from generated_config, not the template.
+        This ensures removed sections are absent and added fields (like gaus_blur) appear."""
+        self._render_dict(cfg, depth=0)
+
+    def _render_dict(self, d: dict, depth: int):
+        """Recursively render a config dict into the review layout."""
+        for key, value in d.items():
+            label = self._titleize(key)
+            if isinstance(value, dict):
+                self.container_layout.addWidget(self._mk_section(label))
+                self._render_dict(value, depth + 1)
+            else:
+                self.container_layout.addWidget(self._mk_field(label, value))
 
     def initializePage(self):
         wiz = self.wizard()
@@ -778,15 +1003,18 @@ class ReviewPage(QWizardPage):
             if w:
                 w.deleteLater()
 
-        # Build config
-        if wiz.page(Page.SELECTION).adv_button.isChecked():
+        is_import = wiz.page(Page.INTRO).import_button.isChecked()
+        is_adv    = wiz.page(Page.SELECTION).adv_button.isChecked()
+
+        if is_adv:
             advanced_widget = wiz.page(Page.ADVANCED).advanced_widget
             master_json = wiz.page(Page.ADVANCED).master_json
             self.generated_config = generate_json(advanced_widget, master_json)
-        elif wiz.page(Page.INTRO).import_button.isChecked():
-            import_config_widget = wiz.page(Page.IMPORT_EDITOR).form_widget
-            master_json = wiz.page(Page.ADVANCED).master_json
-            self.generated_config = generate_json(import_config_widget, master_json, skip_disabled=False)
+        elif is_import:
+            import_page = wiz.page(Page.IMPORT_EDITOR)
+            self.generated_config = generate_json(
+                import_page.form_widget, import_page.master_json
+            )
         else:
             pre_page = wiz.page(Page.PREANALYSIS)
             ana_page = wiz.page(Page.ANALYSIS)
@@ -817,11 +1045,10 @@ class ReviewPage(QWizardPage):
                 },
             }
 
-        # Render
         try:
-            if wiz.page(Page.SELECTION).adv_button.isChecked():
+            if is_adv:
                 self._display_advanced_mode(self.generated_config, wiz)
-            elif wiz.page(Page.INTRO).import_button.isChecked():
+            elif is_import:
                 self._display_import_mode(self.generated_config, wiz)
             else:
                 self._display_simple_mode(self.generated_config, wiz)
@@ -863,38 +1090,42 @@ class ReviewPage(QWizardPage):
 class ImportEditorPage(QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setTitle("Edit JSON")
-        self.setSubTitle('Edit your imported JSON here. Click "Save >" to save new JSON.')
+        self.setTitle("Edit Configuration")
+        self.setSubTitle(
+            "All available fields are shown below. "
+            "Checked fields will be included in the saved JSON. "
+            "Fields present in your imported file are pre-filled and checked. "
+            "Fields marked required cannot be removed."
+        )
 
-        self.saved_file_path = None
         self.form_widget = None
+        self.master_json = None
 
         self._layout = QVBoxLayout(self)
-        self._placeholder = QLabel("Loading imported configuration...")
-        self._placeholder.setAlignment(Qt.AlignCenter)
-        self._layout.addWidget(self._placeholder)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._layout.addWidget(self._scroll)
 
     def initializePage(self):
-        self._layout.removeWidget(self._placeholder)
-        self._placeholder.deleteLater()
+        # Always load the full master template so every possible field is visible
+        with open(r"master_config_files/master_JSON.json", "r") as f:
+            self.master_json = json.load(f)
 
         wizard = self.wizard()
-        intro_page = wizard.page(Page.INTRO)
+        imported = wizard.page(Page.INTRO).imported_config or {}
 
-        if hasattr(intro_page, 'imported_config') and intro_page.imported_config:
-            with open(r"master_config_files/master_JSON.json", "r") as f:
-                master_json = json.load(f)
+        # build_form_from_template now iterates template keys, not data keys.
+        # Fields present in `imported` start checked and pre-filled;
+        # fields absent from `imported` start unchecked (unless required).
+        self.form_widget = build_form_from_template(
+            self.master_json, imported
+        )
 
-            self.form_widget = build_form_from_template(master_json, intro_page.imported_config)
-
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
-            scroll.setWidget(self.form_widget)
-            self._layout.addWidget(scroll)
-        else:
-            error = QLabel("No imported configuration found.")
-            error.setAlignment(Qt.AlignCenter)
-            self._layout.addWidget(error)
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.addWidget(self.form_widget)
+        container_layout.addStretch()
+        self._scroll.setWidget(container)
 
     def nextId(self):
         return Page.REVIEW
