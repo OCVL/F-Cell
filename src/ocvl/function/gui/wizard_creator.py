@@ -239,112 +239,6 @@ class ChecklistCopyDialog(QDialog):
 
 
 # ---------------------------------------------------------------------------
-# ImportModePage  (Issue 2 — choose Simple vs Advanced edit of imported JSON)
-# ---------------------------------------------------------------------------
-
-class ImportModePage(QWizardPage):
-    """
-    Shown after a JSON is imported. Asks whether the user wants to edit it
-    in Simple mode (pre-populates the existing step-by-step pages) or
-    Advanced mode (full field editor).
-    """
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setTitle("How would you like to edit the imported configuration?")
-        self.setSubTitle(
-            "• Simple: Pre-fills the step-by-step pages with values from your file\n"
-            "• Advanced: Opens the full field editor with all imported values loaded"
-        )
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        container = QWidget()
-        scroll.setWidget(container)
-
-        outer = QVBoxLayout(container)
-        outer.setAlignment(Qt.AlignCenter)
-
-        center = QHBoxLayout()
-        center.setAlignment(Qt.AlignCenter)
-
-        label = QLabel("Edit mode:")
-        label.setStyleSheet(_LABEL_STYLE)
-        center.addWidget(label)
-
-        self.simple_button = QRadioButton("Simple Edit")
-        self.adv_button    = QRadioButton("Advanced Edit")
-        self.simple_button.setStyleSheet(_RADIO_STYLE)
-        self.adv_button.setStyleSheet(_RADIO_STYLE)
-        self.simple_button.setChecked(True)
-
-        self.button_group = QButtonGroup()
-        self.button_group.addButton(self.simple_button, 0)
-        self.button_group.addButton(self.adv_button, 1)
-
-        btn_layout = QVBoxLayout()
-        btn_layout.addWidget(self.simple_button)
-        btn_layout.addWidget(self.adv_button)
-        btn_layout.setAlignment(Qt.AlignCenter)
-        center.addLayout(btn_layout)
-        outer.addLayout(center)
-
-        main_layout = QVBoxLayout(self)
-        main_layout.addWidget(scroll)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-
-    def initializePage(self):
-        """Pre-populate simple wizard pages when entering this page."""
-        wiz = self.wizard()
-        cfg = wiz.page(Page.INTRO).imported_config or {}
-        self._prepopulate_simple_pages(wiz, cfg)
-
-    def _prepopulate_simple_pages(self, wiz, cfg):
-        """Push imported values into VerDescriptionPage, PreanalysisPage, AnalysisPage."""
-        ver_page = wiz.page(Page.VER_DESC)
-        if "version" in cfg:
-            ver_page.version_value.setText(str(cfg["version"]))
-        if "description" in cfg:
-            ver_page.description_value.setText(str(cfg["description"]))
-
-        pre = cfg.get("preanalysis", {})
-        pre_page = wiz.page(Page.PREANALYSIS)
-        for attr, key in [("image_format_value", "image_format"),
-                          ("video_format_value", "video_format"),
-                          ("mask_format_value",  "mask_format")]:
-            if key in pre:
-                getattr(pre_page, attr).set_value(pre[key])
-        if "recursive_search" in pre:
-            pre_page.recursive_search_tf.set_value(pre["recursive_search"])
-        params = pre.get("pipeline_params", {})
-        if "modalities" in params and params["modalities"]:
-            pre_page.modalities_list_creator.set_value(params["modalities"])
-        if "alignment_reference_modality" in params:
-            pre_page.alignment_ref_value.set_value(params["alignment_reference_modality"] or "null")
-        if "group_by" in params:
-            pre_page.groupby_value.set_value(params["group_by"] or "null")
-
-        ana = cfg.get("analysis", {})
-        ana_page = wiz.page(Page.ANALYSIS)
-        for attr, key in [("image_format_value",    "image_format"),
-                          ("queryloc_format_value",  "queryloc_format"),
-                          ("video_format_value",    "video_format")]:
-            if key in ana:
-                getattr(ana_page, attr).set_value(ana[key])
-        if "recursive_search" in ana:
-            ana_page.recursive_search_tf.set_value(ana["recursive_search"])
-        ana_params = ana.get("analysis_params", {})
-        if "modalities" in ana_params and ana_params["modalities"]:
-            ana_page.modalities_list_creator.set_value(ana_params["modalities"])
-
-    def nextId(self):
-        if self.adv_button.isChecked():
-            return Page.IMPORT_EDITOR
-        # Simple: go through the normal step-by-step flow from VER_DESC onward
-        return Page.VER_DESC
-
-
-# ---------------------------------------------------------------------------
 # MainWizard
 # ---------------------------------------------------------------------------
 
@@ -375,7 +269,6 @@ class MainWizard(QWizard):
         self.setPage(Page.REVIEW,        ReviewPage())
         self.setPage(Page.IMPORT_EDITOR, ImportEditorPage())
         self.setPage(Page.END,           EndPage())
-        self.setPage(Page.IMPORT_MODE,   ImportModePage())
 
         self.currentIdChanged.connect(self._update_button_text)
         self.page(Page.INTRO).button_group.buttonToggled.connect(self._update_button_text_for_intro)
@@ -656,7 +549,7 @@ class PreanalysisPage(QWizardPage):
             "with an optional suffix appended before the file extension."
         )
         copy_btn.clicked.connect(self._open_cross_section_copy)
-        layout.addWidget(copy_btn, alignment=Qt.AlignLeft)
+        #layout.addWidget(copy_btn, alignment=Qt.AlignLeft)
 
         # Wire copy-to-all
         for key, widget in [("image_format", self.image_format_value),
@@ -852,11 +745,18 @@ class AdvancedSetupPage(QWizardPage):
     def initializePage(self):
         from src.ocvl.function.gui.import_generation import build_form_from_template
 
-        with open(r"master_config_files/advanced_config_JSON.json", "r") as f:
+        with open(r"master_config_files/master_JSON.json", "r") as f:
             self.master_json = json.load(f)
 
+        with open(r"master_config_files/advanced_config_JSON.json", "r") as f:
+            advanced_data = json.load(f)
+
+        # Use master_JSON as the template (defines all possible fields) and
+        # advanced_config_JSON as the data (pre-fills and enables its fields).
+        # Fields in advanced_config but absent from master are simply ignored.
+        # Fields in master but absent from advanced_config appear in the pool.
         self.advanced_widget = build_form_from_template(
-            self.master_json, self.master_json, adv=True
+            self.master_json, advanced_data
         )
 
         container = QWidget()

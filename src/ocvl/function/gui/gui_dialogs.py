@@ -26,7 +26,7 @@ class FormatElementsEditor(QDialog):
     copyRequested = Signal(str, str, str)
 
     _BASE_ELEMENTS = [
-        ":.1", "Day", "Eye", "FOV_Height", "FOV_Width",
+        "Day", "Eye", "FOV_Height", "FOV_Width",
         "IDnum", "LocX", "LocY", "Modality", "Month",
         "VidNum", "Year",
     ]

@@ -1,38 +1,15 @@
 """
-import_generation.py — Form builder and JSON extractor for advanced/import modes.
-
-Design
-------
-- build_form_from_template iterates the *template* for structure but only
-  renders fields/sections present in *data* or marked "required".
-- Absent optional items (both leaf fields and subsections) are collected into
-  a pool attached to each section via SectionWithAddButton.
-- The add button label says "+ Add Field" or "+ Add Section" depending on
-  what's in the pool. If both kinds are present it says "+ Add Field / Section".
-- Items added from the pool are inserted at the position matching their order
-  in the master template, keeping the form consistent.
-- Every non-required FieldRow has a small "✕" remove button on the right.
-  Removing a field returns it to the section's available pool.
-- Every non-required SectionWithAddButton has a small "✕ Remove Section"
-  button next to its header. Removing a section returns it to the parent pool.
-- generate_json skips nothing by presence — it just walks whatever is
-  currently in the layout.
-
-Template leaf format
---------------------
 {
-    "type":        "<widget_type>",  # required
+    "type":        "<widget_type>",  # required, indicates field type
     "required":    true/false,       # prevents remove button from appearing
     "description": "...",            # shown in Add picker
     "save":        true/false,       # store in saved_widgets for dependency wiring
-    "format_type": "image"|...       # for formatEditor widgets
+    "format_type": "image"|...       # for formatEditor widgets (image, video, mask, etc.)
 }
 """
 
-import re
-
 from src.ocvl.function.gui.gui_widgets import (
-    AffineRigidSelector, AlignmentModalitySelector, CollapsibleSection,
+    AffineRigidSelector, CollapsibleSection,
     ColorMapSelector, DropdownMenu, FreetextBox, freeFloat, freeInt,
     ListEditorWidget, OpenFolder, OptionalField, rangeSelector, TrueFalseSelector,
     _depth_color,
@@ -62,17 +39,6 @@ def extract_widget_type(field_def):
 
 
 def _is_subsection(tmpl_val) -> bool:
-    """
-    True when tmpl_val represents a nested section, not a leaf field.
-
-    A leaf field has "type" as a plain string, e.g. {"type": "freeText"}.
-    A subsection either has no "type" key at all, or has "type" as a nested
-    dict (meaning "type" is itself a child field named "type", not a widget
-    type specifier). Examples from master_JSON.json:
-        {"type": "freeText"}           → leaf   (type is a string)
-        {"type": {"type": "freeText"}} → section (type is a dict — it's a field)
-        {"framestamps": {...}}         → section (no "type" key at all)
-    """
     if not isinstance(tmpl_val, dict):
         return False
     type_val = tmpl_val.get("type")
