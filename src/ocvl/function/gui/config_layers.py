@@ -1,14 +1,5 @@
 """
-config_layers.py — Replaces simpleconfig.py and advancedconfig.py entirely.
-
-Both files shared the same layer classes with only minor differences in
-default values and whether fields are wrapped in OptionalField. This module
-provides a single set of layer classes parameterised by those differences.
-
-Usage
------
-Simple mode  → instantiate each layer with optional=False (the default)
-Advanced mode → instantiate each layer with optional=True
+config_layers.py - Holds configuration layers (simple or advanced)
 """
 
 from PySide6.QtCore import Qt

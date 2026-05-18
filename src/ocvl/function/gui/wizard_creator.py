@@ -1,14 +1,5 @@
 """
-wizard_creator.py — Main wizard window and all page classes.
-
-Changes from the original:
-- Dead TextColor class removed.
-- Page IDs collected into a Page enum — no more magic numbers scattered across the file.
-- Tooltip-label creation extracted into make_tooltip_label() to avoid repetition.
-- create_hover_widget() moved to module level (was re-defined in each page class).
-- PreanalysisPage / AnalysisPage form-building moved into _build_form() methods
-  so __init__ stays a clean wiring step.
-- AdvancedSetupPage, ReviewPage, ImportEditorPage, EndPage unchanged in behaviour.
+wizard_creator.py - Creates actual wizard and its pages.
 """
 
 import json

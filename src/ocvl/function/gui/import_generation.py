@@ -1,4 +1,4 @@
-"""
+""" MASTER_GUI Format
 {
     "type":        "<widget_type>",  # required, indicates field type
     "required":    true/false,       # prevents remove button from appearing
@@ -57,12 +57,16 @@ def coerce_value(value, widget_type: str):
 
     if isinstance(value, str):
         low = value.lower()
-        if low == "null":
+        if low == "null" or low == "":
             return None
         if low == "true":
             return True
         if low == "false":
             return False
+        # freeText fields must stay as strings — never coerce to numbers.
+        # version, description, and any other text field could look numeric.
+        if widget_type == "freeText":
+            return value
         try:
             if widget_type == "freeInt":
                 return int(value)

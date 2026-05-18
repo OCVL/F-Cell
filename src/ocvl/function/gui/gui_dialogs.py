@@ -1,8 +1,6 @@
 """
-dialogs.py — Complex format-editor widgets.
+dialogs.py - Holds complex dialogs used by some widgets
 
-Replaces the dialog/compound-widget portion of constructors.py.
-Base widgets live in widgets.py.
 """
 
 import re
@@ -76,8 +74,12 @@ class FormatElementsEditor(QDialog):
         self.file_type_combo = None
         if show_extensions:
             self.file_type_combo = QComboBox()
+            # Always include a blank entry first so "no extension" is the default
+            # until _parse_format finds and selects the real one.
+            self.file_type_combo.addItem("")
             ext_options = self._EXTENSIONS.get(type or "", [".txt", ".dat", ".log"])
             self.file_type_combo.addItems(ext_options)
+            self.file_type_combo.setCurrentIndex(0)   # start on blank
             self.file_type_combo.currentTextChanged.connect(self._update_preview)
 
         # ---- copy button ----
@@ -457,11 +459,14 @@ class FormatElementsEditor(QDialog):
     def _add_existing_extension_to_dropdown(self, extension):
         if self.file_type_combo is None:
             return
+        if not extension:
+            return
         existing = [self.file_type_combo.itemText(i) for i in range(self.file_type_combo.count())]
-        if extension and extension not in existing:
-            self.file_type_combo.insertItem(0, extension)
-            self.file_type_combo.insertSeparator(1)
-            self.file_type_combo.setCurrentText(extension)
+        if extension not in existing:
+            # Insert after the blank entry at index 0, before the standard options
+            self.file_type_combo.insertItem(1, extension)
+            self.file_type_combo.insertSeparator(2)
+        self.file_type_combo.setCurrentText(extension)
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,6 @@
 """
-widgets.py — Base reusable form widgets.
+widgets.py - Holds all reusable widget types
 
-Replaces the widget portion of constructors.py. Complex dialogs
-(FormatEditorWidget, ColorMapSelector, etc.) live in dialogs.py.
 """
 
 import os
@@ -189,7 +187,7 @@ class FreetextBox(QWidget):
             if isinstance(self.text_input, QTextEdit)
             else self.text_input.text()
         )
-        return text if text else (self.text_input.placeholderText() or "")
+        return text if text else None
 
     # Alias so widgets with get_value also work
     def get_value(self):
