@@ -11,7 +11,7 @@ from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import make_smoothing_spline
 from scipy.ndimage import convolve1d
 from scipy.signal import ShortTimeFFT
-from scipy.signal.windows import gaussian
+from scipy.signal.windows import gaussian, hann
 from scipy.sparse import diags, eye, spdiags
 from scipy.sparse.linalg import spsolve
 from ssqueezepy import ssq_stft, extract_ridges
@@ -163,9 +163,9 @@ if __name__ == "__main__":
                     #     plt.plot(stim_time, np.full_like(stim_time, 50), 'g*')
                     #     plt.ylim((-100, 100))
 
-                        win_size = 29
+                        win_size = 15
                         win_fwhm = 14
-                        win = hanning(win_size)
+                        win = hann(win_size)
 
                         Tsx, Sx, ssq_freqs_s, Sfs, *_ = ssq_stft(finite_sig, window=win, fs=framerate)
 
