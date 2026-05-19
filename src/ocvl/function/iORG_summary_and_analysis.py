@@ -42,7 +42,7 @@ from ocvl.function.analysis.iORG_signal_extraction import extract_n_refine_iorg_
 from ocvl.function.analysis.iORG_profile_analyses import summarize_iORG_signals, iORG_signal_metrics, \
     iORG_signal_correlation, _determine_pre_n_post_stim_frms
 from ocvl.function.display.iORG_data_display import display_iORG_pop_summary, display_iORG_pop_summary_seq, \
-    display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs
+    display_iORG_summary_histogram, display_iORG_summary_overlay, display_iORGs, display_segmentation
 from ocvl.function.utility.dataset import initialize_and_load_dataset, Stages, \
     obtain_analysis_output_path
 from ocvl.function.utility.json_format_constants import PreAnalysisPipeline, MetaTags, DataTags, \
@@ -774,6 +774,18 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                             plt.waitforbuttonpress()
                                             plt.close()
 
+                                        display_segmentation(res_path= result_path, subject_ID = subject_IDs[0], vidnums = stim_data_vidnums, data = stim_datasets, cell_loc= stim_datasets[0].query_loc[q][c, :],
+                                                             seg_radius=3, cone_idx=c, stim_flag="stim")
+                                        """
+                                        (result_path, subject_ID, vidnums, data, cell_loc, seg_radius, cone_idx="", stim_flag="")
+                                        cell_loc = stim_datasets[0].query_loc[q][c, :]
+                                        subject_ID = subject_IDs[0]
+                                        seg_radius=[SegmentParams.RADIUS]
+                                        stim_flag = 1
+                                        cone_idx = c
+                                        i=0
+                                        """
+
                         ''' *** Pool the summarized population iORGs *** '''
                         with warnings.catch_warnings():
                             warnings.filterwarnings(action="ignore", message="invalid value encountered in divide")
@@ -963,7 +975,21 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                           pool=the_pool)
 
                             # Add correlation function here
-                            iORG_corr, iORG_corr_p_val = iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary)
+                            iORG_corr, iORG_corr_p_val = iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary, poststim_frms)
+
+                            plt.hist(iORG_corr, bins=20)
+                            plt.title('iORG Pearson R')
+                            plt.xlabel('Pearson R')
+                            plt.ylabel('Frequency')
+                            plt.show(block=True)
+
+                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], stim_data_vidnums,
+                                          finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
+                                          image=stim_datasets[0].avg_image_data,
+                                          cell_loc=stim_datasets[0].query_loc[q][c, :],
+                                          stim_delivery_frms=stimtrain, framerate=pooled_framerate,
+                                          figure_label=overlap_label, params=debug_params,
+                                          data_color=debug_params.get('axes', {}).get('cmap', 'viridis'))
 
                             # Calculate the relativized individual cell iORGs
                             if indiv_sum_control == "subtraction_pop" and control_datasets:

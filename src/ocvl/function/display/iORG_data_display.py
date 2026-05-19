@@ -8,6 +8,8 @@ from matplotlib.collections import FillBetweenPolyCollection
 from matplotlib.lines import Line2D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from ocvl.function.utility.json_format_constants import DisplayParams, MetricTags
+from ocvl.function.utility.resources import  save_video, load_video, save_tiff_stack
+from skimage.morphology import disk
 
 
 def _update_plot_colors(data_color):
@@ -304,6 +306,79 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
         if show_legend: plt.legend()
+
+
+def display_segmentation(res_path, subject_ID, vidnums, data, cell_loc, seg_radius, cone_idx="", stim_flag=""):
+    """
+    # for testing outside of definition
+    from ocvl.function.utility.resources import save_video, load_video, save_tiff_stack
+    from skimage.morphology import disk
+    vidnums = stim_data_vidnums
+    data = stim_datasets
+    seg_radius = auto_detect_vals[SegmentParams.RADIUS]
+    cell_loc = stim_datasets[0].query_loc[q][c, :]
+    subject_ID = subject_IDs[0]
+    stim_flag = 1
+    cone_idx = c
+    i=0
+    """
+
+    if cone_idx == "":
+        cone_idx = "unkn"
+
+    if stim_flag == 1:
+        condition = "stim"
+    elif stim_flag == 0:
+        condition = "cntrl"
+    else:
+        condition = "unkn"
+
+    if cell_loc is not None and len(cell_loc.shape) == 1:
+        cell_loc = cell_loc[None, :]
+
+    # loop through stim vids
+    for i, vid in enumerate(data):
+        current_vid_path = data[i].video_path
+        current_vid_name = vidnums[i]
+        current_vid = load_video(current_vid_path)
+
+        # TODO: handle adding the segmentation display for refine_to_video = true
+        # refine coord?
+            # Only relevant if the json has Segmentation > "refine_to_vid": true
+            # currently set to false so I'll come back to this later -MG
+
+        # extract disk around coord
+        current_coord_x = cell_loc[:, 0]
+        current_coord_y = cell_loc[:, 1]
+
+
+        fullcolumn = current_vid.data[(int(current_coord_y) - seg_radius):(int(current_coord_y) + seg_radius + 1),
+                     (int(current_coord_x) - seg_radius):(int(current_coord_x) + seg_radius + 1), :]
+
+        mask = disk(seg_radius, strict_radius=False, dtype=fullcolumn.dtype)
+
+        mask = np.repeat(mask[:, :, None], fullcolumn.shape[-1], axis=2)
+
+        masked_cone = fullcolumn * mask
+
+        save_tiff_stack(res_path.joinpath(str(subject_ID) + "_vid_" + str(current_vid_name) + "_masked_cone_" +
+                                             str(current_coord_x) + "X_" + str(current_coord_y) + "Y_" + str(cone_idx) +
+                                             "idx_" + condition + ".tif"), masked_cone)
+        del mask, masked_cone, fullcolumn
+        # extract neighbors
+        # in theory the neighbors should be approximately 3x the diameter of the mask
+        # + some padding for the interstitial space
+        seg_diameter = (2 * seg_radius) + 1
+
+        # going to pad further so that the neighborhood doesn't cut off any of the neighboring cones
+        neighbor_column = current_vid.data[(int(current_coord_y) - (4* seg_diameter)):(int(current_coord_y) + (4* seg_diameter) + 1),
+                     (int(current_coord_x) - (4* seg_diameter)):(int(current_coord_x) + (4* seg_diameter) + 1), :]
+
+        save_tiff_stack(res_path.joinpath(str(subject_ID) + "_vid_" + str(current_vid_name) + "_masked_cone_neighborhood" +
+                                             str(current_coord_x) + "X_" + str(current_coord_y) + "Y_" + str(cone_idx) +
+                                             "idx_" + condition + ".tif"), neighbor_column)
+        del neighbor_column
+
 
 def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_delivery_frms=None,
                                  framerate=15.0, sum_method="",

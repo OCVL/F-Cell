@@ -397,16 +397,23 @@ def _summary_avg(params: Tuple[int, str, np.ndarray, np.dtype, int, float] ) -> 
 
     return c, summary, num_incl
 
+<<<<<<< Updated upstream
 def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals) -> Tuple[np.ndarray, np.ndarray]:
+=======
+def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals, analysis_range):
+>>>>>>> Stashed changes
 
     # Pre-allocating
     iORG_corr = np.full(len(stim_iORG_signals), np.nan)
     iORG_corr_p_val = np.full(len(stim_iORG_signals), np.nan)
 
+    analysis_mask = np.isin(np.arange(len(stim_iORG_signals[0])), analysis_range)
+
     for i in range(len(stim_iORG_signals)):
         nan_mask = ~np.isnan(stim_iORG_signals[i]) & ~np.isnan(control_iORG_signals[i])
-        iORG_corr[i], iORG_corr_p_val[i] = pearsonr(stim_iORG_signals[i, nan_mask], control_iORG_signals[i, nan_mask])
-        del nan_mask # can't preallocate or save for each i since it will change size depending on the number of nan frames per cell...
+        comb_mask = analysis_mask & nan_mask
+        iORG_corr[i], iORG_corr_p_val[i] = pearsonr(stim_iORG_signals[i, comb_mask], control_iORG_signals[i, comb_mask])
+        del nan_mask, comb_mask # can't preallocate or save for each i since it will change size depending on the number of nan frames per cell...
 
     return iORG_corr, iORG_corr_p_val
 
