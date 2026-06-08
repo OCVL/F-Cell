@@ -397,11 +397,8 @@ def _summary_avg(params: Tuple[int, str, np.ndarray, np.dtype, int, float] ) -> 
 
     return c, summary, num_incl
 
-<<<<<<< Updated upstream
-def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals) -> Tuple[np.ndarray, np.ndarray]:
-=======
-def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals, analysis_range):
->>>>>>> Stashed changes
+
+def iORG_signal_correlation(stim_iORG_signals, control_iORG_signals, analysis_range) -> Tuple[np.ndarray, np.ndarray]:
 
     # Pre-allocating
     iORG_corr = np.full(len(stim_iORG_signals), np.nan)
