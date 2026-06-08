@@ -975,21 +975,21 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                           pool=the_pool)
 
                             # Add correlation function here
-                            iORG_corr, iORG_corr_p_val = iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary, poststim_frms)
-
-                            plt.hist(iORG_corr, bins=20)
-                            plt.title('iORG Pearson R')
-                            plt.xlabel('Pearson R')
-                            plt.ylabel('Frequency')
-                            plt.show(block=True)
-
-                            display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], stim_data_vidnums,
-                                          finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
-                                          image=stim_datasets[0].avg_image_data,
-                                          cell_loc=stim_datasets[0].query_loc[q][c, :],
-                                          stim_delivery_frms=stimtrain, framerate=pooled_framerate,
-                                          figure_label=overlap_label, params=debug_params,
-                                          data_color=debug_params.get('axes', {}).get('cmap', 'viridis'))
+                            # iORG_corr, iORG_corr_p_val = iORG_signal_correlation(allcell_stim_iORG_summary, allcell_control_iORG_summary, poststim_frms)
+                            #
+                            # plt.hist(iORG_corr, bins=20)
+                            # plt.title('iORG Pearson R')
+                            # plt.xlabel('Pearson R')
+                            # plt.ylabel('Frequency')
+                            # plt.show(block=True)
+                            #
+                            # display_iORGs(finite_iORG_frmstmp, stim_iORG_signals[q][:, c, :], stim_data_vidnums,
+                            #               finite_iORG_frmstmp, control_iORG_signals[q][:, c, :], control_data_vidnums,
+                            #               image=stim_datasets[0].avg_image_data,
+                            #               cell_loc=stim_datasets[0].query_loc[q][c, :],
+                            #               stim_delivery_frms=stimtrain, framerate=pooled_framerate,
+                            #               figure_label=overlap_label, params=debug_params,
+                            #               data_color=debug_params.get('axes', {}).get('cmap', 'viridis'))
 
                             # Calculate the relativized individual cell iORGs
                             if indiv_sum_control == "subtraction_pop" and control_datasets:

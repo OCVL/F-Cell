@@ -446,12 +446,12 @@ def _determine_pre_n_post_stim_frms(params: dict, stimulus_onset_frmstamp: int, 
         poststim = stimulus_onset_frmstamp + poststim
 
         # Make the list of indices that should correspond to the pre and post stimulus frames we're analyzing
-    if len(prestim) > 1:
+    if prestim.size > 1:
         prestim = np.arange(start=prestim[0], stop=prestim[1], step=1, dtype=int)
     else:
         prestim = np.full((1,), prestim[0], dtype=int)
 
-    if len(poststim) > 1:
+    if poststim.size > 1:
         poststim = np.arange(start=poststim[0], stop=poststim[1], step=1, dtype=int)
     else:
         poststim = np.full((1,), poststim[0], dtype=int)
