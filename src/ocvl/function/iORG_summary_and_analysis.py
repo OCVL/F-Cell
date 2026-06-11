@@ -804,10 +804,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                                + start_timestamp + ".csv"), index_label="Video Number")
                             del pop_iORG_summary
 
-                        poststim_frms = np.arange(start=stim_dataset.stimtrain_frame_stamps[0], stop=stim_dataset.stimtrain_frame_stamps[2], step=1, dtype=int)
+                        all_poststim_frms = np.arange(start=stim_dataset.stimtrain_frame_stamps[0], stop=stim_dataset.stimtrain_frame_stamps[2], step=1, dtype=int)
 
                         metrics_res = iORG_signal_metrics(stim_pop_iORG_summary[q],finite_iORG_frmstmp,
-                                                          pooled_framerate, poststim_frms, pop_metric_params,
+                                                          pooled_framerate, all_poststim_frms, pop_metric_params,
                                                           the_pool)
 
                         for key, value in metrics_res.items():
@@ -829,11 +829,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             if pop_overlap_params.get(DisplayParams.DISP_ANNOTATIONS, True):
                                 linecolor = plt.gca().findobj(lambda obj: obj.get_label() == query_loc_names[q] and isinstance(obj, Line2D) )[0].get_color()
 
-                                prestim_frms, poststim_frms = _determine_pre_n_post_stim_frms(pop_metric_params, poststim_frms[0],
+                                desired_prestim_frms, desired_poststim_frms = _determine_pre_n_post_stim_frms(pop_metric_params, all_poststim_frms[0],
                                                                                                               stim_dataset.framerate)
                                 # Find the indexes of the framestamps corresponding to the analyzed pre and post stim frames;
-                                prestim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, prestim_frms))
-                                poststim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, prestim_frms))
+                                prestim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, desired_prestim_frms))
+                                poststim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, desired_prestim_frms))
 
                                 for metric, value in metrics_res.items():
                                     match metric:
@@ -853,7 +853,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                         case MetricParams.AMPLITUDE:
                                             prestim_val = np.nanmedian( stim_pop_iORG_summary[q][prestim_idx])
                                             poststim_val = np.nanquantile( stim_pop_iORG_summary[q][poststim_idx],  [0.99]).flatten()
-                                            prestim_start = finite_iORG_frmstmp[prestim_frms[0]]
+                                            prestim_start = finite_iORG_frmstmp[desired_prestim_frms[0]]
 
                                             midline = (prestim_start + (stimtrain[0]-prestim_start)/2) / pooled_framerate
                                             impl_time = (stimtrain[0] / pooled_framerate) + metrics_res.get(MetricParams.AMP_IMPLICIT_TIME)
@@ -946,11 +946,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             stim_iORG_signals[q][:, np.where(~viable_sig), :] = np.nan
 
                             if indiv_drop_extrema:
-                                prestim_frms, poststim_frms = _determine_pre_n_post_stim_frms(pop_metric_params, poststim_frms[0],
+                                desired_prestim_frms, desired_poststim_frms = _determine_pre_n_post_stim_frms(pop_metric_params, all_poststim_frms[0],
                                                                                                               stim_dataset.framerate)
                                 # Find the indexes of the framestamps corresponding to the analyzed pre and post stim frames;
-                                prestim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, prestim_frms))
-                                poststim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, prestim_frms))
+                                prestim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, desired_prestim_frms))
+                                poststim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, desired_prestim_frms))
 
                                 # Try and detect signals that do and do not respond from a given trial.
                                 squared_sigs = np.square(stim_iORG_signals[q][:, :, :])
@@ -1106,8 +1106,12 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 del sigout
                                 gc.collect()
 
+                            all_poststim_frms = np.arange(start=stim_dataset.stimtrain_frame_stamps[0],
+                                                          stop=stim_dataset.stimtrain_frame_stamps[2], step=1,
+                                                          dtype=int)
+
                             metrics_res = iORG_signal_metrics(stim_iORG_summary[q], all_frmstmp,
-                                                              pooled_framerate, poststim_frms, indiv_metric_params, the_pool)
+                                                              pooled_framerate, all_poststim_frms, indiv_metric_params, the_pool)
 
                             with warnings.catch_warnings():
                                 warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")
