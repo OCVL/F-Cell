@@ -169,7 +169,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
-        if ax_params.get(DisplayParams.LEGEND, False) and not disp_rel: plt.legend()
+        if ax_params.get(DisplayParams.LEGEND, False) and not disp_rel:
+            plt.legend()
 
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
@@ -212,7 +213,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
 
-        if ax_params.get(DisplayParams.LEGEND, False): plt.legend(loc="upper left")
+        if ax_params.get(DisplayParams.LEGEND, False):
+            plt.legend(loc="upper left")
 
 
 def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",

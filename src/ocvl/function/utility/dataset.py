@@ -55,7 +55,7 @@ def load_metadata(metadata_params, ext_metadata):
                     if not met_dat.empty:
                         meta_fields[field] = met_dat.to_numpy()
                     if field == MetaTags.FRAMESTAMPS:
-                        meta_fields[field].sort()
+                        meta_fields[field] = np.sort(meta_fields[field])
             elif metatype == "database":
                 pass
             elif metatype == "mat_file":

@@ -738,6 +738,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                         if len(pooled_framerate) != 1:
                             logger.warning("The framerate of the iORGs analyzed in "+folder.name + " is inconsistent: ("+str(pooled_framerate)+"). Pooled results may be incorrect.")
                             pooled_framerate = pooled_framerate[0]
+                        if not np.isscalar(pooled_framerate):
+                            pooled_framerate = pooled_framerate[0]
 
                         stimtrain = np.unique(pd.DataFrame(stimtrain).values.astype(np.int32), axis=0)
                         if stimtrain.shape[0] != 1:
@@ -810,7 +812,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                         all_poststim_frms = np.arange(start=stim_dataset.stimtrain_frame_stamps[0], stop=stim_dataset.stimtrain_frame_stamps[2], step=1, dtype=int)
 
-                        metrics_res = iORG_signal_metrics(stim_pop_iORG_summary[q],finite_iORG_frmstmp,
+                        metrics_res = iORG_signal_metrics(stim_pop_iORG_summary[q], finite_iORG_frmstmp,
                                                           pooled_framerate, all_poststim_frms, pop_metric_params,
                                                           the_pool)
 
