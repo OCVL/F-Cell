@@ -552,11 +552,13 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                                         control_query_status[q].loc[:, cd] = control_query_stat
 
-                                        # Align the framestamps relative to the latest stimulus onset of all acquisitions. Needed in
+                                        # Align the framestamps relative to the earliest onset of all acquisitions. Needed in
                                         # situations where we extract multiple stimuli from one long video. Otherwise, does essentially nothing.
                                         # Do this only once, or we'll keep walking the framestamps to the left as a function of the number of query locations!!!
                                         if q == 0:
-                                            control_data.framestamps = (control_data.framestamps - stim_dataset.stimtrain_frame_stamps[0]) - min_frmstamp_rel_to_stim
+                                            offset = (stim_dataset.stimtrain_frame_stamps[0] + min_frmstamp_rel_to_stim)
+                                            control_data.framestamps -= offset
+                                            control_data.stimtrain_frame_stamps -= offset
 
                                         control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]), axis=0)
                                         control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
@@ -608,11 +610,13 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                             stim_pop_summary = np.full((max_frmstamp + 1,), np.nan)
                             stim_framestamps = np.arange(max_frmstamp + 1)
 
-                            # Align the framestamps relative to the latest stimulus onset of all acquisitions. Needed in
+                            # Align the framestamps relative to the earliest onset of all acquisitions. Needed in
                             # situations where we extract multiple stimuli from one long video. Otherwise, does essentially nothing.
                             # Do this only once, or we'll keep walking the framestamps to the left as a function of the number of query locations!!!
                             if q == 0:
-                                stim_dataset.framestamps = (stim_dataset.framestamps-(stim_dataset.stimtrain_frame_stamps[0]))-min_frmstamp_rel_to_stim
+                                offset = (stim_dataset.stimtrain_frame_stamps[0] + min_frmstamp_rel_to_stim)
+                                stim_dataset.framestamps -= offset
+                                stim_dataset.stimtrain_frame_stamps -= offset
 
                             stim_pop_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q].flatten()
 
