@@ -58,7 +58,7 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
     auto_detect_vals = {} # Automatically detected values
 
     # Round the query locations
-    query_loc = np.round(query_loc.copy())
+    query_loc = np.round(query_loc.copy(), decimals=0).astype(int)
 
     analysis_params = analysis_dat_format.get(Analysis.PARAMS, dict())
 
@@ -191,6 +191,7 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
     iORG_signals, excl_reason, coordinates = extract_signals(dataset.video_data, query_loc.copy(),
                                                 seg_radius=segmentation_radius,
                                                 seg_mask=seg_shape, summary=seg_summary, pool=thread_pool)
+
     # If we're doing xor, then replace the query locs and
     # status and with what we determined in the above step.
     if seg_shape == "xor":
