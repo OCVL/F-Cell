@@ -839,7 +839,7 @@ def _extract_extra_metrics(params: Tuple[int, str, np.ndarray, np.dtype, np.ndar
             amp_implicit_time = desired_poststim_frms[0]
 
 
-        if finite_post_frms.size > 1:
+        if poststim_window_idx.size > 1:
             halfamp_val_interp = Akima1DInterpolator(finite_post_frms, finite_post_data - ((amplitude / 2) + prestim_val),
                                                      method="makima")
             if halfamp_val_interp.roots().size != 0:
