@@ -843,7 +843,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                                                               stim_dataset.framerate)
                                 # Find the indexes of the framestamps corresponding to the analyzed pre and post stim frames;
                                 prestim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, desired_prestim_frms))
-                                poststim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, desired_prestim_frms))
+                                poststim_idx = np.flatnonzero(np.isin(finite_iORG_frmstmp, desired_poststim_frms))
 
                                 for metric, value in metrics_res.items():
                                     match metric:
