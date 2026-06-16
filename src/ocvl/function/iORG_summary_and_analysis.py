@@ -446,7 +446,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     for d, dataset in enumerate(stim_datasets):
                         locs = dataset.query_loc.copy()
                         the_timestamps = dataset.stimtrain_frame_stamps
-                        min_frmstamp_rel_to_stim = np.minimum(min_frmstamp_rel_to_stim, np.amin(dataset.framestamps-(the_timestamps[1]-1)) )
+                        min_frmstamp_rel_to_stim = np.minimum(min_frmstamp_rel_to_stim, np.amin(dataset.framestamps-the_timestamps[0]) )
                         max_frmstamp = np.maximum(max_frmstamp, np.amax(dataset.framestamps))
 
                         if d != 0:
@@ -554,7 +554,9 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                                         # Align the framestamps relative to the latest stimulus onset of all acquisitions. Needed in
                                         # situations where we extract multiple stimuli from one long video. Otherwise, does essentially nothing.
-                                        control_data.framestamps = (control_data.framestamps - (stim_dataset.stimtrain_frame_stamps[1]-1)) - min_frmstamp_rel_to_stim
+                                        # Do this only once, or we'll keep walking the framestamps to the left as a function of the number of query locations!!!
+                                        if q == 0:
+                                            control_data.framestamps = (control_data.framestamps - stim_dataset.stimtrain_frame_stamps[0]) - min_frmstamp_rel_to_stim
 
                                         control_pop_iORG_N[cd, control_data.framestamps] = np.sum(np.isfinite(control_data.iORG_signals[q]), axis=0)
                                         control_iORG_sigs[cd, :, control_data.framestamps] = control_data.iORG_signals[q].T
@@ -608,7 +610,9 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                             # Align the framestamps relative to the latest stimulus onset of all acquisitions. Needed in
                             # situations where we extract multiple stimuli from one long video. Otherwise, does essentially nothing.
-                            stim_dataset.framestamps = (stim_dataset.framestamps-(stim_dataset.stimtrain_frame_stamps[1]-1))-min_frmstamp_rel_to_stim
+                            # Do this only once, or we'll keep walking the framestamps to the left as a function of the number of query locations!!!
+                            if q == 0:
+                                stim_dataset.framestamps = (stim_dataset.framestamps-(stim_dataset.stimtrain_frame_stamps[0]))-min_frmstamp_rel_to_stim
 
                             stim_pop_summary[stim_dataset.framestamps] = stim_dataset.summarized_iORGs[q].flatten()
 
@@ -1374,7 +1378,7 @@ if __name__ == "__main__":
     logger.propagate = False
 
     streamlogger = logging.StreamHandler()
-    streamlogger.setLevel(logging.INFO)
+    streamlogger.setLevel(logging.DEBUG)
     streamlogger.setFormatter(LogFormatter())
 
     filelogger = logging.FileHandler("fcell_analysis_log.txt", mode="w")
@@ -1383,7 +1387,7 @@ if __name__ == "__main__":
 
     logger.addHandler(streamlogger)
     logger.addHandler(filelogger)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     print(Style.BRIGHT + Fore.LIGHTBLUE_EX + "\u222B-Cell Analysis")
     logger.info( "Package Version: " + ocvl.function.__version__)
