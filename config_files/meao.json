@@ -117,14 +117,12 @@
           "method": "rms",
           "control": "subtraction_pop",
           "cutoff": 18,
-          "drop_extrema": [0.25],
           "metrics": {
             "type": [ "aur", "aurd", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
             "measured": "stim-relative",
             "units": "time",
             "prestim": [-1, 0 ],
-            "poststim": [ 0, 1 ],
-            "smoothing_factor": "spline"
+            "poststim": [ 0, 1 ]
           }
         }
       },

@@ -1,7 +1,7 @@
-matplotlib>=3.10.3
-scipy>=1.17.0
+matplotlib>=3.10.7
+scipy>=1.16.0
 numba>=0.6.1
-numpy==2.3.5
+numpy>=2.2.6
 pandas>=3.0
 SimpleITK>=2.1.1
 setuptools>=80.9.0
@@ -25,3 +25,4 @@ traitlets~=5.14.3
 pywin32~=311
 pyinstaller~=6.14.2
 packaging>=26.0
+imageio>=2.37.2
