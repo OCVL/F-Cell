@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -6,9 +8,13 @@ from matplotlib.collections import FillBetweenPolyCollection
 from matplotlib.lines import Line2D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from ocvl.function.utility.json_format_constants import DisplayParams, MetricTags
+from ocvl.function.utility.resources import  save_video, load_video, save_tiff_stack
+from skimage.morphology import disk
 
 
 def _update_plot_colors(data_color):
+
+    logger = logging.getLogger("ORG_Logger")
 
     the_lines = plt.gca().get_lines()
     the_patches = plt.gca().patches
@@ -19,34 +25,39 @@ def _update_plot_colors(data_color):
             # Span all of our patches over this colormap.
             normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_patches), clip=True)
             mapper = plt.cm.ScalarMappable(cmap=data_color, norm=normmap)
-            for l, patch in enumerate(the_patches):
-                if patch.get_label(): # Only do this for labelled patches.
-                    # Get our patches' alphas so that we can respect them
-                    edgealpha = patch.get_edgecolor()[-1]
-                    facealpha = patch.get_facecolor()[-1]
+            if len(the_patches) <= 100:
+                for l, patch in enumerate(the_patches):
+                    if patch.get_label(): # Only do this for labelled patches.
+                        # Get our patches' alphas so that we can respect them
+                        edgealpha = patch.get_edgecolor()[-1]
+                        facealpha = patch.get_facecolor()[-1]
 
-                    patch.set_facecolor(mapper.to_rgba(l)[0:3] + (facealpha,))
-                    patch.set_edgecolor(mapper.to_rgba(l)[0:3] + (edgealpha,))
+                        patch.set_facecolor(mapper.to_rgba(l)[0:3] + (facealpha,))
+                        patch.set_edgecolor(mapper.to_rgba(l)[0:3] + (edgealpha,))
+            else:
+                logger.warning(f"Unable to adjust patch colors. Too many patches! Must be less than 100, had {len(the_patches)}")
 
             # Span all of our lines over this colormap.
             normmap = mpl.colors.Normalize(vmin=0, vmax=len(the_lines), clip=True)
             mapper = plt.cm.ScalarMappable(cmap=data_color, norm=normmap)
-            for l, line in enumerate(the_lines):
-                # Update this line's color in line with how many lines are on the plot.
-                line.set_color(mapper.to_rgba(l))
+            if len(the_lines) <= 100:
+                for l, line in enumerate(the_lines):
+                    # Update this line's color in line with how many lines are on the plot.
+                    line.set_color(mapper.to_rgba(l))
 
-                # Also update everything that is associated with this line, making sure to preserve the alpha.
-                for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label() and obj is not line):
+                    # Also update everything that is associated with this line, making sure to preserve the alpha.
+                    for child in plt.gca().findobj(lambda obj: obj.get_label() == line.get_label() and obj is not line):
 
-                    if child.get_alpha() is None:
-                        alphy = 0.9
-                    else:
-                        alphy = child.get_alpha()
-                    if isinstance(child, Line2D):
-                        child.set_color(mapper.to_rgba(l)[0:3] + (alphy,))
-                    elif isinstance(child, FillBetweenPolyCollection):
-                        child.set_facecolor(mapper.to_rgba(l)[0:3] + (alphy,))
-
+                        if child.get_alpha() is None:
+                            alphy = 0.9
+                        else:
+                            alphy = child.get_alpha()
+                        if isinstance(child, Line2D):
+                            child.set_color(mapper.to_rgba(l)[0:3] + (alphy,))
+                        elif isinstance(child, FillBetweenPolyCollection):
+                            child.set_facecolor(mapper.to_rgba(l)[0:3] + (alphy,))
+            else:
+                logger.warning(f"Unable to adjust line colors. Too many lines! Must be less than 100, had {len(the_lines)}")
 
         # If the color is something included in matplotlib, then set all lines equal to that.
         elif data_color in mpl.colors.CSS4_COLORS or data_color in mpl.colors.BASE_COLORS:
@@ -139,7 +150,7 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if disp_stim:
         dispinds = np.isfinite(stim_pop_summary)
         plt.title(sum_method.upper()+"-summarized iORGs\n(Stimulus acquisitions)")
-        plt.plot(stim_framestamps[dispinds] / framerate, stim_pop_summary[dispinds], label=str(stim_vidnum))
+        plt.plot(stim_framestamps.transpose()/ framerate, stim_pop_summary.transpose(), label=str(stim_vidnum))
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method.upper())
 
@@ -158,7 +169,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
 
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
-        if ax_params.get(DisplayParams.LEGEND, False) and not disp_rel: plt.legend()
+        if ax_params.get(DisplayParams.LEGEND, False) and not disp_rel:
+            plt.legend()
 
     if how_many > 1 and disp_cont:
         plt.subplot(1, how_many, ind)
@@ -166,7 +178,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
     if disp_cont and plt.gca().get_title() != (sum_method.upper()+"-summarized iORGs\n(Control acquisitions)"):  # The last bit ensures we don't spam the subplots with control data.
         plt.title(sum_method.upper()+"-summarized iORGs\n(Control acquisitions)")
         for r in range(control_pop_iORG_summary.shape[0]):
-            plt.plot(control_framestamps[r] / framerate, control_pop_iORG_summary[r, control_framestamps[r]], label=str(control_vidnums[r]))
+            plt.plot(control_framestamps[r] / framerate,
+                     control_pop_iORG_summary[r, control_framestamps[r]], label=str(control_vidnums[r]))
 
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method.upper())
@@ -184,9 +197,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         plt.subplot(1, how_many, ind)
         ind += 1
     if disp_rel:
-        dispinds = np.isfinite(relative_pop_summary)
         plt.title(sum_method.upper()+"-summarized stimulus iORGs relative\nto control via " + sum_control)
-        plt.plot(stim_framestamps[dispinds] / framerate, relative_pop_summary[dispinds],
+        plt.plot(stim_framestamps.transpose() / framerate, relative_pop_summary.transpose(),
                  label=str(stim_vidnum))
         plt.xlabel("Time (s)")
         plt.ylabel(sum_method.upper())
@@ -201,7 +213,8 @@ def display_iORG_pop_summary(stim_framestamps, stim_pop_summary, relative_pop_su
         if not None in xlimits: plt.xlim(xlimits)
         if not None in ylimits: plt.ylim(ylimits)
 
-        if ax_params.get(DisplayParams.LEGEND, False): plt.legend(loc="upper left")
+        if ax_params.get(DisplayParams.LEGEND, False):
+            plt.legend(loc="upper left")
 
 
 def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
@@ -229,8 +242,11 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
 
     #if data_color is None: data_color = ax_params.get(DisplayParams.CMAP, "viridis")
 
+    if data_color is None:
+        data_color = ax_params.get(DisplayParams.CMAP, "viridis")
+
     show_legend = ax_params.get(DisplayParams.LEGEND, False) and \
-                  isinstance(stim_vidnums, list) and isinstance(control_vidnums, list)
+                   isinstance(stim_vidnums, list) and isinstance(control_vidnums, list)
     xlimits = (ax_params.get(DisplayParams.XMIN, None), ax_params.get(DisplayParams.XMAX, None))
     ylimits = (ax_params.get(DisplayParams.YMIN, None), ax_params.get(DisplayParams.YMAX, None))
     linethickness = ax_params.get(DisplayParams.LINEWIDTH, 2.5)
@@ -252,11 +268,28 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         plt.imshow(image, cmap='gray')
         plt.plot(cell_loc[:, 0], cell_loc[:, 1], "*", markersize=6)
 
+    if how_many > 1 and disp_cont:
+        plt.subplot(1, how_many, ind)
+        ind += 1
+    if disp_cont  and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
+        plt.title("Control iORGs")
+        for r in range(control_iORGs.shape[0]):
+            dispinds = np.isfinite(control_iORGs[r])
+            plt.plot(control_framestamps[dispinds] / framerate, control_iORGs[r, dispinds], linewidth=linethickness, label=str(control_vidnums[r]))
+        plt.xlabel("Time (s)")
+        plt.ylabel("A.U.")
+
+        _update_plot_colors(data_color)
+
+        if not None in xlimits: plt.xlim(xlimits)
+        if not None in ylimits: plt.ylim(ylimits)
+        if show_legend: plt.legend()
+
     if how_many > 1 and disp_stim:
         plt.subplot(1, how_many, ind)
         ind += 1
-    if disp_stim:
-        plt.title("Stimulus iORG")
+    if disp_stim and plt.gca().get_title() != "Stimulus iORGs":
+        plt.title("Stimulus iORGs")
         for r in range(stim_iORGs.shape[0]):
             dispinds = np.isfinite(stim_iORGs[r])
             plt.plot(stim_framestamps[dispinds] / framerate, stim_iORGs[r, dispinds], linewidth=linethickness,
@@ -264,8 +297,8 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         plt.xlabel("Time (s)")
         plt.ylabel("A.U.")
 
-        if data_color is not None:
-            _update_plot_colors(data_color)
+        #if data_color is not None:
+        _update_plot_colors(data_color)
 
         if stim_delivery_frms is not None and len(plt.gca().get_lines()) == 1:
             for i in range(1, len(stim_delivery_frms), 2):
@@ -276,22 +309,77 @@ def display_iORGs(stim_framestamps=None, stim_iORGs=None, stim_vidnums="",
         if not None in ylimits: plt.ylim(ylimits)
         if show_legend: plt.legend()
 
-    if how_many > 1 and disp_cont:
-        plt.subplot(1, how_many, ind)
-        ind += 1
-    if disp_cont  and plt.gca().get_title() != "Control iORGs":  # The last bit ensures we don't spam the subplots with control data.
-        plt.title("Control iORGs")
-        for r in range(control_iORGs.shape[0]):
-            dispinds = np.isfinite(stim_iORGs[r])
-            plt.plot(control_framestamps[dispinds] / framerate, control_iORGs[r, dispinds], linewidth=linethickness, label=str(control_vidnums[r]))
-        plt.xlabel("Time (s)")
-        plt.ylabel("A.U.")
 
-        _update_plot_colors(data_color)
+def display_segmentation(res_path, subject_ID, vidnums, data, cell_loc, seg_radius, cone_idx="", stim_flag=""):
+    """
+    # for testing outside of definition
+    from ocvl.function.utility.resources import save_video, load_video, save_tiff_stack
+    from skimage.morphology import disk
+    vidnums = stim_data_vidnums
+    data = stim_datasets
+    seg_radius = auto_detect_vals[SegmentParams.RADIUS]
+    cell_loc = stim_datasets[0].query_loc[q][c, :]
+    subject_ID = subject_IDs[0]
+    stim_flag = 1
+    cone_idx = c
+    i=0
+    """
 
-        if not None in xlimits: plt.xlim(xlimits)
-        if not None in ylimits: plt.ylim(ylimits)
-        if show_legend: plt.legend()
+    if cone_idx == "":
+        cone_idx = "unkn"
+
+    if stim_flag == 1:
+        condition = "stim"
+    elif stim_flag == 0:
+        condition = "cntrl"
+    else:
+        condition = "unkn"
+
+    if cell_loc is not None and len(cell_loc.shape) == 1:
+        cell_loc = cell_loc[None, :]
+
+    # loop through stim vids
+    for i, vid in enumerate(data):
+        current_vid_path = data[i].video_path
+        current_vid_name = vidnums[i]
+        current_vid = load_video(current_vid_path)
+
+        # TODO: handle adding the segmentation display for refine_to_video = true
+        # refine coord?
+            # Only relevant if the json has Segmentation > "refine_to_vid": true
+            # currently set to false so I'll come back to this later -MG
+
+        # extract disk around coord
+        current_coord_x = cell_loc[:, 0]
+        current_coord_y = cell_loc[:, 1]
+
+
+        fullcolumn = current_vid.data[(int(current_coord_y) - seg_radius):(int(current_coord_y) + seg_radius + 1),
+                     (int(current_coord_x) - seg_radius):(int(current_coord_x) + seg_radius + 1), :]
+
+        mask = disk(seg_radius, strict_radius=False, dtype=fullcolumn.dtype)
+
+        mask = np.repeat(mask[:, :, None], fullcolumn.shape[-1], axis=2)
+
+        masked_cone = fullcolumn * mask
+
+        save_tiff_stack(res_path.joinpath(str(subject_ID) + "_vid_" + str(current_vid_name) + "_masked_cone_" +
+                                             str(current_coord_x) + "X_" + str(current_coord_y) + "Y_" + str(cone_idx) +
+                                             "idx_" + condition + ".tif"), masked_cone)
+        del mask, masked_cone, fullcolumn
+        # extract neighbors
+        # in theory the neighbors should be approximately 3x the diameter of the mask
+        # + some padding for the interstitial space
+        seg_diameter = (2 * seg_radius) + 1
+
+        # going to pad further so that the neighborhood doesn't cut off any of the neighboring cones
+        neighbor_column = current_vid.data[(int(current_coord_y) - (4* seg_diameter)):(int(current_coord_y) + (4* seg_diameter) + 1),
+                     (int(current_coord_x) - (4* seg_diameter)):(int(current_coord_x) + (4* seg_diameter) + 1), :]
+
+        save_tiff_stack(res_path.joinpath(str(subject_ID) + "_vid_" + str(current_vid_name) + "_masked_cone_neighborhood" +
+                                             str(current_coord_x) + "X_" + str(current_coord_y) + "Y_" + str(cone_idx) +
+                                             "idx_" + condition + ".tif"), neighbor_column)
+        del neighbor_column
 
 
 def display_iORG_pop_summary_seq(framestamps, pop_summary, vidnum_seq, stim_delivery_frms=None,

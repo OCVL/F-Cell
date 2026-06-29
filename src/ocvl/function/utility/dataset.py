@@ -55,7 +55,7 @@ def load_metadata(metadata_params, ext_metadata):
                     if not met_dat.empty:
                         meta_fields[field] = met_dat.to_numpy()
                     if field == MetaTags.FRAMESTAMPS:
-                        meta_fields[field].sort()
+                        meta_fields[field] = np.sort(meta_fields[field])
             elif metatype == "database":
                 pass
             elif metatype == "mat_file":
@@ -109,7 +109,7 @@ def initialize_and_load_dataset(folder, vidID, prefilter=None, timestamp=None, d
 
     display_params = params.get(DisplayParams.NAME, dict())
     analysis_params = params.get(Analysis.PARAMS, dict())
-    debug_params = display_params.get(DebugParams.NAME, dict())
+    debug_params = params.get(DebugParams.NAME, dict())
     metadata_params = params.get(MetaTags.METATAG, dict())
     seg_params = analysis_params.get(SegmentParams.NAME, dict())
 
@@ -839,7 +839,7 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
         dataset.video_data = norm_video(dataset.video_data, norm_method=norm_method,
                                         rescaled=rescale_norm,
                                         rescale_mean=res_mean, rescale_std=res_stddev)
-        if rescale_norm:
+        if not rescale_norm:
             logger.info(f"Normalized the video using the {norm_method} method, without rescaling.")
         else:
             match norm_method:
@@ -854,7 +854,7 @@ def postprocess_dataset(dataset, analysis_params, result_folder, debug_params):
         result_folder.mkdir(parents=True, exist_ok=True)
         save_tiff_stack(result_folder.joinpath(dataset.video_path.stem + "_" + norm_method + "_norm.tif"),
                         dataset.video_data)
-        logger.info("Output the normalized video to: "+result_folder)
+        logger.info("Output the normalized video to: "+str(result_folder))
 
     return dataset
 

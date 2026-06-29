@@ -1,9 +1,11 @@
 {
   "version": {
-    "type": "freeText"
+    "type": "freeText",
+	"required": true
   },
   "description": {
-    "type": "freeText"
+    "type": "freeText",
+	"required": true
   },
   "raw" : {
 	"video_format": {
@@ -33,17 +35,20 @@
     "image_format": {
       "type": "formatEditor",
       "format_type" : "image",
-      "save": true
+      "save": true,
+	  "required": true
     },
     "video_format": {
       "type": "formatEditor",
       "format_type" : "video",
-      "save": true
+      "save": true,
+	  "required": true
     },
     "mask_format": {
       "type": "formatEditor",
       "format_type" : "mask",
-      "save": true
+      "save": true,
+	  "required": true
     },
     "metadata": {
       "type": {
@@ -60,7 +65,8 @@
       }
     },
     "recursive_search": {
-      "type": "trueFalse"
+      "type": "trueFalse",
+	  "required": true
     },
     "pipeline_params": {
       "gaus_blur": {
@@ -86,7 +92,8 @@
         "dependencies": {
           "needed" : ["image_format", "video_format", "mask_format"],
           "parent" : "preanalysis"
-        }
+        },
+	    "required": true
       },
       "alignment_reference_modality": {
         "type": "comboBox",
@@ -94,7 +101,8 @@
         "dependencies": {
           "needed" : "modalities",
           "parent" : "pipeline_params"
-        }
+        },
+	    "required": true
       },
       "output_folder": {
         "type": "openFolder"
@@ -105,7 +113,8 @@
         "dependencies": {
           "needed" : ["image_format", "video_format", "mask_format"],
           "parent" : "preanalysis"
-        }
+        },
+	    "required": true
       },
       "correct_torsion": {
         "type": "trueFalse"
@@ -136,17 +145,20 @@
     "image_format": {
       "type": "formatEditor",
       "format_type" : "image",
-      "save": true
+      "save": true,
+	  "required": true
     },
     "queryloc_format": {
       "type": "formatEditor",
       "format_type" : "queryloc",
-      "save": true
+      "save": true,
+	  "required": true
     },
     "video_format": {
       "type": "formatEditor",
       "format_type" : "video",
-      "save": true
+      "save": true,
+	  "required": true
     },
     "metadata": {
       "type": {
@@ -166,7 +178,8 @@
       }
     },
     "recursive_search": {
-      "type": "trueFalse"
+      "type": "trueFalse",
+	  "required": true
     },
     "control": {
       "location": {
@@ -183,7 +196,8 @@
         "dependencies": {
           "needed" : ["image_format", "video_format", "queryloc_format"],
           "parent" : "analysis"
-        }
+        },
+	    "required": true
       },
       "output_folder": {
         "type": "openFolder"
