@@ -83,7 +83,7 @@
       "segmentation": {
         "refine_to_ref": true,
         "refine_to_vid": true,
-        "radius": 1,
+        "radius": "auto",
         "shape": "disk",
         "summary": "mean",
         "pixelwise": false
@@ -116,7 +116,7 @@
         "individual": {
           "method": "rms",
           "control": "subtraction_pop",
-          "cutoff": 18,
+          "cutoff": 10,
           "metrics": {
             "type": [ "aur", "aurd", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
             "measured": "stim-relative",
@@ -128,10 +128,10 @@
       },
       "gaus_blur": 0.0,
       "mask_roi": {
-        "r": 90,
-        "c": 90,
-        "width": 280,
-        "height": 280
+        "r": 0,
+        "c": 0,
+        "width": -1,
+        "height": -1
       }
     },
     "debug":{
