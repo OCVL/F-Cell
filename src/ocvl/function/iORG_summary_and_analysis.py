@@ -687,7 +687,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                               stim_dataset.framerate, poststim_frms, pop_metric_params, the_pool)
 
                             for key, value in metrics_res.items():
-                                if key in MetricParams:
+                                if key in MetricParams and key in pop_metric_tag_map:
                                     pop_iORG_result_datframe.loc[stim_vidnum, (query_loc_names[q], pop_metric_tag_map[key])] = value[0]
 
 
@@ -821,7 +821,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                           the_pool)
 
                         for key, value in metrics_res.items():
-                            if key in MetricParams:
+                            if key in MetricParams and key in pop_metric_tag_map:
                                 pop_iORG_result_datframe.loc["Pooled", (query_loc_names[q], pop_metric_tag_map[key])] = value[0]
 
                         ''' *** Display the pooled population data *** '''
@@ -1127,7 +1127,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")
 
                                 for key, value in metrics_res.items():
-                                    if key in MetricParams:
+                                    if key in MetricParams and key in indiv_metric_tag_map:
                                         indiv_iORG_result[q].loc[:, indiv_metric_tag_map[key]] = value
 
 
