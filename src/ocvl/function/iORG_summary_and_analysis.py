@@ -423,9 +423,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     slice_of_life = group_filter & folder_filter & mode_filter
                     stim_datasets = allData.loc[slice_of_life & vidtype_filter & has_stim, AcquisiPaths.DATASET].tolist()
                     control_datasets = allData.loc[group_filter & mode_filter & vidtype_filter & ~has_stim, AcquisiPaths.DATASET].tolist()
-                    stim_data_vidnums = np.sort(allData.loc[slice_of_life & vidtype_filter & has_stim, DataTags.VIDEO_ID].unique()).tolist()
-                    control_data_vidnums = np.sort(allData.loc[group_filter & mode_filter & vidtype_filter & ~has_stim, DataTags.VIDEO_ID].unique()).tolist()
-
+                    stim_data_vidnums = allData.loc[slice_of_life & vidtype_filter & has_stim, DataTags.VIDEO_ID].unique().tolist()
+                    control_data_vidnums = allData.loc[group_filter & mode_filter & vidtype_filter & ~has_stim, DataTags.VIDEO_ID].unique().tolist()
 
                     if not stim_datasets:
                         continue
