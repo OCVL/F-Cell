@@ -644,7 +644,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                          control_framestamps_pooled[q], control_pop_iORG_summary_pooled[q],
                                                          stim_dataset.stimtrain_frame_stamps,
                                                          stim_dataset.framerate, pop_sum_method, pop_sum_control, overlap_label, pop_overlap_params)
-                                plt.show(block=False)
+                                 
 
                             # This shows all summaries in temporal sequence.
                             if pop_seq_params:
@@ -668,7 +668,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                     display_iORG_pop_summary_seq(stim_framestamps, stim_pop_summary, vidnum_seq[v], stim_dataset.stimtrain_frame_stamps,
                                                                  stim_dataset.framerate, pop_sum_method, seq_stim_label,
                                                                  pop_seq_params)
-                                    plt.show(block=False)
+                                     
 
                                 if pop_seq_params.get(DisplayParams.DISP_RELATIVE, True):
                                     seq_rel_label = "Query file " + query_loc_names[q] + "Stimulus relative to control iORG via " + pop_sum_control +" temporal sequence"
@@ -678,7 +678,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                                  stim_dataset.stimtrain_frame_stamps,
                                                                  stim_dataset.framerate, pop_sum_method, seq_rel_label,
                                                                  pop_seq_params)
-                                    plt.show(block=False)
+                                     
 
                             poststim_frms = np.arange(start=stim_dataset.stimtrain_frame_stamps[0], stop=stim_dataset.stimtrain_frame_stamps[2], step=1, dtype=int)
 
@@ -848,9 +848,10 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                     match metric:
                                         case MetricParams.AUR:
                                             aurrange = finite_iORG_frmstmp[poststim_idx] / pooled_framerate
+                                            prestim_val = np.nanmedian(stim_pop_iORG_summary[q][prestim_idx])
 
                                             plt.gca().fill_between(aurrange, stim_pop_iORG_summary[q][poststim_idx],
-                                                                   np.zeros_like(stim_pop_iORG_summary[q][poststim_idx]),
+                                                                   np.full_like(stim_pop_iORG_summary[q][poststim_idx], prestim_val),
                                                                    facecolor=linecolor, alpha=0.5, label=query_loc_names[q])
                                             plt.gca().annotate(f"AUR:\n{value[0]: .2f}",
                                                                (aurrange[0] + (aurrange[-1] - aurrange[0]) / 2.0, np.nanmax(stim_pop_iORG_summary[q][poststim_idx]) / 2.0),
@@ -923,7 +924,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                          sum_method=pop_sum_method, sum_control=pop_sum_control,
                                                          figure_label=group_overlap_label, params=pop_overlap_params)
 
-                            plt.show(block=False)
+                             
 
                             if pop_sum_control !=  "none":
                                 plt.title("Pooled "+ pop_sum_method.upper() +" iORGs relative\nto control iORG via " + pop_sum_control)
@@ -1130,8 +1131,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                         indiv_iORG_result[q].loc[:, indiv_metric_tag_map[key]] = value
 
 
-                            if indiv_overlap_params:
-                                plt.show(block=False)
+                            # if indiv_overlap_params:
+                            #     plt.show(block=False)
                             indiv_respath = result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name + "_" + mode + "_indiv_summary_"+ indiv_sum_method +"_metrics_" + query_loc_names[q] + "coords_" +start_timestamp+".csv")
 
                             if indiv_summary.get(DisplayParams.HISTOGRAM):
@@ -1252,7 +1253,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                     plt.scatter(viable[:, 0], viable[:, 1], s=4, c="c", alpha=0.3)
                                 if nonviable.size >0:
                                     plt.scatter(nonviable[:, 0], nonviable[:, 1], s=4, c="red", alpha=0.3)
-                                plt.show(block=False)
+                                 
 
                         all_query_status[mode][folder][q].sort_index(inplace=True)
                         all_query_status[mode][folder][q].to_csv(result_path.joinpath(str(subject_IDs[0]) +"_"+folder.name +  "_" + mode + "_query_loc_status_" + str(folder.name) +
@@ -1271,10 +1272,11 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                                           message="The result file may be open. Close the file, then try to write again?")
 
                     if display_params.get(DisplayParams.PAUSE_PER_FOLDER, False):
+                        plt.show(block=False)
                         plt.waitforbuttonpress()
 
                     # Save the figures to the result folder, if requested.
-                    plt.show(block=False)
+
                     for fname, figname in folder_display_dict.items():
                         plt.figure(figname)
                         sublayout = plt.gca().get_gridspec()
@@ -1330,8 +1332,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                     runlog = "analysis_runlog_" + start_timestamp + ".txt"
                     shutil.copyfile("fcell_analysis_log.txt", result_path.joinpath(runlog))
 
-        # Save the group-comparison figures to the result folder, if requested.
-        plt.show(block=False)
+        # # Save the group-comparison figures to the result folder, if requested.
+        # plt.show(block=False)
 
         for fname, figname in group_display_dict.items():
             plt.figure(figname)
