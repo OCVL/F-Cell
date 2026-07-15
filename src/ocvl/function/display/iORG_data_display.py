@@ -472,7 +472,7 @@ def display_iORG_summary_histogram(iORG_result=pd.DataFrame(), metrics=None, cum
             #         patch.set_color(mapper.to_rgba(l))
 
             if ax_params.get(DisplayParams.LEGEND, False): plt.legend()
-            plt.show(block=False)
+
 
 def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", figure_label="", params=None):
 
@@ -514,5 +514,5 @@ def display_iORG_summary_overlay(values, coordinates, image, colorbar_label="", 
     divider=make_axes_locatable(ax)
     cax=divider.append_axes("right",size="5%", pad=0.1)
     plt.colorbar(mapper, cax=cax, label=colorbar_label)
-    plt.show(block=False)
+
 

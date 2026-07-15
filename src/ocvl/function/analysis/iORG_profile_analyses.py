@@ -805,7 +805,7 @@ def _extract_extra_metrics(params: Tuple[int, str, np.ndarray, np.dtype, np.ndar
             finite_window_frms = finite_window_frms[poststim_window_idx]
 
             if valid_auc:
-                auc = np.trapezoid(finite_window_data-finite_window_data[0], x=finite_window_frms / framerate)
+                auc = np.trapezoid(finite_window_data-prestim_val, x=finite_window_frms / framerate)
 
                 grad_profiles = np.abs(np.gradient(finite_window_data, finite_window_frms / framerate))
                 aurd = np.trapezoid(grad_profiles, x=finite_window_frms / framerate)
