@@ -239,7 +239,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
             output_dt_subfolder = PurePath(start_timestamp)
 
 
-    with (mp.Pool(processes=mp.cpu_count() // 2) as the_pool):
+    with (mp.Pool(processes=mp.cpu_count() // 3) as the_pool):
         # First break things down by group, defined by the user in the config file.
         # We like to use (LocX,LocY), but this is by no means the only way.
         group_display_dict = {}  # A dictionary to store our figure labels and associated filenames for easy saving later- used for cross group figures.
@@ -532,9 +532,9 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                                 # After we've processed all the control data with the parameters of the stimulus data, combine it
                                 for q in range(len(stim_dataset.query_loc)):
-                                    control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                    control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), np.nan)
-                                    control_iORG_sigs = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan)
+                                    control_pop_iORG_summaries = np.full((len(control_datasets), max_frmstamp + 1), np.nan, dtype=np.float32)
+                                    control_pop_iORG_N = np.full((len(control_datasets), max_frmstamp + 1), 0, dtype=np.int32)
+                                    control_iORG_sigs = np.full((len(control_datasets), stim_dataset.query_loc[q].shape[0], max_frmstamp + 1), np.nan, dtype=np.float32)
 
                                     for cd, control_data in enumerate(control_datasets):
 
@@ -606,7 +606,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 warnings.filterwarnings(action="ignore", message="indexing past lexsort depth may impact performance.")
                                 all_query_status[mode][folder][q].loc[:, stim_vidnum] = stim_dataset.query_status[q]
 
-                            stim_pop_summary = np.full((max_frmstamp + 1,), np.nan)
+                            stim_pop_summary = np.full((max_frmstamp + 1,), np.nan, dtype=np.float32)
                             stim_framestamps = np.arange(max_frmstamp + 1)
 
                             # Align the framestamps relative to the earliest onset of all acquisitions. Needed in
@@ -696,8 +696,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
                         indiv_iORG_result[q] = pd.DataFrame(index=all_query_status[mode][folder][q].index, columns=list(indiv_metric_tag_map.values()))
 
-                        stim_pop_iORG_summaries = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
-                        stim_pop_iORG_N = np.full((len(stim_datasets), max_frmstamp + 1), np.nan)
+                        stim_pop_iORG_summaries = np.full((len(stim_datasets), max_frmstamp + 1), np.nan, dtype=np.float32)
+                        stim_pop_iORG_N = np.full((len(stim_datasets), max_frmstamp + 1), 0, dtype=np.uint32)
                         stimtrain = [None] * len(stim_datasets)
 
                         pooled_framerate = np.full((len(stim_datasets),), np.nan)
@@ -705,8 +705,8 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
 
 
                         if uniform_datasets:
-                            stim_iORG_signals[q] = np.full((len(stim_datasets), stim_datasets[0].query_loc[q].shape[0], max_frmstamp + 1), np.nan)
-                            stim_iORG_summary[q] = np.full((stim_datasets[0].query_loc[q].shape[0], max_frmstamp + 1), np.nan)
+                            stim_iORG_signals[q] = np.full((len(stim_datasets), stim_datasets[0].query_loc[q].shape[0], max_frmstamp + 1), np.nan, dtype=np.float32)
+                            stim_iORG_summary[q] = np.full((stim_datasets[0].query_loc[q].shape[0], max_frmstamp + 1), np.nan, dtype=np.float32)
 
                         for d, stim_dataset in enumerate(stim_datasets):
                             pooled_framerate[d] = stim_dataset.framerate
@@ -1192,7 +1192,7 @@ def iORG_summary_and_analysis(analysis_path = None, config_path = Path()):
                                 ax_params = indiv_summary.get(DisplayParams.AXES, dict())
 
 
-                                starting = ax_params.get(DisplayParams.CMIN, np.nanpercentile(stim_iORG_summary[q].flatten(), 2.5))
+                                starting = ax_params.get(DisplayParams.CMIN, np.nanpercentile(stim_iORG_summary[q].flatten(), 1))
                                 stopping = ax_params.get(DisplayParams.CMAX, np.nanpercentile(stim_iORG_summary[q].flatten(), 99))
 
 

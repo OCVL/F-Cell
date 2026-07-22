@@ -115,7 +115,7 @@ def summarize_iORG_signals(temporal_signals: np.ndarray, framestamps: np.ndarray
         elif summary_method == "rms":
 
             if window_radius == 0:
-                summary = np.nanmean(np.square(temporal_data), axis=0)  # Average second
+                summary = np.nanmean(temporal_data**2, axis=0)  # Average second
                 summary = np.sqrt(summary)  # Sqrt last
                 num_incl = np.sum(np.isfinite(temporal_data), axis=0)
             elif window_size < (num_samples / 2):

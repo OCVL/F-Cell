@@ -44,7 +44,7 @@ if __name__ == "__main__":
     coordlist = pd.read_csv(targ_coords_fName, header=None, encoding="utf-8-sig").to_numpy()
 
     # @TODO THIS IS TEMPORARY
-    ref_im = ref_im[16:, :]
+    #ref_im = ref_im[16:, :]
 
     im_stk = np.dstack((ref_im, tar_im))
 
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     ref_fName = Path(ref_fName)
     targ_coords_fName = Path(targ_coords_fName)
 
-    xformed_coords[:,1] += 16
+    #xformed_coords[:,1] += 16
 
     np.savetxt(targ_coords_fName.with_stem(targ_coords_fName.stem + "_trimmed"), coordlist[goodcoords,:], fmt="%.3f", delimiter=",")
     np.savetxt(ref_fName.with_name( ref_fName.stem+"_coords").with_suffix(".csv"), xformed_coords[goodcoords, :], fmt="%.3f", delimiter=",")

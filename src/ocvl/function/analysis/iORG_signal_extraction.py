@@ -238,7 +238,7 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
     crit_region = np.arange(excl_start_ind, excl_stop_ind)
 
 
-    iORG_signals, valid, excl_reason = exclude_signals(iORG_signals.copy(), dataset.framestamps,
+    iORG_signals, valid, excl_reason = exclude_signals(iORG_signals, dataset.framestamps,
                                                        critical_region=crit_region,
                                                        critical_fraction=excl_cutoff_fraction)
 
@@ -261,7 +261,7 @@ def extract_n_refine_iorg_signals(dataset: Dataset, analysis_dat_format: dict, q
 
     std_ind = np.arange(std_start_ind, std_stop_ind)
 
-    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals.copy(), dataset.framestamps, std_indices=std_ind,
+    iORG_signals, valid, excl_reason = standardize_signals(iORG_signals, dataset.framestamps, std_indices=std_ind,
                                                            critical_fraction=std_cutoff_fraction,
                                                            method=std_meth, pool=thread_pool)
 
