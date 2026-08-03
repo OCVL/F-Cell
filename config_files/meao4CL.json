@@ -72,8 +72,8 @@
       "output_subfolder": true,
       "output_subfolder_method": "DateTime",
       "output_indiv_stdize_orgs": false,
-      "output_sum_pop_orgs": false,
-      "output_sum_indiv_orgs": false,
+      "output_sum_pop_orgs": true,
+      "output_sum_indiv_orgs": true,
       "flat_field": true,
       "normalization": {
         "method": "score",
@@ -116,8 +116,8 @@
         },
         "individual": {
           "method": "rms",
-          "control": "subtraction_pop",
-          "cutoff": 10,
+          "control": "subtraction_indiv",
+          "cutoff": 4,
           "metrics": {
             "type": [ "aur", "aurd", "amp", "logamp", "amp_imp_time", "halfamp_imp_time" ],
             "measured": "stim-relative",
