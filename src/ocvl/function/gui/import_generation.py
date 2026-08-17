@@ -484,7 +484,7 @@ WIDGET_FACTORY = {
                                          options=["mean_stddev", "stddev", "linear_stddev",
                                                   "linear_vast", "relative_change", "none"]),
     "summaryMethodComboBox":         lambda config=None: DropdownMenu(default="null", options=["rms", "stddev", "var", "avg"]),
-    "controlComboBox":               lambda config=None: DropdownMenu(default="null", options=["none", "subtraction", "division"]),
+    "controlComboBox":               lambda config=None: DropdownMenu(default="null", options=["none", "subtraction_pop", "division_pop", "subtraction_indiv", "division_indiv"]),
     "listEditor":                    lambda config=None: ListEditorWidget(),
     "openFolder":                    lambda config=None: OpenFolder(),
     "formatEditor":                  lambda key, spec=None: _create_format_editor(key, spec or {}),
