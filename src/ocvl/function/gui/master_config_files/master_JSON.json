@@ -283,31 +283,58 @@
         }
       },
       "summary": {
-        "method": {
-          "type": "summaryMethodComboBox"
-        },
-        "control": {
-          "type": "controlComboBox"
-        },
-        "metrics": {
-          "type": {
-            "type": "listEditor"
+        "population": {
+          "method": {
+            "type": "summaryMethodComboBox"
           },
-          "measured": {
-            "type": "freeText"
+          "control": {
+            "type": "controlComboBox"
           },
-          "units": {
-            "type": "freeText"
-          },
-          "prestim": {
+          "metrics": {
+            "type": {
+              "type": "listEditor"
+            },
+            "measured": {
+              "type": "freeText"
+            },
+            "units": {
+              "type": "freeText"
+            },
+            "prestim": {
             "type": "rangeSelector"
-          },
-          "poststim": {
+            },
+            "poststim": {
             "type": "rangeSelector"
+            }
           }
         },
-        "indiv_cutoff": {
-          "type": "freeInt"
+        "individual": {
+          "method": {
+            "type": "summaryMethodComboBox"
+          },
+          "control": {
+            "type": "controlComboBox"
+          },
+          "cutoff": {
+            "type" : "freeInt"
+          },
+          "metrics": {
+            "type": {
+              "type": "listEditor"
+            },
+            "measured": {
+              "type": "freeText"
+            },
+            "units": {
+              "type": "freeText"
+            },
+            "prestim": {
+            "type": "rangeSelector"
+            },
+            "poststim": {
+            "type": "rangeSelector"
+            }
+          }
         }
       },
       "gaus_blur": {
